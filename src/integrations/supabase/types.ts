@@ -189,10 +189,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "contest_entries_instance_id_fkey"
-            columns: ["instance_id"]
+            foreignKeyName: "contest_entries_pool_id_fkey"
+            columns: ["pool_id"]
             isOneToOne: false
-            referencedRelation: "contest_instances"
+            referencedRelation: "contest_pools"
             referencedColumns: ["id"]
           },
         ]
