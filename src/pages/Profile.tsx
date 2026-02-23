@@ -418,22 +418,6 @@ const Profile = () => {
                     <span className="text-muted-foreground">Total Winnings</span>
                     <span className="font-semibold text-success">${profileData.stats.totalWinnings.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Net Profit</span>
-                    <span className={`font-semibold ${profileData.stats.netProfit >= 0 ? 'text-success' : 'text-destructive'}`}>
-                      ${profileData.stats.netProfit.toFixed(2)}
-                    </span>
-                  </div>
-                  {profileData.stats.bestFinish && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Best Finish</span>
-                      <span className="font-semibold">#{profileData.stats.bestFinish}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Recent Form</span>
-                    <span className="font-mono text-sm">{profileData.stats.recentForm}</span>
-                  </div>
                 </CardContent>
               </Card>
             </div>
