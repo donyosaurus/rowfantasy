@@ -131,10 +131,10 @@ export async function scoreContestPool(
 
   console.log("[scoring-logic] Scoring", entries.length, "entries");
 
-  // Build crew → result lookup
+  // Fix 2: Build crew → result lookup with string-coerced keys
   const resultMap = new Map<string, RaceResult>();
   for (const r of results) {
-    resultMap.set(r.crewId, r);
+    resultMap.set(String(r.crewId), r);
   }
 
   const scores: EntryScore[] = [];
@@ -143,16 +143,22 @@ export async function scoreContestPool(
     let picks: EntryPick[] = [];
 
     try {
+      // Fix 1: Handle both flat array and nested { crews: [...] } formats
+      let rawPicks: any[] = [];
       if (Array.isArray(entry.picks)) {
-        picks = entry.picks.map((p: any) => {
-          if (typeof p === "string") return { crewId: p, predictedMargin: 0 };
-          return {
-            crewId: p.crewId,
-            event_id: p.event_id,
-            predictedMargin: p.predictedMargin ?? 0,
-          };
-        });
+        rawPicks = entry.picks;
+      } else if (entry.picks && typeof entry.picks === 'object' && Array.isArray((entry.picks as any).crews)) {
+        rawPicks = (entry.picks as any).crews;
       }
+
+      picks = rawPicks.map((p: any) => {
+        if (typeof p === "string") return { crewId: p, predictedMargin: 0 };
+        return {
+          crewId: String(p.crewId || p.crew_id || p.id || ''),
+          event_id: p.event_id,
+          predictedMargin: p.predictedMargin ?? p.predicted_margin ?? 0,
+        };
+      });
     } catch (e) {
       console.error("[scoring-logic] Failed to parse picks for entry:", entry.id, e);
       continue;
@@ -163,7 +169,7 @@ export async function scoreContestPool(
     const crewScores: CrewScore[] = [];
 
     for (const pick of picks) {
-      const result = resultMap.get(pick.crewId);
+      const result = resultMap.get(String(pick.crewId));
 
       if (result) {
         const finishPoints = getFinishPoints(result.finishOrder);
@@ -207,11 +213,38 @@ export async function scoreContestPool(
     });
   }
 
+  // Fix 5: All-zero detection
+  const allZero = scores.every((s) => s.total_points === 0);
+  if (allZero && scores.length > 0) {
+    console.warn("[scoring-logic] WARNING: All entries scored 0 points — picks likely did not match any results. Pool:", contestPoolId);
+  }
+
   // Sort: highest points first; tiebreak on lowest margin error
   scores.sort((a, b) => {
     if (a.total_points !== b.total_points) return b.total_points - a.total_points;
     return a.margin_error - b.margin_error;
   });
+
+  // Fix 4: H2H tie resolution — if still tied, use entry creation time
+  const isH2H = pool.max_entries <= 2;
+  if (isH2H && scores.length === 2) {
+    const a = scores[0];
+    const b = scores[1];
+    if (a.total_points === b.total_points && a.margin_error === b.margin_error) {
+      // Find entries to compare created_at
+      const entryA = entries.find((e: any) => e.id === a.entry_id);
+      const entryB = entries.find((e: any) => e.id === b.entry_id);
+      if (entryA && entryB) {
+        const timeA = new Date(entryA.created_at).getTime();
+        const timeB = new Date(entryB.created_at).getTime();
+        if (timeB < timeA) {
+          // B entered first, swap so B is rank 1
+          [scores[0], scores[1]] = [scores[1], scores[0]];
+        }
+        console.log("[scoring-logic] H2H tie resolved by entry creation time");
+      }
+    }
+  }
 
   // Assign ranks
   let currentRank = 1;
@@ -235,11 +268,24 @@ export async function scoreContestPool(
 
   // Payouts from pool's payout_structure (values already in cents)
   const prizePoolCents = pool.prize_pool_cents || 0;
-  const payoutStructure: Record<number, number> = pool.payout_structure || { 1: prizePoolCents };
+  let payoutStructure: Record<number, number> = pool.payout_structure || { 1: prizePoolCents };
+
+  // Fix 3: H2H forced winner-takes-all
+  if (isH2H) {
+    payoutStructure = { 1: prizePoolCents };
+  }
 
   for (const score of scores) {
     score.payout_cents = payoutStructure[score.rank!] || 0;
     score.is_winner = score.rank === 1;
+  }
+
+  // H2H: ensure only rank 1 gets paid
+  if (isH2H) {
+    for (const score of scores) {
+      score.payout_cents = score.rank === 1 ? prizePoolCents : 0;
+      score.is_winner = score.rank === 1;
+    }
   }
 
   // Upsert scores — write BOTH pool_id and instance_id
