@@ -181,7 +181,15 @@ async function settlePool(supabaseAdmin: any, contestPoolId: string): Promise<{ 
   if (!scores || scores.length === 0) return { winners: 0, detail: "no scores found" };
 
   const prizePoolCents = pool.prize_pool_cents || 0;
-  const payoutStructure: Record<string, number> = pool.payout_structure || { "1": prizePoolCents };
+  let payoutStructure: Record<string, number> = pool.payout_structure || { "1": prizePoolCents };
+
+  // Fix 6: H2H forced winner-takes-all in settlement
+  const isH2H = pool.max_entries <= 2;
+  if (isH2H) {
+    payoutStructure = { "1": prizePoolCents };
+    console.log("[settlePool] H2H pool detected — forcing winner-takes-all");
+  }
+
   console.log("[settlePool] Prize pool cents:", prizePoolCents, "Payout structure:", JSON.stringify(payoutStructure));
 
   const winners: { userId: string; entryId: string; rank: number; payoutCents: number }[] = [];
