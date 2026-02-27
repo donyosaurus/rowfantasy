@@ -119,10 +119,10 @@ const Lobby = () => {
         };
       });
 
-      // Group by unique event (regattaName + genderCategory + entryFee)
+      // Group by contest_template_id so overflow pools don't create duplicate cards
       const grouped = mapped.reduce(
         (acc, contest) => {
-          const key = `${contest.regattaName}|${contest.genderCategory}|${contest.entryFeeCents}`;
+          const key = contest.contestTemplateId;
           if (!acc[key]) acc[key] = [];
           acc[key].push(contest);
           return acc;
