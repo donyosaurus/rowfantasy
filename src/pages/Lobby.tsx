@@ -101,6 +101,7 @@ const Lobby = () => {
 
         return {
           id: pool.id,
+          contestTemplateId: pool.contest_template_id,
           regattaName,
           genderCategory,
           lockTime,
