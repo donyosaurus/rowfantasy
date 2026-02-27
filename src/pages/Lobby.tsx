@@ -86,7 +86,7 @@ const Lobby = () => {
       const userEntriesPromise = user
         ? supabase
             .from("contest_entries")
-            .select("pool_id, contest_template_id")
+            .select("pool_id")
             .eq("user_id", user.id)
             .in("status", ["active", "confirmed", "scored"])
         : Promise.resolve({ data: null, error: null });
