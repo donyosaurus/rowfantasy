@@ -5,12 +5,22 @@ import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { 
   scoreContestPool, 
   calculateOfficialMargin,
+  parseRaceTime,
   type RaceResult 
 } from '../shared/scoring-logic.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+// Define crew type for type safety
+type PoolCrew = {
+  crew_id: string;
+  event_id: string;
+  crew_name: string;
+  manual_finish_order: number | null;
+  manual_result_time: string | null;
 };
 
 // Score a single pool - extracted for batch processing
@@ -25,12 +35,12 @@ async function scoreSinglePool(
   resultsCount?: number;
   entriesScored?: number;
   winnerId?: string;
+  isTieRefund?: boolean;
   skipped?: boolean;
   skipReason?: string;
   error?: string;
 }> {
   try {
-    // Check pool status for idempotency
     const { data: pool, error: poolError } = await supabaseAdmin
       .from('contest_pools')
       .select('status')
@@ -41,28 +51,16 @@ async function scoreSinglePool(
       return { success: false, poolId: contestPoolId, error: 'Pool not found' };
     }
 
-    // Idempotency: skip if already completed (unless force)
     if (pool.status === 'scoring_completed' && !forceRescore) {
-      return {
-        success: true,
-        poolId: contestPoolId,
-        skipped: true,
-        skipReason: 'Already scored',
-      };
+      return { success: true, poolId: contestPoolId, skipped: true, skipReason: 'Already scored' };
     }
 
-    // Validate pool is ready for scoring
     const validScoringStatuses = ['results_entered', 'locked', 'settling'];
     if (!validScoringStatuses.includes(pool.status) && !forceRescore) {
-      return {
-        success: true,
-        poolId: contestPoolId,
-        skipped: true,
-        skipReason: `Status '${pool.status}' not ready for scoring`,
-      };
+      return { success: true, poolId: contestPoolId, skipped: true, skipReason: `Status '${pool.status}' not ready` };
     }
 
-    // Fetch crew results from contest_pool_crews
+    // Fetch crew results
     const { data: crews, error: crewsError } = await supabaseAdmin
       .from('contest_pool_crews')
       .select('crew_id, event_id, crew_name, manual_finish_order, manual_result_time')
@@ -72,57 +70,41 @@ async function scoreSinglePool(
       return { success: false, poolId: contestPoolId, error: 'No crew results found' };
     }
 
-    // Define crew type for type safety
-    type PoolCrew = {
-      crew_id: string;
-      event_id: string;
-      crew_name: string;
-      manual_finish_order: number | null;
-      manual_result_time: string | null;
-    };
-
     // Group crews by event_id
     const eventGroups = new Map<string, PoolCrew[]>();
     for (const crew of crews as PoolCrew[]) {
       const eventId = crew.event_id;
-      if (!eventGroups.has(eventId)) {
-        eventGroups.set(eventId, []);
-      }
+      if (!eventGroups.has(eventId)) eventGroups.set(eventId, []);
       eventGroups.get(eventId)!.push(crew);
     }
 
-    // Calculate race results with margins per event
+    // Build race results with per-crew actual margins
     const results: RaceResult[] = [];
 
     for (const [eventId, eventCrews] of eventGroups) {
-      // Sort by finish order within this event
       const sorted = eventCrews
         .filter(c => c.manual_finish_order !== null)
         .sort((a, b) => (a.manual_finish_order || 0) - (b.manual_finish_order || 0));
 
       if (sorted.length === 0) continue;
 
-      // Calculate official margin for this event
+      // Calculate the event's official margin (time gap between 1st and 2nd)
       const officialMargin = calculateOfficialMargin(sorted);
 
-      // Create result entries for each crew in this event
+      // For each crew in this event, pass the event's margin
+      // The scoring logic will apply sign based on finish order
       for (const crew of sorted) {
-        const result: RaceResult = {
+        results.push({
           crewId: crew.crew_id,
           eventId: eventId,
           finishOrder: crew.manual_finish_order!,
-        };
-
-        // Only 1st place gets the actualMargin for margin bonus calculation
-        if (crew.manual_finish_order === 1) {
-          result.actualMargin = officialMargin;
-        }
-
-        results.push(result);
+          actualMargin: officialMargin, // always positive; sign applied in scoring-logic
+        });
       }
     }
 
-    // Execute scoring using TypeScript logic
+    console.log('[scoring] Built', results.length, 'results across', eventGroups.size, 'events for pool', contestPoolId);
+
     const scoringResult = await scoreContestPool(supabaseAdmin, contestPoolId, results);
 
     return {
@@ -132,6 +114,7 @@ async function scoreSinglePool(
       resultsCount: results.length,
       entriesScored: scoringResult.entriesScored,
       winnerId: scoringResult.winnerId,
+      isTieRefund: scoringResult.isTieRefund,
     };
   } catch (error: any) {
     console.error('[scoring] Error scoring pool', contestPoolId, error);
@@ -149,51 +132,37 @@ Deno.serve(async (req) => {
     const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
     const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    // Initialize client with user's auth
     const supabase = createClient(SUPABASE_URL, ANON_KEY, {
-      global: {
-        headers: { Authorization: req.headers.get('Authorization')! },
-      },
+      global: { headers: { Authorization: req.headers.get('Authorization')! } },
     });
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // SECURITY: Check if user is admin
     const { data: roleData } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('role', 'admin')
-      .single();
+      .from('user_roles').select('role').eq('user_id', user.id).eq('role', 'admin').single();
 
     if (!roleData) {
-      return new Response(
-        JSON.stringify({ error: 'Admin access required' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Admin access required' }), {
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // Validate input
-    const scoreSchema = z.object({
+    const body = z.object({
       contestPoolId: z.string().uuid(),
       forceRescore: z.boolean().optional().default(false),
-    });
+    }).parse(await req.json());
 
-    const body = scoreSchema.parse(await req.json());
     const { contestPoolId, forceRescore } = body;
-
     console.log('[scoring] Admin', user.id, 'scoring pool:', contestPoolId);
 
-    // Create service client ONLY after admin verification
     const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    // Fetch the requested pool to get template and tier info
+    // Fetch requested pool
     const { data: requestedPool, error: requestedPoolError } = await supabaseAdmin
       .from('contest_pools')
       .select('contest_template_id, tier_id, status')
@@ -201,28 +170,24 @@ Deno.serve(async (req) => {
       .single();
 
     if (requestedPoolError || !requestedPool) {
-      return new Response(
-        JSON.stringify({ error: 'Contest pool not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Contest pool not found' }), {
+        status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // Find ALL sibling pools (same template) for batch processing — ignore tier_id
+    // Find ALL sibling pools
     const { data: siblingPools, error: siblingsError } = await supabaseAdmin
       .from('contest_pools')
       .select('id, status')
       .eq('contest_template_id', requestedPool.contest_template_id);
 
     if (siblingsError) {
-      console.error('[scoring] Error fetching sibling pools:', siblingsError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to fetch sibling pools' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Failed to fetch sibling pools' }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // Copy crew results from the requested pool to any sibling that is missing them
-    // (admin only enters results on one pool; siblings need them too)
+    // Copy crew results to siblings missing them
     const { data: sourceCrews } = await supabaseAdmin
       .from('contest_pool_crews')
       .select('crew_id, event_id, crew_name, manual_finish_order, manual_result_time')
@@ -232,31 +197,23 @@ Deno.serve(async (req) => {
       const hasResults = sourceCrews.some((c: any) => c.manual_finish_order !== null);
       if (hasResults) {
         for (const sib of siblingPools || []) {
-          if (sib.id === contestPoolId) continue; // skip source pool
-          // Check if this sibling already has results
+          if (sib.id === contestPoolId) continue;
           const { data: sibCrews } = await supabaseAdmin
             .from('contest_pool_crews')
             .select('crew_id, manual_finish_order')
             .eq('contest_pool_id', sib.id);
           const sibHasResults = sibCrews?.some((c: any) => c.manual_finish_order !== null);
           if (!sibHasResults && sibCrews && sibCrews.length > 0) {
-            console.log('[scoring] Copying results from', contestPoolId, 'to sibling', sib.id);
+            console.log('[scoring] Copying results to sibling', sib.id);
             for (const src of sourceCrews) {
               await supabaseAdmin
                 .from('contest_pool_crews')
-                .update({
-                  manual_finish_order: src.manual_finish_order,
-                  manual_result_time: src.manual_result_time,
-                })
+                .update({ manual_finish_order: src.manual_finish_order, manual_result_time: src.manual_result_time })
                 .eq('contest_pool_id', sib.id)
                 .eq('crew_id', src.crew_id);
             }
-            // Also set sibling status to results_entered so it's scorable
             if (sib.status === 'locked' || sib.status === 'open') {
-              await supabaseAdmin
-                .from('contest_pools')
-                .update({ status: 'results_entered' })
-                .eq('id', sib.id);
+              await supabaseAdmin.from('contest_pools').update({ status: 'results_entered' }).eq('id', sib.id);
               sib.status = 'results_entered';
             }
           }
@@ -264,15 +221,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log('[scoring] Found', siblingPools?.length, 'sibling pools total');
-
     // Filter to scorable pools
     const scorableStatuses = ['results_entered', 'locked', 'settling', 'scoring_completed'];
     const poolsToScore = siblingPools?.filter(p => scorableStatuses.includes(p.status)) || [];
 
     console.log('[scoring] Scorable pools:', poolsToScore.length);
 
-    // Batch score all sibling pools
     const scoringResults = [];
     let totalEntriesScored = 0;
     let poolsSuccessfullyScored = 0;
@@ -281,7 +235,6 @@ Deno.serve(async (req) => {
     for (const pool of poolsToScore) {
       const result = await scoreSinglePool(supabaseAdmin, pool.id, forceRescore);
       scoringResults.push(result);
-
       if (result.success && !result.skipped) {
         poolsSuccessfullyScored++;
         totalEntriesScored += result.entriesScored || 0;
@@ -290,7 +243,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Log admin action to compliance
     await supabaseAdmin.from('compliance_audit_logs').insert({
       admin_id: user.id,
       event_type: 'batch_pool_scoring',
@@ -299,8 +251,6 @@ Deno.serve(async (req) => {
       metadata: {
         requested_pool_id: contestPoolId,
         contest_template_id: requestedPool.contest_template_id,
-        tier_id: requestedPool.tier_id,
-        pools_found: poolsToScore.length,
         pools_scored: poolsSuccessfullyScored,
         pools_skipped: poolsSkipped,
         total_entries_scored: totalEntriesScored,
@@ -309,31 +259,24 @@ Deno.serve(async (req) => {
       },
     });
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        poolsScored: poolsSuccessfullyScored,
-        poolsSkipped,
-        totalEntriesScored,
-        message: `Batch scoring completed: ${poolsSuccessfullyScored} pool(s) scored, ${poolsSkipped} skipped`,
-        details: scoringResults,
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({
+      success: true,
+      poolsScored: poolsSuccessfullyScored,
+      poolsSkipped,
+      totalEntriesScored,
+      message: `Batch scoring completed: ${poolsSuccessfullyScored} pool(s) scored, ${poolsSkipped} skipped`,
+      details: scoringResults,
+    }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error: any) {
     console.error('[scoring] Error:', error);
-    
     if (error instanceof z.ZodError) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid input', details: error.flatten() }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Invalid input', details: error.flatten() }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
-
-    return new Response(
-      JSON.stringify({ error: error.message || 'An error occurred' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: error.message || 'An error occurred' }), {
+      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 });

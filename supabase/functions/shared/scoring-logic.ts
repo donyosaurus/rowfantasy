@@ -17,14 +17,15 @@ export function getFinishPoints(position: number): number {
 }
 
 /**
- * Parse race time string "MM:SS.ms" into total seconds (float)
+ * Parse race time string "MM:SS.ms" or "MM:SS" into total seconds (float)
  */
 export function parseRaceTime(timeStr: string): number {
   if (!timeStr || typeof timeStr !== "string") return 0;
   const match = timeStr.match(/^(\d+):(\d+)(?:\.(\d+))?$/);
   if (!match) {
-    console.warn("[parseRaceTime] Invalid time format:", timeStr);
-    return 0;
+    // Try plain number (seconds only)
+    const num = parseFloat(timeStr);
+    return isNaN(num) ? 0 : num;
   }
   const minutes = parseInt(match[1], 10);
   const seconds = parseInt(match[2], 10);
@@ -33,7 +34,8 @@ export function parseRaceTime(timeStr: string): number {
 }
 
 /**
- * Calculate official margin between 1st and 2nd place crews in an event
+ * Calculate the margin (in seconds) between 1st and 2nd place in an event.
+ * Returns the positive time gap.
  */
 export function calculateOfficialMargin(
   crews: Array<{
@@ -59,7 +61,7 @@ export interface RaceResult {
   crewId: string;
   eventId: string;
   finishOrder: number;
-  actualMargin?: number; // only set for 1st place finishers
+  actualMargin?: number; // time gap to 1st in this event (always positive)
 }
 
 interface EntryPick {
@@ -77,6 +79,7 @@ interface EntryScore {
   payout_cents?: number;
   is_tiebreak_resolved?: boolean;
   is_winner?: boolean;
+  is_tie_refund?: boolean;
   crew_scores: CrewScore[];
 }
 
@@ -99,7 +102,7 @@ export async function scoreContestPool(
   supabase: any,
   contestPoolId: string,
   results: RaceResult[],
-): Promise<{ entriesScored: number; winnerId?: string }> {
+): Promise<{ entriesScored: number; winnerId?: string; isTieRefund?: boolean }> {
   console.log("[scoring-logic] Scoring pool:", contestPoolId);
 
   // Fetch pool + template
@@ -131,10 +134,15 @@ export async function scoreContestPool(
 
   console.log("[scoring-logic] Scoring", entries.length, "entries");
 
-  // Fix 2: Build crew → result lookup with string-coerced keys
-  const resultMap = new Map<string, RaceResult>();
+  // Build crew → result lookup with calculated signed margin
+  // actualMargin in RaceResult = time gap between 1st and 2nd for the event (always positive)
+  // For each crew: 1st place gets +margin, others get -margin
+  const resultMap = new Map<string, RaceResult & { calculatedMargin: number }>();
   for (const r of results) {
-    resultMap.set(String(r.crewId), r);
+    const calculatedMargin = r.finishOrder === 1
+      ? Math.abs(r.actualMargin || 0)   // 1st place: positive margin (won by X seconds)
+      : -(Math.abs(r.actualMargin || 0)); // Others: negative margin (lost by X seconds)
+    resultMap.set(String(r.crewId), { ...r, calculatedMargin });
   }
 
   const scores: EntryScore[] = [];
@@ -143,7 +151,6 @@ export async function scoreContestPool(
     let picks: EntryPick[] = [];
 
     try {
-      // Fix 1: Handle both flat array and nested { crews: [...] } formats
       let rawPicks: any[] = [];
       if (Array.isArray(entry.picks)) {
         rawPicks = entry.picks;
@@ -175,18 +182,17 @@ export async function scoreContestPool(
         const finishPoints = getFinishPoints(result.finishOrder);
         totalPoints += finishPoints;
 
-        // Margin is ONLY a tiebreaker — never added to points
-        let marginError = 0;
-        if (result.actualMargin !== undefined && pick.predictedMargin > 0) {
-          marginError = Math.abs(pick.predictedMargin - result.actualMargin);
-          totalMarginError += marginError;
-        }
+        // Margin error: |predicted - actual signed margin|
+        const predictedMargin = pick.predictedMargin || 0;
+        const actualMargin = result.calculatedMargin;
+        const marginError = Math.abs(predictedMargin - actualMargin);
+        totalMarginError += marginError;
 
         crewScores.push({
           crew_id: pick.crewId,
           event_id: result.eventId,
           predicted_margin: pick.predictedMargin,
-          actual_margin: result.actualMargin,
+          actual_margin: result.calculatedMargin,
           finish_order: result.finishOrder,
           finish_points: finishPoints,
           margin_error: marginError,
@@ -204,6 +210,9 @@ export async function scoreContestPool(
       }
     }
 
+    // Round margin error to avoid floating point issues
+    totalMarginError = Math.round(totalMarginError * 100) / 100;
+
     scores.push({
       entry_id: entry.id,
       user_id: entry.user_id,
@@ -213,7 +222,7 @@ export async function scoreContestPool(
     });
   }
 
-  // Fix 5: All-zero detection
+  // All-zero detection
   const allZero = scores.every((s) => s.total_points === 0);
   if (allZero && scores.length > 0) {
     console.warn("[scoring-logic] WARNING: All entries scored 0 points — picks likely did not match any results. Pool:", contestPoolId);
@@ -222,32 +231,12 @@ export async function scoreContestPool(
   // Sort: highest points first; tiebreak on lowest margin error
   scores.sort((a, b) => {
     if (a.total_points !== b.total_points) return b.total_points - a.total_points;
-    return a.margin_error - b.margin_error;
+    return a.margin_error - b.margin_error; // lower error wins
   });
 
-  // Fix 4: H2H tie resolution — if still tied, use entry creation time
   const isH2H = pool.max_entries <= 2;
-  if (isH2H && scores.length === 2) {
-    const a = scores[0];
-    const b = scores[1];
-    if (a.total_points === b.total_points && a.margin_error === b.margin_error) {
-      // Find entries to compare created_at
-      const entryA = entries.find((e: any) => e.id === a.entry_id);
-      const entryB = entries.find((e: any) => e.id === b.entry_id);
-      if (entryA && entryB) {
-        const timeA = new Date(entryA.created_at).getTime();
-        const timeB = new Date(entryB.created_at).getTime();
-        if (timeB < timeA) {
-          // B entered first, swap so B is rank 1
-          [scores[0], scores[1]] = [scores[1], scores[0]];
-        }
-        console.log("[scoring-logic] H2H tie resolved by entry creation time");
-      }
-    }
-  }
 
-  // Assign ranks
-  let currentRank = 1;
+  // Assign ranks — entries with same points but different margin error get DIFFERENT ranks
   for (let i = 0; i < scores.length; i++) {
     if (i === 0) {
       scores[i].rank = 1;
@@ -255,49 +244,78 @@ export async function scoreContestPool(
     } else {
       const prev = scores[i - 1];
       const curr = scores[i];
-      const fullyTied = prev.total_points === curr.total_points && prev.margin_error === curr.margin_error;
-      const pointsTied = prev.total_points === curr.total_points;
-
-      scores[i].rank = fullyTied ? prev.rank : currentRank;
-      scores[i].is_tiebreak_resolved = pointsTied && !fullyTied;
+      // Same rank ONLY if both points AND margin error are identical
+      if (prev.total_points === curr.total_points && prev.margin_error === curr.margin_error) {
+        scores[i].rank = prev.rank;
+        scores[i].is_tiebreak_resolved = false;
+      } else if (prev.total_points === curr.total_points) {
+        // Points tied but margin broke the tie
+        scores[i].rank = i + 1;
+        scores[i].is_tiebreak_resolved = true;
+      } else {
+        scores[i].rank = i + 1;
+        scores[i].is_tiebreak_resolved = false;
+      }
     }
-    currentRank++;
   }
 
   const winnerIds = scores.filter((s) => s.rank === 1).map((s) => s.user_id);
 
-  // Payouts from pool's payout_structure (values already in cents)
+  // Payouts
   const prizePoolCents = pool.prize_pool_cents || 0;
   let payoutStructure: Record<number, number> = pool.payout_structure || { 1: prizePoolCents };
+  let isTieRefund = false;
 
-  // Fix 3: H2H forced winner-takes-all
   if (isH2H) {
     payoutStructure = { 1: prizePoolCents };
-  }
 
-  for (const score of scores) {
-    score.payout_cents = payoutStructure[score.rank!] || 0;
-    score.is_winner = score.rank === 1;
-  }
+    if (scores.length === 2) {
+      const a = scores[0];
+      const b = scores[1];
+      const isTrueTie = a.total_points === b.total_points && a.margin_error === b.margin_error;
 
-  // H2H: ensure only rank 1 gets paid
-  if (isH2H) {
+      if (isTrueTie) {
+        // TRUE TIE in H2H — refund both users their entry fee
+        console.log("[scoring-logic] H2H TRUE TIE detected — refunding entry fees");
+        isTieRefund = true;
+        for (const score of scores) {
+          score.payout_cents = pool.entry_fee_cents || 0; // refund entry fee
+          score.is_winner = false;
+          score.rank = 1; // tied at rank 1
+          score.is_tie_refund = true;
+        }
+      } else {
+        // Normal H2H: winner takes all
+        for (const score of scores) {
+          score.payout_cents = score.rank === 1 ? prizePoolCents : 0;
+          score.is_winner = score.rank === 1;
+        }
+      }
+    } else {
+      // Single entry in H2H — just assign
+      for (const score of scores) {
+        score.payout_cents = score.rank === 1 ? prizePoolCents : 0;
+        score.is_winner = score.rank === 1;
+      }
+    }
+  } else {
+    // Standard contest payouts
     for (const score of scores) {
-      score.payout_cents = score.rank === 1 ? prizePoolCents : 0;
+      score.payout_cents = payoutStructure[score.rank!] || 0;
       score.is_winner = score.rank === 1;
     }
   }
 
-  // Upsert scores — write BOTH pool_id and instance_id
+  // Upsert scores
   for (const score of scores) {
     const { error: upsertError } = await supabase.from("contest_scores").upsert(
       {
         entry_id: score.entry_id,
-        pool_id: contestPoolId, // new column — correct FK to contest_pools
-        instance_id: null, // nullable after migration — no longer used for FK
+        pool_id: contestPoolId,
+        instance_id: null,
         user_id: score.user_id,
         total_points: score.total_points,
-        margin_bonus: 0, // margin is tiebreaker only, not a bonus
+        margin_bonus: score.margin_error, // store margin_error in margin_bonus field
         rank: score.rank,
         payout_cents: score.payout_cents,
         is_tiebreak_resolved: score.is_tiebreak_resolved ?? false,
@@ -311,11 +329,12 @@ export async function scoreContestPool(
       console.error("[scoring-logic] Upsert error for entry", score.entry_id, upsertError.message);
     }
 
-    // Update entry status
+    // Update entry
     const { error: entryUpdateError } = await supabase
       .from("contest_entries")
       .update({
         total_points: score.total_points,
+        margin_error: score.margin_error,
         rank: score.rank,
         payout_cents: score.payout_cents,
         status: "active",
@@ -327,10 +346,15 @@ export async function scoreContestPool(
     }
   }
 
-  // Mark pool as scoring_completed
+  // Mark pool status
+  const poolStatus = isTieRefund ? "scoring_completed" : "scoring_completed";
   const { error: poolUpdateError } = await supabase
     .from("contest_pools")
-    .update({ status: "scoring_completed", winner_ids: winnerIds })
+    .update({
+      status: poolStatus,
+      winner_ids: isTieRefund ? [] : winnerIds,
+      // Store tie_refund flag in pool metadata if needed by settlement
+    })
     .eq("id", contestPoolId);
 
   if (poolUpdateError) {
@@ -341,16 +365,18 @@ export async function scoreContestPool(
   await supabase.from("compliance_audit_logs").insert({
     event_type: "contest_scored",
     severity: "info",
-    description: `Scored: ${pool.contest_templates?.regatta_name || "Contest"} — pool ${contestPoolId}`,
+    description: `Scored: ${pool.contest_templates?.regatta_name || "Contest"} — pool ${contestPoolId}${isTieRefund ? " (H2H TIE REFUND)" : ""}`,
     metadata: {
       contest_pool_id: contestPoolId,
       entries_scored: scores.length,
-      winner_ids: winnerIds,
+      winner_ids: isTieRefund ? [] : winnerIds,
       top_score: scores[0]?.total_points,
+      top_margin_error: scores[0]?.margin_error,
+      is_tie_refund: isTieRefund,
     },
   });
 
-  console.log("[scoring-logic] Done. Entries scored:", scores.length, "Winners:", winnerIds);
+  console.log("[scoring-logic] Done. Entries scored:", scores.length, "Winners:", winnerIds, "TieRefund:", isTieRefund);
 
-  return { entriesScored: scores.length, winnerId: winnerIds[0] };
+  return { entriesScored: scores.length, winnerId: winnerIds[0], isTieRefund };
 }
