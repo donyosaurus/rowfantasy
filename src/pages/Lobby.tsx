@@ -269,6 +269,7 @@ const Lobby = () => {
                   maxEntries={contest.maxEntries}
                   allowOverflow={contest.allowOverflow}
                   siblingPoolCount={contest.siblingPoolCount}
+                  userEntered={contest.userEntered}
                 />
               ))}
             </div>
