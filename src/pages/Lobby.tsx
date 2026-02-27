@@ -86,7 +86,7 @@ const Lobby = () => {
       const userEntriesPromise = user
         ? supabase
             .from("contest_entries")
-            .select("pool_id, contest_template_id")
+            .select("pool_id")
             .eq("user_id", user.id)
             .in("status", ["active", "confirmed", "scored"])
         : Promise.resolve({ data: null, error: null });
@@ -99,8 +99,8 @@ const Lobby = () => {
         return;
       }
 
-      const enteredTemplateIds = new Set(
-        (entriesResult.data || []).map((e: any) => e.contest_template_id)
+      const enteredPoolIds = new Set(
+        (entriesResult.data || []).map((e: any) => e.pool_id)
       );
 
       const mapped: MappedContest[] = (poolsResult.data as unknown as ContestPool[]).map((pool) => {
@@ -136,7 +136,7 @@ const Lobby = () => {
           createdAt: pool.created_at,
           status: pool.status,
           siblingPoolCount: 1,
-          userEntered: enteredTemplateIds.has(pool.contest_template_id),
+          userEntered: enteredPoolIds.has(pool.id),
         };
       });
 
@@ -144,6 +144,7 @@ const Lobby = () => {
       const grouped = mapped.reduce(
         (acc, contest) => {
           const key = contest.contestTemplateId;
+          if (!key) return acc; // skip pools without a template
           if (!acc[key]) acc[key] = [];
           acc[key].push(contest);
           return acc;
@@ -154,7 +155,7 @@ const Lobby = () => {
       // Pick ONE representative card per contest template
       const deduplicated = Object.values(grouped).map((pools) => {
         const siblingPoolCount = pools.length;
-        const userEntered = pools.some((p) => p.userEntered);
+        const userEntered = pools.some((p) => enteredPoolIds.has(p.id));
 
         // Sort: open pools with space first, then by creation date (oldest first)
         const sorted = [...pools].sort((a, b) => {
@@ -167,6 +168,7 @@ const Lobby = () => {
         return { ...sorted[0], siblingPoolCount, userEntered };
       });
 
+      console.log('[Lobby] Pools fetched:', mapped.length, 'Deduplicated cards:', deduplicated.length);
       setContests(deduplicated);
       setLoading(false);
     };
