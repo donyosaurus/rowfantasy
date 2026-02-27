@@ -50,6 +50,7 @@ interface MappedContest {
 }
 
 const Lobby = () => {
+  const { user } = useAuth();
   const [contests, setContests] = useState<MappedContest[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -60,7 +61,8 @@ const Lobby = () => {
     const fetchContests = async () => {
       setLoading(true);
 
-      const { data, error } = await supabase
+      // Fetch pools and optionally user entries in parallel
+      const poolsPromise = supabase
         .from("contest_pools")
         .select(
           `
@@ -81,13 +83,27 @@ const Lobby = () => {
         )
         .in("status", ["open", "locked"]);
 
-      if (error) {
-        console.error("Error fetching contests:", error);
+      const userEntriesPromise = user
+        ? supabase
+            .from("contest_entries")
+            .select("pool_id, contest_template_id")
+            .eq("user_id", user.id)
+            .in("status", ["active", "confirmed", "scored"])
+        : Promise.resolve({ data: null, error: null });
+
+      const [poolsResult, entriesResult] = await Promise.all([poolsPromise, userEntriesPromise]);
+
+      if (poolsResult.error) {
+        console.error("Error fetching contests:", poolsResult.error);
         setLoading(false);
         return;
       }
 
-      const mapped: MappedContest[] = (data as unknown as ContestPool[]).map((pool) => {
+      const enteredTemplateIds = new Set(
+        (entriesResult.data || []).map((e: any) => e.contest_template_id)
+      );
+
+      const mapped: MappedContest[] = (poolsResult.data as unknown as ContestPool[]).map((pool) => {
         const regattaName = pool.contest_templates?.regatta_name || "Unknown Regatta";
         const genderCategory: "Men's" | "Women's" = regattaName.toLowerCase().includes("women") ? "Women's" : "Men's";
 
@@ -118,7 +134,9 @@ const Lobby = () => {
           maxEntries: pool.max_entries || 0,
           allowOverflow: pool.allow_overflow || false,
           createdAt: pool.created_at,
-          siblingPoolCount: 1, // will be updated after grouping
+          status: pool.status,
+          siblingPoolCount: 1,
+          userEntered: enteredTemplateIds.has(pool.contest_template_id),
         };
       });
 
@@ -133,21 +151,20 @@ const Lobby = () => {
         {} as Record<string, MappedContest[]>,
       );
 
-      // Select best pool per group — oldest open pool with space first (fills A→B→C in order)
+      // Pick ONE representative card per contest template
       const deduplicated = Object.values(grouped).map((pools) => {
         const siblingPoolCount = pools.length;
-        const openWithSpace = pools.filter((p) => p.currentEntries < p.maxEntries);
+        const userEntered = pools.some((p) => p.userEntered);
 
-        let best: MappedContest;
-        if (openWithSpace.length > 0) {
-          // Oldest pool with space — so pools fill sequentially
-          best = openWithSpace.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())[0];
-        } else {
-          // All full — show most recent (will display Auto-Pool badge)
-          best = pools.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
-        }
+        // Sort: open pools with space first, then by creation date (oldest first)
+        const sorted = [...pools].sort((a, b) => {
+          const aOpen = a.status === "open" && a.currentEntries < a.maxEntries ? 1 : 0;
+          const bOpen = b.status === "open" && b.currentEntries < b.maxEntries ? 1 : 0;
+          if (aOpen !== bOpen) return bOpen - aOpen;
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        });
 
-        return { ...best, siblingPoolCount };
+        return { ...sorted[0], siblingPoolCount, userEntered };
       });
 
       setContests(deduplicated);
@@ -155,7 +172,7 @@ const Lobby = () => {
     };
 
     fetchContests();
-  }, []);
+  }, [user]);
 
   // Apply search and filter — runs client-side on the deduplicated list
   const filteredContests = useMemo(() => {
