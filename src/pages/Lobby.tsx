@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface ContestPool {
   id: string;
+  contest_template_id: string;
   lock_time: string;
   status: string;
   entry_fee_cents: number;
