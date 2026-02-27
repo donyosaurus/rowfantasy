@@ -44,7 +44,9 @@ interface MappedContest {
   maxEntries: number;
   allowOverflow: boolean;
   createdAt: string;
+  status: string;
   siblingPoolCount: number;
+  userEntered: boolean;
 }
 
 const Lobby = () => {
