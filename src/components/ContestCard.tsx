@@ -39,6 +39,7 @@ export const ContestCard = ({
   maxEntries = 0,
   allowOverflow = false,
   siblingPoolCount = 1,
+  userEntered = false,
 }: ContestCardProps) => {
   const hasPayoutStructure = payoutStructure && Object.keys(payoutStructure).length > 0;
   const firstPlacePrize = hasPayoutStructure ? payoutStructure["1"] : 0;
