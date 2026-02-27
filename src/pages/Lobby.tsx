@@ -155,7 +155,7 @@ const Lobby = () => {
       // Pick ONE representative card per contest template
       const deduplicated = Object.values(grouped).map((pools) => {
         const siblingPoolCount = pools.length;
-        const userEntered = pools.some((p) => p.userEntered);
+        const userEntered = pools.some((p) => enteredPoolIds.has(p.id));
 
         // Sort: open pools with space first, then by creation date (oldest first)
         const sorted = [...pools].sort((a, b) => {
