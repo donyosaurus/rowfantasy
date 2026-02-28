@@ -393,7 +393,7 @@ const MyEntries = () => {
       
       <main className="flex-1 py-8 relative" style={{ backgroundImage: `url(${myEntriesBg})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }}>
         <div className="absolute inset-0 bg-background/85 backdrop-blur-sm" />
-        <div className="container mx-auto px-4">
+        <div className="container mx-auto px-4 relative z-10">
           <div className="mb-8">
             <h1 className="text-3xl font-bold mb-2">My Entries</h1>
             <p className="text-muted-foreground">Track your contest history and performance</p>
