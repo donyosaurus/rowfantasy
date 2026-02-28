@@ -391,7 +391,8 @@ const MyEntries = () => {
     <div className="flex flex-col min-h-screen">
       <Header />
       
-      <main className="flex-1 gradient-subtle py-8">
+      <main className="flex-1 py-8 relative" style={{ backgroundImage: `url(${myEntriesBg})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }}>
+        <div className="absolute inset-0 bg-background/85 backdrop-blur-sm" />
         <div className="container mx-auto px-4">
           <div className="mb-8">
             <h1 className="text-3xl font-bold mb-2">My Entries</h1>
