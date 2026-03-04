@@ -392,11 +392,11 @@ const MyEntries = () => {
       
       <main className="flex-1 gradient-subtle py-8">
         <div className="container mx-auto px-4">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold mb-2">My Entries</h1>
-            <p className="text-muted-foreground">
-</p>
-          </div>
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle className="text-3xl">My Entries</CardTitle>
+            </CardHeader>
+          </Card>
 
           {/* Stats Overview */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
