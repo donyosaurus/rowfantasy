@@ -392,7 +392,7 @@ const MyEntries = () => {
       
       <main className="flex-1 gradient-subtle py-8">
         <div className="container mx-auto px-4">
-          <Card className="mb-8">
+          <Card className="mb-8 inline-block">
             <CardHeader>
               <CardTitle className="text-3xl">My Entries</CardTitle>
             </CardHeader>
