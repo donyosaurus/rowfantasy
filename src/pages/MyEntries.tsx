@@ -442,7 +442,7 @@ const MyEntries = () => {
           </div>
 
           {/* Entries List */}
-          <Tabs defaultValue="active" className="space-y-4">
+          <Tabs defaultValue="active" className="space-y-4 border rounded-lg bg-card p-4">
             <TabsList>
               <TabsTrigger value="active">
                 Active ({activeEntries.length})
