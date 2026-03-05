@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Trophy, Calendar, DollarSign, TrendingUp, Users } from "lucide-react";
+import myEntriesBg from "@/assets/my-entries-bg.webp";
 
 interface PickNew {
   crewId: string;
