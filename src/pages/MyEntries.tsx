@@ -396,7 +396,7 @@ const MyEntries = () => {
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
           style={{ backgroundImage: `url(${myEntriesBg})` }}
         />
-        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
+        <div className="absolute inset-0 bg-background/40" />
         <div className="container mx-auto px-4 relative z-10">
           <Card className="mb-8 inline-block">
             <CardHeader>
