@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Trophy, Calendar, DollarSign, TrendingUp, Users } from "lucide-react";
-import myEntriesBg from "@/assets/my-entries-bg.webp";
 
 interface PickNew {
   crewId: string;
@@ -391,13 +390,8 @@ const MyEntries = () => {
     <div className="flex flex-col min-h-screen">
       <Header />
       
-      <main className="flex-1 relative py-8">
-        {/* Background image */}
-        <div
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-10 pointer-events-none"
-          style={{ backgroundImage: `url(${myEntriesBg})` }}
-        />
-        <div className="relative container mx-auto px-4">
+      <main className="flex-1 gradient-subtle py-8">
+        <div className="container mx-auto px-4">
           <Card className="mb-8 inline-block">
             <CardHeader>
               <CardTitle className="text-3xl">My Entries</CardTitle>
@@ -486,7 +480,6 @@ const MyEntries = () => {
               }
             </TabsContent>
           </Tabs>
-        </div>
         </div>
       </main>
 
