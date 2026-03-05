@@ -487,6 +487,7 @@ const MyEntries = () => {
             </TabsContent>
           </Tabs>
         </div>
+        </div>
       </main>
 
       <Footer />
