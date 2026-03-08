@@ -113,11 +113,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    const entryFeeDollars = body.entryFeeCents / 100;
-    if (wallet.available_balance < entryFeeDollars) {
+    // wallet.available_balance is stored in CENTS; body.entryFeeCents is also cents
+    const balanceCents = Number(wallet.available_balance);
+    const entryFeeCents = body.entryFeeCents;
+    const entryFeeDollars = entryFeeCents / 100;
+    const balanceDollars = balanceCents / 100;
+
+    if (balanceCents < entryFeeCents) {
       return new Response(
         JSON.stringify({
-          error: `Insufficient balance. You need $${entryFeeDollars.toFixed(2)} but have $${wallet.available_balance.toFixed(2)}.`,
+          error: `Insufficient balance. You need $${entryFeeDollars.toFixed(2)} but have $${balanceDollars.toFixed(2)}.`,
         }),
         {
           status: 402,
