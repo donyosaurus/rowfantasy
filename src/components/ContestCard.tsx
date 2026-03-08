@@ -141,7 +141,7 @@ export const ContestCard = ({
         {/* Divisions */}
         {divisions.length > 0 && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Divisions</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Events</p>
             <div className="flex flex-wrap gap-1.5">
               {divisions.slice(0, 3).map((division, idx) => (
                 <Badge key={idx} variant="outline" className="font-normal text-xs">
