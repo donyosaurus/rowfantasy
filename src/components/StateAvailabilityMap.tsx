@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import stateStatuses from "@/data/stateStatuses.json";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -13,7 +13,6 @@ const STATUS_LABELS: Record<string, string> = {
   banned: "Banned",
 };
 
-// FIPS code to state abbreviation mapping
 const FIPS_TO_ABBR: Record<string, string> = {
   "01": "AL", "02": "AK", "04": "AZ", "05": "AR", "06": "CA", "08": "CO", "09": "CT",
   "10": "DE", "11": "DC", "12": "FL", "13": "GA", "15": "HI", "16": "ID", "17": "IL",
@@ -46,7 +45,6 @@ interface GeoFeature {
   geometry: {
     type: string;
     coordinates: number[][][] | number[][][][];
-    arcs?: number[][] | number[][][];
   };
 }
 
@@ -76,7 +74,6 @@ function topoToGeo(topology: any): GeoFeature[] {
     const coords: number[][] = [];
     for (const arcIdx of ring) {
       const decoded = decodeArc(arcIdx);
-      // Skip first point of subsequent arcs to avoid duplicates
       const start = coords.length > 0 ? 1 : 0;
       for (let i = start; i < decoded.length; i++) {
         coords.push(decoded[i]);
@@ -99,37 +96,53 @@ function topoToGeo(topology: any): GeoFeature[] {
         type: "Feature",
         id: geom.id,
         properties: geom.properties || {},
-        geometry: {
-          type: geom.type,
-          coordinates,
-        },
+        geometry: { type: geom.type, coordinates },
       };
     });
   }
   return [];
 }
 
-// Albers USA-like projection (simplified)
-function albersUsaProject(lon: number, lat: number, width: number, height: number): [number, number] {
-  // Simple equirectangular with manual Alaska/Hawaii offset
-  const scale = width / 60;
+// Project continental US
+function projectLower48(lon: number, lat: number): [number, number] {
+  const scale = 1100;
   const centerLon = -96;
-  const centerLat = 38;
-
-  let x = (lon - centerLon) * scale * Math.cos((centerLat * Math.PI) / 180) + width / 2;
-  let y = -(lat - centerLat) * scale + height / 2;
-
-  return [x, y];
+  const centerLat = 38.5;
+  const x = (lon - centerLon) * (Math.PI / 180) * scale * Math.cos(centerLat * Math.PI / 180);
+  const y = -(lat - centerLat) * (Math.PI / 180) * scale;
+  return [x + 480, y + 300];
 }
 
-function projectCoords(
-  coords: number[][],
-  width: number,
-  height: number
-): string {
+// Project Alaska (scaled down and repositioned)
+function projectAlaska(lon: number, lat: number): [number, number] {
+  const scale = 400;
+  const centerLon = -154;
+  const centerLat = 64;
+  const x = (lon - centerLon) * (Math.PI / 180) * scale * Math.cos(centerLat * Math.PI / 180);
+  const y = -(lat - centerLat) * (Math.PI / 180) * scale;
+  return [x + 120, y + 490];
+}
+
+// Project Hawaii (repositioned)
+function projectHawaii(lon: number, lat: number): [number, number] {
+  const scale = 1100;
+  const centerLon = -157;
+  const centerLat = 20.5;
+  const x = (lon - centerLon) * (Math.PI / 180) * scale * Math.cos(centerLat * Math.PI / 180);
+  const y = -(lat - centerLat) * (Math.PI / 180) * scale;
+  return [x + 280, y + 490];
+}
+
+function projectPoint(lon: number, lat: number, fips: string): [number, number] {
+  if (fips === "02") return projectAlaska(lon, lat);
+  if (fips === "15") return projectHawaii(lon, lat);
+  return projectLower48(lon, lat);
+}
+
+function projectCoords(coords: number[][], fips: string): string {
   return coords
     .map(([lon, lat]) => {
-      const [x, y] = albersUsaProject(lon, lat, width, height);
+      const [x, y] = projectPoint(lon, lat, fips);
       return `${x},${y}`;
     })
     .join(" ");
@@ -138,14 +151,14 @@ function projectCoords(
 export const StateAvailabilityMap = () => {
   const [features, setFeatures] = useState<GeoFeature[]>([]);
   const [hoveredState, setHoveredState] = useState<string | null>(null);
+  const [copiedState, setCopiedState] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch("https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json")
       .then((r) => r.json())
       .then((topo) => {
-        const geoFeatures = topoToGeo(topo);
-        setFeatures(geoFeatures);
+        setFeatures(topoToGeo(topo));
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -154,11 +167,20 @@ export const StateAvailabilityMap = () => {
   const getStatus = (fips: string): string =>
     (stateStatuses as Record<string, string>)[FIPS_TO_ABBR[fips] || ""] || "banned";
 
+  const handleClick = useCallback((fips: string) => {
+    const abbr = FIPS_TO_ABBR[fips] || "";
+    const name = FIPS_TO_NAME[fips] || "Unknown";
+    const status = getStatus(fips);
+    navigator.clipboard.writeText(`${name} (${abbr}): ${STATUS_LABELS[status] || status}`);
+    setCopiedState(fips);
+    setTimeout(() => setCopiedState(null), 1500);
+  }, []);
+
   const svgWidth = 960;
   const svgHeight = 600;
 
   return (
-    <div className="w-full max-w-3xl mx-auto">
+    <div className="w-full max-w-4xl mx-auto">
       {loading ? (
         <div className="flex items-center justify-center h-64 text-muted-foreground">
           Loading map…
@@ -187,17 +209,19 @@ export const StateAvailabilityMap = () => {
                   key={fips}
                   onMouseEnter={() => setHoveredState(fips)}
                   onMouseLeave={() => setHoveredState(null)}
+                  onClick={() => handleClick(fips)}
                   style={{ cursor: "pointer" }}
                 >
                   {polygons.map((polygon, pi) =>
                     polygon.map((ring, ri) => (
                       <polygon
                         key={`${fips}-${pi}-${ri}`}
-                        points={projectCoords(ring, svgWidth, svgHeight)}
+                        points={projectCoords(ring, fips)}
                         fill={fill}
-                        stroke="hsl(var(--border))"
+                        stroke="#fff"
                         strokeWidth={isHovered ? 2 : 0.5}
-                        opacity={hoveredState && !isHovered ? 0.5 : 1}
+                        opacity={hoveredState && !isHovered ? 0.6 : 1}
+                        style={{ transition: "opacity 0.15s, stroke-width 0.15s" }}
                       />
                     ))
                   )}
@@ -214,6 +238,12 @@ export const StateAvailabilityMap = () => {
               </p>
             </div>
           )}
+
+          {copiedState && (
+            <div className="absolute top-4 right-4 bg-card border border-border rounded-lg px-4 py-2 shadow-lg pointer-events-none text-sm text-muted-foreground">
+              Copied!
+            </div>
+          )}
         </div>
       )}
 
@@ -228,6 +258,10 @@ export const StateAvailabilityMap = () => {
           </div>
         ))}
       </div>
+
+      <p className="text-center text-sm text-muted-foreground mt-3">
+        Click any state to copy its status to clipboard
+      </p>
 
       <p className="text-center text-xs text-muted-foreground mt-6 italic">
         The use of VPNs to bypass geofencing regulations is unethical and heavily discouraged.
