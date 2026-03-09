@@ -1394,10 +1394,16 @@ export type Database = {
         Args: { p_original_pool_id: string }
         Returns: string
       }
-      enter_contest_pool: {
-        Args: { p_contest_pool_id: string; p_picks: Json; p_user_id: string }
-        Returns: Json
-      }
+      enter_contest_pool:
+        | { Args: { p_contest_pool_id: string; p_picks: Json }; Returns: Json }
+        | {
+            Args: {
+              p_contest_pool_id: string
+              p_picks: Json
+              p_user_id: string
+            }
+            Returns: Json
+          }
       get_user_balance: { Args: { target_user_id: string }; Returns: number }
       has_role: {
         Args: {
