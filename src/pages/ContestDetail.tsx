@@ -534,6 +534,37 @@ const ContestDetail = () => {
                 </Card>
               )}
 
+              {/* Event progress checklist */}
+              {Object.keys(crewsByEvent).length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Event Progress</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {Object.keys(crewsByEvent).map((eid) => {
+                      const pick = draftPicks.find((p) => p.eventId === eid);
+                      return (
+                        <div key={eid} className="flex items-center gap-3 text-sm">
+                          {pick ? (
+                            <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                          ) : (
+                            <Circle className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          )}
+                          <span className={pick ? "font-medium" : "text-muted-foreground"}>
+                            {eid}
+                          </span>
+                          {pick && (
+                            <Badge variant="secondary" className="ml-auto text-xs">
+                              {pick.crewName}
+                            </Badge>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Add pick form */}
               <Card>
                 <CardHeader>
