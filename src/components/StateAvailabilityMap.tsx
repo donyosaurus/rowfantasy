@@ -2,36 +2,70 @@ import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import stateStatuses from "@/data/stateStatuses.json";
 
-const US_STATES: { code: string; name: string }[] = [
-  { code: "AL", name: "Alabama" }, { code: "AK", name: "Alaska" }, { code: "AZ", name: "Arizona" },
-  { code: "AR", name: "Arkansas" }, { code: "CA", name: "California" }, { code: "CO", name: "Colorado" },
-  { code: "CT", name: "Connecticut" }, { code: "DE", name: "Delaware" }, { code: "FL", name: "Florida" },
-  { code: "GA", name: "Georgia" }, { code: "HI", name: "Hawaii" }, { code: "ID", name: "Idaho" },
-  { code: "IL", name: "Illinois" }, { code: "IN", name: "Indiana" }, { code: "IA", name: "Iowa" },
-  { code: "KS", name: "Kansas" }, { code: "KY", name: "Kentucky" }, { code: "LA", name: "Louisiana" },
-  { code: "ME", name: "Maine" }, { code: "MD", name: "Maryland" }, { code: "MA", name: "Massachusetts" },
-  { code: "MI", name: "Michigan" }, { code: "MN", name: "Minnesota" }, { code: "MS", name: "Mississippi" },
-  { code: "MO", name: "Missouri" }, { code: "MT", name: "Montana" }, { code: "NE", name: "Nebraska" },
-  { code: "NV", name: "Nevada" }, { code: "NH", name: "New Hampshire" }, { code: "NJ", name: "New Jersey" },
-  { code: "NM", name: "New Mexico" }, { code: "NY", name: "New York" }, { code: "NC", name: "North Carolina" },
-  { code: "ND", name: "North Dakota" }, { code: "OH", name: "Ohio" }, { code: "OK", name: "Oklahoma" },
-  { code: "OR", name: "Oregon" }, { code: "PA", name: "Pennsylvania" }, { code: "RI", name: "Rhode Island" },
-  { code: "SC", name: "South Carolina" }, { code: "SD", name: "South Dakota" }, { code: "TN", name: "Tennessee" },
-  { code: "TX", name: "Texas" }, { code: "UT", name: "Utah" }, { code: "VT", name: "Vermont" },
-  { code: "VA", name: "Virginia" }, { code: "WA", name: "Washington" }, { code: "WV", name: "West Virginia" },
-  { code: "WI", name: "Wisconsin" }, { code: "WY", name: "Wyoming" },
-];
-
-const statusColors: Record<string, string> = {
-  permitted: "bg-green-300",
-  restricted: "bg-amber-300",
-  banned: "bg-muted",
+// Cartogram grid positions (col, row) approximating US geography
+const STATE_POSITIONS: Record<string, { col: number; row: number; name: string }> = {
+  AK: { col: 0, row: 0, name: "Alaska" },
+  HI: { col: 0, row: 5, name: "Hawaii" },
+  WA: { col: 1, row: 0, name: "Washington" },
+  OR: { col: 1, row: 1, name: "Oregon" },
+  CA: { col: 1, row: 2, name: "California" },
+  NV: { col: 2, row: 2, name: "Nevada" },
+  ID: { col: 2, row: 1, name: "Idaho" },
+  MT: { col: 2, row: 0, name: "Montana" },
+  UT: { col: 2, row: 3, name: "Utah" },
+  AZ: { col: 2, row: 4, name: "Arizona" },
+  WY: { col: 3, row: 1, name: "Wyoming" },
+  CO: { col: 3, row: 2, name: "Colorado" },
+  NM: { col: 3, row: 4, name: "New Mexico" },
+  ND: { col: 4, row: 0, name: "North Dakota" },
+  SD: { col: 4, row: 1, name: "South Dakota" },
+  NE: { col: 4, row: 2, name: "Nebraska" },
+  KS: { col: 4, row: 3, name: "Kansas" },
+  OK: { col: 4, row: 4, name: "Oklahoma" },
+  TX: { col: 4, row: 5, name: "Texas" },
+  MN: { col: 5, row: 0, name: "Minnesota" },
+  IA: { col: 5, row: 1, name: "Iowa" },
+  MO: { col: 5, row: 2, name: "Missouri" },
+  AR: { col: 5, row: 3, name: "Arkansas" },
+  LA: { col: 5, row: 4, name: "Louisiana" },
+  WI: { col: 6, row: 0, name: "Wisconsin" },
+  IL: { col: 6, row: 1, name: "Illinois" },
+  IN: { col: 7, row: 1, name: "Indiana" },
+  MI: { col: 7, row: 0, name: "Michigan" },
+  KY: { col: 7, row: 2, name: "Kentucky" },
+  TN: { col: 7, row: 3, name: "Tennessee" },
+  MS: { col: 6, row: 3, name: "Mississippi" },
+  AL: { col: 7, row: 4, name: "Alabama" },
+  OH: { col: 8, row: 1, name: "Ohio" },
+  WV: { col: 8, row: 2, name: "West Virginia" },
+  GA: { col: 8, row: 4, name: "Georgia" },
+  FL: { col: 9, row: 5, name: "Florida" },
+  SC: { col: 9, row: 4, name: "South Carolina" },
+  NC: { col: 9, row: 3, name: "North Carolina" },
+  VA: { col: 9, row: 2, name: "Virginia" },
+  PA: { col: 9, row: 1, name: "Pennsylvania" },
+  NY: { col: 9, row: 0, name: "New York" },
+  MD: { col: 10, row: 2, name: "Maryland" },
+  DE: { col: 10, row: 3, name: "Delaware" },
+  NJ: { col: 10, row: 1, name: "New Jersey" },
+  CT: { col: 10, row: 0, name: "Connecticut" },
+  VT: { col: 11, row: 0, name: "Vermont" },
+  NH: { col: 11, row: 1, name: "New Hampshire" },
+  MA: { col: 11, row: 2, name: "Massachusetts" },
+  RI: { col: 11, row: 3, name: "Rhode Island" },
+  ME: { col: 12, row: 0, name: "Maine" },
 };
 
-const statusBorderColors: Record<string, string> = {
-  permitted: "border-green-400",
-  restricted: "border-amber-400",
-  banned: "border-muted-foreground/30",
+const statusColors: Record<string, string> = {
+  permitted: "bg-green-500/80 hover:bg-green-500 border-green-400",
+  restricted: "bg-amber-500/80 hover:bg-amber-500 border-amber-400",
+  banned: "bg-muted hover:bg-muted/80 border-muted-foreground/30",
+};
+
+const statusText: Record<string, string> = {
+  permitted: "text-green-50",
+  restricted: "text-amber-50",
+  banned: "text-muted-foreground",
 };
 
 export const StateAvailabilityMap = () => {
@@ -49,21 +83,28 @@ export const StateAvailabilityMap = () => {
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto">
-      <div className="grid grid-cols-5 sm:grid-cols-7 md:grid-cols-10 gap-1.5">
-        {US_STATES.map(({ code, name }) => {
+    <div className="w-full max-w-5xl mx-auto">
+      <div
+        className="grid gap-1"
+        style={{
+          gridTemplateColumns: "repeat(13, minmax(0, 1fr))",
+          gridTemplateRows: "repeat(6, minmax(0, 1fr))",
+        }}
+      >
+        {Object.entries(STATE_POSITIONS).map(([code, { col, row, name }]) => {
           const status = getStatus(code);
           const isHovered = hoveredState === code;
           return (
             <button
               key={code}
               className={`
-                flex items-center justify-center rounded-md px-1 py-2 text-xs font-bold
+                flex items-center justify-center rounded-md aspect-square text-[10px] sm:text-xs font-bold
                 border transition-all cursor-pointer
                 ${statusColors[status] || statusColors.banned}
-                ${statusBorderColors[status] || statusBorderColors.banned}
-                ${isHovered ? "ring-2 ring-primary scale-110 z-10" : ""}
+                ${statusText[status] || statusText.banned}
+                ${isHovered ? "ring-2 ring-primary scale-110 z-10 shadow-lg" : ""}
               `}
+              style={{ gridColumn: col + 1, gridRow: row + 1 }}
               onMouseEnter={() => setHoveredState(code)}
               onMouseLeave={() => setHoveredState(null)}
               onClick={() => handleClick(code, name)}
@@ -78,7 +119,7 @@ export const StateAvailabilityMap = () => {
       {hoveredState && (
         <div className="mt-4 text-center">
           <span className="font-semibold text-sm">
-            {US_STATES.find((s) => s.code === hoveredState)?.name}
+            {STATE_POSITIONS[hoveredState]?.name}
           </span>
           <span className="text-xs text-muted-foreground ml-2 capitalize">
             {getStatus(hoveredState)}
@@ -88,8 +129,8 @@ export const StateAvailabilityMap = () => {
 
       <div className="flex justify-center gap-6 mt-6 flex-wrap">
         {[
-          { label: "Permitted", color: "bg-green-300" },
-          { label: "Restricted", color: "bg-amber-300" },
+          { label: "Permitted", color: "bg-green-500/80" },
+          { label: "Restricted", color: "bg-amber-500/80" },
           { label: "Banned", color: "bg-muted" },
         ].map(({ label, color }) => (
           <div key={label} className="flex items-center gap-2">
