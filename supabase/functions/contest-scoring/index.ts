@@ -8,11 +8,7 @@ import {
   parseRaceTime,
   type RaceResult 
 } from '../shared/scoring-logic.ts';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { getCorsHeaders } from '../shared/cors.ts';
 
 // Define crew type for type safety
 type PoolCrew = {
