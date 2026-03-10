@@ -3,13 +3,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { MockPaymentAdapter } from '../shared/payment-providers/mock-adapter.ts';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { getCorsHeaders } from '../shared/cors.ts';
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -19,7 +17,6 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const authHeader = req.headers.get('Authorization')!;
     
-    // User client for auth
     const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -32,9 +29,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validate input (amount in cents)
     const depositSchema = z.object({
-      amount: z.number().int().positive().min(500).max(50000), // $5 - $500 in cents
+      amount: z.number().int().positive().min(500).max(50000),
     });
 
     let body;
@@ -49,11 +45,8 @@ Deno.serve(async (req) => {
     }
 
     const { amount } = body;
-
-    // Use service role client for admin operations
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Check responsible gaming limits before processing payment
     const { data: limitCheck, error: limitError } = await adminClient
       .rpc('check_deposit_limit', { p_user_id: user.id, p_amount: amount });
 
@@ -65,7 +58,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get or create user's wallet
     let { data: wallet, error: walletError } = await adminClient
       .from('wallets')
       .select('id')
@@ -73,7 +65,6 @@ Deno.serve(async (req) => {
       .single();
 
     if (walletError || !wallet) {
-      // Create wallet if it doesn't exist
       const { data: newWallet, error: createError } = await adminClient
         .from('wallets')
         .insert({ user_id: user.id })
@@ -90,7 +81,6 @@ Deno.serve(async (req) => {
       wallet = newWallet;
     }
 
-    // Process payment with mock adapter
     const paymentAdapter = new MockPaymentAdapter();
     const paymentResult = await paymentAdapter.processPayment(amount, 'USD');
 
@@ -101,7 +91,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Update wallet balance using RPC
     const { data: balanceResult, error: balanceUpdateError } = await adminClient.rpc('update_wallet_balance', {
       _wallet_id: wallet.id,
       _available_delta: amount,
@@ -119,7 +108,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create transaction record
     const { error: txError } = await adminClient
       .from('transactions')
       .insert({
@@ -141,10 +129,8 @@ Deno.serve(async (req) => {
 
     if (txError) {
       console.error('[wallet-deposit] Transaction record error:', txError);
-      // Non-fatal - wallet was already updated
     }
 
-    // Also create ledger entry for audit trail
     await adminClient
       .from('ledger_entries')
       .insert({
@@ -155,7 +141,6 @@ Deno.serve(async (req) => {
         reference_id: paymentResult.transactionId,
       });
 
-    // Get new balance
     const { data: updatedWallet } = await adminClient
       .from('wallets')
       .select('available_balance')
@@ -182,8 +167,8 @@ Deno.serve(async (req) => {
   } catch (error: any) {
     console.error('[wallet-deposit] Error:', error);
     return new Response(
-      JSON.stringify({ error: 'An unexpected error occurred' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: 'Deposit failed. Please try again.' }),
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });

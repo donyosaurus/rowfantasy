@@ -1,13 +1,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { checkLocationEligibility } from '../shared/geo-eligibility.ts';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { getCorsHeaders } from '../shared/cors.ts';
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -88,7 +86,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if pool is open
     if (pool.status !== 'open') {
       return new Response(
         JSON.stringify({ error: 'Contest is not open for entries' }),
@@ -96,7 +93,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if lock time has passed
     if (new Date(pool.lock_time) < new Date()) {
       return new Response(
         JSON.stringify({ error: 'Entry period has ended' }),
@@ -116,14 +112,12 @@ Deno.serve(async (req) => {
       });
 
       if (!pool.allow_overflow) {
-        // No overflow allowed - return error
         return new Response(
           JSON.stringify({ error: 'Contest is full' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      // Auto-pooling enabled - look for existing open sibling pool
       console.log('[contest-enter] Looking for open sibling pool...');
       
       const { data: siblingPools, error: siblingError } = await supabaseAdmin
@@ -139,15 +133,12 @@ Deno.serve(async (req) => {
         console.error('[contest-enter] Sibling pool lookup error:', siblingError);
       }
 
-      // Find a sibling pool that's not full
       const openSibling = siblingPools?.find(s => s.current_entries < s.max_entries);
 
       if (openSibling) {
-        // Use existing open sibling pool
         console.log('[contest-enter] Found open sibling pool:', openSibling.id);
         targetPoolId = openSibling.id;
       } else {
-        // No open sibling - clone the original pool
         console.log('[contest-enter] No open sibling found, cloning pool...');
         
         const { data: cloneResult, error: cloneError } = await supabaseAdmin
@@ -167,7 +158,6 @@ Deno.serve(async (req) => {
     }
 
     // Step C: Security Check - Verify all picks are in the allowed crews list
-    // Use original pool ID since crews are the same across clones
     const { data: allowedCrews, error: crewsError } = await supabase
       .from('contest_pool_crews')
       .select('crew_id, event_id')
@@ -189,13 +179,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create a map of allowed crew_id -> event_id
     const crewToEventMap = new Map<string, string>();
     for (const crew of allowedCrews) {
       crewToEventMap.set(crew.crew_id, crew.event_id);
     }
 
-    // Validate every pick exists in the allowed list (extract crewId from pick objects)
     const invalidPicks: string[] = [];
     const pickedEventIds = new Set<string>();
 
@@ -216,7 +204,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Step D: Duplicate event check - only one crew per event
+    // Step D: Duplicate event check
     const eventIdList = picks.map(p => crewToEventMap.get(p.crewId)!);
     if (new Set(eventIdList).size !== eventIdList.length) {
       console.error('[contest-enter] Duplicate event picks detected');
@@ -226,7 +214,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Step E: Diversity Rule - Must have at least 2 unique events
+    // Step E: Diversity Rule
     if (pickedEventIds.size < 2) {
       console.error('[contest-enter] Diversity rule violation:', { uniqueEvents: pickedEventIds.size });
       return new Response(
@@ -235,9 +223,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Step E: Construct validated roster and call RPC
     const roster = {
-      crews: picks // Array of { crewId, predictedMargin }
+      crews: picks
     };
 
     console.log('[contest-enter] Calling RPC with validated roster:', { 
@@ -286,7 +273,7 @@ Deno.serve(async (req) => {
     console.error('[contest-enter] Error:', error);
     return new Response(
       JSON.stringify({ error: 'An unexpected error occurred' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });

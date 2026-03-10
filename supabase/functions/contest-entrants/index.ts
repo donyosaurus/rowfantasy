@@ -1,11 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { getCorsHeaders } from '../shared/cors.ts';
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -39,7 +37,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get pool details
     const { data: pool, error: poolError } = await supabase
       .from('contest_pools')
       .select('*')
@@ -53,7 +50,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get entries with profile information
     const { data: entries, error: entriesError } = await supabase
       .from('contest_entries')
       .select(`
@@ -99,8 +95,8 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('Error in contest-entrants:', error);
     return new Response(
-      JSON.stringify({ error: 'An unexpected error occurred' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: 'An error occurred' }),
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });

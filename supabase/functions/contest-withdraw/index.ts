@@ -1,12 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { getCorsHeaders } from '../shared/cors.ts';
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -30,7 +28,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Validate input
     const withdrawSchema = z.object({
       contestPoolId: z.string().uuid('Invalid contest pool ID'),
     });
@@ -54,7 +51,6 @@ Deno.serve(async (req) => {
 
     console.log('[contest-withdraw] Request:', { userId: user.id, contestPoolId });
 
-    // Call the atomic withdraw RPC
     const { data, error } = await supabase.rpc('withdraw_contest_entry', {
       p_contest_pool_id: contestPoolId
     });
@@ -84,7 +80,7 @@ Deno.serve(async (req) => {
     console.error('[contest-withdraw] Error:', error);
     return new Response(
       JSON.stringify({ error: 'An unexpected error occurred' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });

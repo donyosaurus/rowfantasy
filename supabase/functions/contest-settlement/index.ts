@@ -1,12 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from '../shared/cors.ts';
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -28,7 +26,7 @@ Deno.serve(async (req) => {
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized", detail: authError?.message }), {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -58,7 +56,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (poolError || !pool) {
-      return new Response(JSON.stringify({ error: "Pool not found", detail: poolError?.message }), {
+      return new Response(JSON.stringify({ error: "Pool not found" }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -69,7 +67,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Find siblings to settle
     const { data: siblingPools } = await supabaseAdmin
       .from("contest_pools")
       .select("id, status")
@@ -110,8 +107,8 @@ Deno.serve(async (req) => {
   } catch (error: any) {
     console.error("[settlement] FATAL:", error?.message, JSON.stringify(error));
     console.error("[settlement] Stack:", error?.stack);
-    return new Response(JSON.stringify({ error: "An internal error occurred during settlement" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return new Response(JSON.stringify({ error: "Settlement failed. Please try again." }), {
+      status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
 });
@@ -127,7 +124,6 @@ async function settlePool(supabaseAdmin: any, contestPoolId: string): Promise<{ 
 
   if (!pool) return { winners: 0, detail: "pool not found" };
 
-  // Fetch scores
   let scores: any[] | null = null;
   let scoresError: any = null;
 
@@ -150,18 +146,16 @@ async function settlePool(supabaseAdmin: any, contestPoolId: string): Promise<{ 
     scoresError = byInstanceId.error;
   }
 
-  if (scoresError) return { winners: 0, detail: `scores error: ${scoresError.message}` };
+  if (scoresError) return { winners: 0, detail: "scores error" };
   if (!scores || scores.length === 0) return { winners: 0, detail: "no scores found" };
 
   const prizePoolCents = pool.prize_pool_cents || 0;
   const isH2H = pool.max_entries <= 2;
 
-  // Detect H2H true tie: both entries have same points AND same margin error
   let isTieRefund = false;
   if (isH2H && scores.length === 2) {
     const a = scores[0];
     const b = scores[1];
-    // margin_bonus field stores the margin_error from scoring
     const marginA = a.margin_bonus ?? 0;
     const marginB = b.margin_bonus ?? 0;
     isTieRefund = a.total_points === b.total_points && Math.abs(marginA - marginB) < 0.01;
@@ -178,7 +172,6 @@ async function settlePool(supabaseAdmin: any, contestPoolId: string): Promise<{ 
   const winners: { userId: string; entryId: string; rank: number; payoutCents: number; isTieRefund: boolean }[] = [];
 
   if (isTieRefund) {
-    // Tie refund: each user gets their entry fee back
     const entryFeeCents = pool.entry_fee_cents || 0;
     for (const score of scores) {
       await supabaseAdmin
@@ -256,7 +249,6 @@ async function settlePool(supabaseAdmin: any, contestPoolId: string): Promise<{ 
     }
   }
 
-  // Mark all entries as settled
   for (const score of scores) {
     await supabaseAdmin.from("contest_entries").update({ status: "settled" }).eq("id", score.entry_id);
   }
