@@ -62,10 +62,8 @@ Deno.serve(async (req) => {
     if (error) {
       console.error('[contest-withdraw] RPC error:', error);
       
-      const errorMessage = error.message || 'Failed to withdraw from contest';
-      
       return new Response(
-        JSON.stringify({ error: errorMessage }),
+        JSON.stringify({ error: 'Failed to withdraw from contest' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
