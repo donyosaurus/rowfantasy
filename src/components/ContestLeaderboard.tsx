@@ -55,7 +55,7 @@ export const ContestLeaderboard = ({ instanceId, autoRefresh = false }: ContestL
     loadLeaderboard();
 
     // Auto-refresh every 30 seconds if enabled
-    let interval: NodeJS.Timeout | undefined;
+    let interval: ReturnType<typeof setInterval> | undefined;
     if (autoRefresh && status !== 'completed') {
       interval = setInterval(() => {
         loadLeaderboard();
