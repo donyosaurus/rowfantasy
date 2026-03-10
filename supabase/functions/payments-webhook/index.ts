@@ -3,11 +3,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { getPaymentProvider } from '../shared/payment-providers/factory.ts';
 import { isTimestampValid } from '../shared/crypto-utils.ts';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, webhook-signature, webhook-timestamp, webhook-id',
-};
+import { getCorsHeaders } from '../shared/cors.ts';
 
 // SECURITY: Rate limiting per IP
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
