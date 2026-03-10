@@ -7,8 +7,6 @@ import { StateAvailabilityMap } from "@/components/StateAvailabilityMap";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Target, TrendingUp, Shield, Clock, Trophy } from "lucide-react";
 import heroRowing from "@/assets/hero-rowing.jpeg";
-import heroContestPhones from "@/assets/hero-contest-phones.png";
-import heroRowingPhones from "@/assets/phones-contest-mockup.png";
 import { useAuth } from "@/hooks/useAuth";
 const Index = () => {
   const { user } = useAuth();
@@ -283,16 +281,6 @@ const Index = () => {
                 </div>
               </div>
 
-              {/* Right Content - Phone Image */}
-              <div className="relative flex justify-end items-end h-full pb-0">
-                <div className="absolute right-0 bottom-0" style={{ transform: "translateY(21%)" }}>
-                  <img
-                    src={heroRowingPhones}
-                    alt="RowFantasy app preview on mobile devices"
-                    className="w-full max-w-2xl object-contain object-bottom scale-[0.99]"
-                  />
-                </div>
-              </div>
             </div>
           </div>
         </section>
