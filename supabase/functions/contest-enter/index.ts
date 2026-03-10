@@ -23,12 +23,6 @@ Deno.serve(async (req) => {
       }
     );
 
-    // Create service client for overflow pool operations
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -36,6 +30,12 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // Create service client for overflow pool operations (after auth verification)
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
 
     // Geolocation check - block restricted states
     checkLocationEligibility(req);
@@ -250,7 +250,6 @@ Deno.serve(async (req) => {
     });
 
     const { data, error } = await supabase.rpc('enter_contest_pool', {
-      p_user_id: user.id,
       p_contest_pool_id: targetPoolId,
       p_picks: roster
     });
@@ -258,10 +257,8 @@ Deno.serve(async (req) => {
     if (error) {
       console.error('[contest-enter] RPC error:', error);
       
-      const errorMessage = error.message || 'Failed to enter contest';
-      
       return new Response(
-        JSON.stringify({ error: errorMessage }),
+        JSON.stringify({ error: 'Failed to enter contest' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -288,7 +285,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('[contest-enter] Error:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'An error occurred' }),
+      JSON.stringify({ error: 'An unexpected error occurred' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

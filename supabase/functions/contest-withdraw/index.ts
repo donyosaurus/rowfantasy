@@ -56,17 +56,14 @@ Deno.serve(async (req) => {
 
     // Call the atomic withdraw RPC
     const { data, error } = await supabase.rpc('withdraw_contest_entry', {
-      p_user_id: user.id,
       p_contest_pool_id: contestPoolId
     });
 
     if (error) {
       console.error('[contest-withdraw] RPC error:', error);
       
-      const errorMessage = error.message || 'Failed to withdraw from contest';
-      
       return new Response(
-        JSON.stringify({ error: errorMessage }),
+        JSON.stringify({ error: 'Failed to withdraw from contest' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -86,7 +83,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('[contest-withdraw] Error:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'An error occurred' }),
+      JSON.stringify({ error: 'An unexpected error occurred' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

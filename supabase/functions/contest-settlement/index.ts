@@ -109,7 +109,8 @@ Deno.serve(async (req) => {
     }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error: any) {
     console.error("[settlement] FATAL:", error?.message, JSON.stringify(error));
-    return new Response(JSON.stringify({ error: error?.message || "Unknown error", stack: error?.stack }), {
+    console.error("[settlement] Stack:", error?.stack);
+    return new Response(JSON.stringify({ error: "An internal error occurred during settlement" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
