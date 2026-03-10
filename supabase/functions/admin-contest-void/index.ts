@@ -1,16 +1,14 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { requireAdmin } from '../shared/auth-helpers.ts';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { getCorsHeaders } from '../shared/cors.ts';
 
 interface VoidRequest {
   contestPoolId: string;
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -19,25 +17,18 @@ Deno.serve(async (req) => {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
-        },
-      }
+      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     );
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Require admin role - throws if not admin
     await requireAdmin(supabase, user.id);
 
-    // Create service client after admin verification
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -55,7 +46,6 @@ Deno.serve(async (req) => {
 
     console.log('Voiding pool:', { contestPoolId, admin: user.id });
 
-    // Call the atomic database function
     const { data, error } = await supabaseAdmin.rpc('admin_void_contest', {
       p_contest_pool_id: contestPoolId
     });
@@ -68,26 +58,18 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Log compliance event
     await supabaseAdmin.from('compliance_audit_logs').insert({
       admin_id: user.id,
       event_type: 'pool_voided',
       description: `Admin voided pool ${contestPoolId}`,
       severity: 'warning',
-      metadata: {
-        pool_id: contestPoolId,
-        refunded_count: data?.refunded_count || 0,
-      },
+      metadata: { pool_id: contestPoolId, refunded_count: data?.refunded_count || 0 },
     });
 
     console.log(`Pool ${contestPoolId} voided. Refunded ${data?.refunded_count || 0} entries`);
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        message: 'Pool voided and refunds processed',
-        refundedCount: data?.refunded_count || 0,
-      }),
+      JSON.stringify({ success: true, message: 'Pool voided and refunds processed', refundedCount: data?.refunded_count || 0 }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
@@ -95,7 +77,7 @@ Deno.serve(async (req) => {
     console.error('Error in admin-contest-void:', error);
     return new Response(
       JSON.stringify({ error: 'An error occurred' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });

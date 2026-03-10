@@ -1,12 +1,9 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
+import { getCorsHeaders } from '../shared/cors.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
 
-serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -17,7 +14,6 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     );
 
-    // Handle both GET and POST requests
     let slug: string | null = null;
     let includeVersions = false;
 
@@ -38,7 +34,6 @@ serve(async (req) => {
       );
     }
 
-    // Get latest version
     const { data: page, error } = await supabase
       .from('cms_pages')
       .select('*')
@@ -56,7 +51,6 @@ serve(async (req) => {
       );
     }
 
-    // Get all versions if requested
     let versions = null;
     if (includeVersions) {
       const { data: allVersions } = await supabase
@@ -65,7 +59,6 @@ serve(async (req) => {
         .eq('slug', slug)
         .not('published_at', 'is', null)
         .order('version', { ascending: false });
-      
       versions = allVersions;
     }
 
@@ -77,7 +70,7 @@ serve(async (req) => {
     console.error('Error in cms-get:', error);
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });
