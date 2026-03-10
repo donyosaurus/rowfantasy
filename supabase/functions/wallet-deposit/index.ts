@@ -59,9 +59,8 @@ Deno.serve(async (req) => {
 
     if (limitError) {
       console.error('[wallet-deposit] Responsible gaming check failed:', limitError);
-      const errorMessage = limitError.message || 'Deposit not allowed';
       return new Response(
-        JSON.stringify({ error: errorMessage }),
+        JSON.stringify({ error: 'Deposit not allowed by responsible gaming limits' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

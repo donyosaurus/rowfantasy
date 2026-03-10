@@ -670,9 +670,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    const errMsg = error instanceof Error ? error.message : 'An error occurred during settlement';
     return new Response(
-      JSON.stringify({ error: errMsg }),
+      JSON.stringify({ error: 'An internal error occurred during settlement' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

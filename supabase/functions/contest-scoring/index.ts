@@ -275,7 +275,7 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    return new Response(JSON.stringify({ error: error.message || 'An error occurred' }), {
+    return new Response(JSON.stringify({ error: 'An internal error occurred during scoring' }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
