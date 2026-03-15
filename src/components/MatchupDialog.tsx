@@ -88,7 +88,7 @@ export function MatchupDialog({
       const [entriesRes, crewsRes, scoresRes] = await Promise.all([
         supabase
           .from("contest_entries")
-          .select("id, user_id, picks, total_points, margin_error, rank, payout_cents, status, created_at, profiles:user_id (username)")
+          .select("id, user_id, picks, total_points, margin_error, rank, payout_cents, status, created_at")
           .eq("pool_id", poolId)
           .in("status", ["active", "scored", "settled", "voided"]),
         supabase
@@ -119,11 +119,21 @@ export function MatchupDialog({
         });
       });
 
+      // Fetch usernames via security definer RPC
+      const userIds = [...new Set((entriesRes.data || []).map((e: any) => e.user_id))];
+      const usernameMap = new Map<string, string>();
+      if (userIds.length > 0) {
+        const { data: usernameData } = await supabase.rpc("get_usernames", { user_ids: userIds });
+        (usernameData || []).forEach((u: { user_id: string; username: string }) => {
+          if (u.username) usernameMap.set(u.user_id, u.username);
+        });
+      }
+
       // Build entrant rows
       const rows: EntrantRow[] = (entriesRes.data || []).map((e: any) => ({
         id: e.id,
         user_id: e.user_id,
-        username: (e.profiles as any)?.username || null,
+        username: usernameMap.get(e.user_id) || null,
         picks: e.picks,
         total_points: e.total_points,
         margin_error: e.margin_error,

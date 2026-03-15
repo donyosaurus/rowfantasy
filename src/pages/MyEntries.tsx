@@ -421,7 +421,7 @@ const MyEntries = () => {
           poolId={matchupPoolId!}
           currentUserId={user.id}
           contestName={matchupEntry.contest_templates.regatta_name}
-          poolStatus={matchupEntry.contest_pools?.status || "open"}
+          poolStatus={matchupEntry.contest_pools?.status || matchupEntry.status || "unknown"}
           lockTime={matchupEntry.contest_templates.lock_time}
           maxEntries={matchupEntry.contest_pools?.max_entries || 0}
           currentEntries={matchupEntry.contest_pools?.current_entries || 0}
