@@ -412,6 +412,22 @@ const MyEntries = () => {
       </main>
 
       <Footer />
+
+      {/* Matchup Dialog */}
+      {matchupEntry && user && (
+        <MatchupDialog
+          open={!!matchupPoolId}
+          onOpenChange={(open) => { if (!open) { setMatchupPoolId(null); setMatchupEntry(null); } }}
+          poolId={matchupPoolId!}
+          currentUserId={user.id}
+          contestName={matchupEntry.contest_templates.regatta_name}
+          poolStatus={matchupEntry.contest_pools?.status || "open"}
+          lockTime={matchupEntry.contest_templates.lock_time}
+          maxEntries={matchupEntry.contest_pools?.max_entries || 0}
+          currentEntries={matchupEntry.contest_pools?.current_entries || 0}
+          payoutStructure={matchupEntry.contest_pools?.payout_structure || null}
+        />
+      )}
     </div>
   );
 };
