@@ -1438,6 +1438,10 @@ export type Database = {
           success: boolean
         }[]
       }
+      user_in_pool: {
+        Args: { _pool_id: string; _user_id: string }
+        Returns: boolean
+      }
       withdraw_contest_entry: {
         Args: { p_contest_pool_id: string }
         Returns: Json
