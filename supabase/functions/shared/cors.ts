@@ -5,6 +5,8 @@ const ALLOWED_ORIGINS = [
   'https://www.rowfantasy.com',
   'https://rowfantasy.lovable.app',
   'https://id-preview--2b69429d-ad5f-4e48-8f93-e8587ead9e3c.lovable.app',
+  'https://lovable.dev',
+  'https://2b69429d-ad5f-4e48-8f93-e8587ead9e3c.lovableproject.com',
 ];
 
 export function getCorsHeaders(req: Request): Record<string, string> {
