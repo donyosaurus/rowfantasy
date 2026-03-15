@@ -52,6 +52,15 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Check for inappropriate content
+    const contentError = validateUsernameContent(username);
+    if (contentError) {
+      return new Response(
+        JSON.stringify({ error: contentError }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Fetch current profile
     const { data: profile, error: profileError } = await supabase
       .from('profiles')

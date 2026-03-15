@@ -49,6 +49,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signUp = async (email: string, password: string, fullName: string, username: string, dateOfBirth: string, stateCode?: string) => {
     try {
+      // Check for inappropriate username
+      const usernameError = validateUsernameContent(username);
+      if (usernameError) {
+        toast.error(usernameError);
+        return { error: { message: usernameError } };
+      }
+
       // Check if username already exists
       const { data: existingUser, error: checkError } = await supabase
         .from('profiles')
