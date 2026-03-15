@@ -307,6 +307,19 @@ const MyEntries = () => {
             </div>
           </div>
 
+          {/* View Matchup button */}
+          <div className="flex justify-end mt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-lg text-xs gap-1.5"
+              onClick={() => { setMatchupPoolId(entry.pool_id); setMatchupEntry(entry); }}
+            >
+              <Eye className="h-3.5 w-3.5" />
+              View Matchup
+            </Button>
+          </div>
+
           {showScore && score && (
             <div className="flex flex-wrap items-center gap-4 text-sm pt-3 border-t text-muted-foreground">
               <span className="font-heading font-bold text-foreground">Rank: #{score.rank}</span>
