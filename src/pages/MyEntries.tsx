@@ -59,6 +59,8 @@ const MyEntries = () => {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [crewMap, setCrewMap] = useState<Map<string, CrewInfo>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [matchupPoolId, setMatchupPoolId] = useState<string | null>(null);
+  const [matchupEntry, setMatchupEntry] = useState<Entry | null>(null);
   const [stats, setStats] = useState({
     totalEntries: 0,
     activeEntries: 0,
