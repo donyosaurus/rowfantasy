@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Trophy, Calendar, DollarSign, TrendingUp, Users, Eye } from "lucide-react";
-import myEntriesBg from "@/assets/my-entries-bg.webp";
+import myEntriesBg from "@/assets/my-entries-bg.jpg";
 
 interface PickNew {
   crewId: string;
