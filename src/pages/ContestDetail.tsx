@@ -378,7 +378,7 @@ const ContestDetail = () => {
               <div>
                 <h2 className="font-heading text-xl font-bold mb-1">Select Your Crews</h2>
                 <p className="text-sm text-muted-foreground">
-                  Pick {minPicks}–{maxPicks} crews from at least 2 different events
+                  Draft a crew from each event. Your entry will be matched against other players.
                 </p>
               </div>
 
