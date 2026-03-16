@@ -5,13 +5,29 @@ import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Check, Circle, Clock, DollarSign, Info, Plus, Trash2, Trophy, Loader2 } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  ArrowLeft,
+  Check,
+  Clock,
+  Loader2,
+  Trophy,
+  Users,
+  Zap,
+  ChevronDown,
+  Lock,
+  X,
+  Wallet,
+} from "lucide-react";
 import { toast } from "sonner";
+import { formatCents } from "@/lib/formatCurrency";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -44,44 +60,10 @@ interface ContestPool {
   contest_pool_crews: PoolCrew[];
 }
 
-interface DraftPick {
-  crewId: string;
-  crewName: string;
-  eventId: string;
-  predictedMargin: number;
-}
-
-// Canonical finish-order points — matches shared/scoring-logic.ts exactly
 const FINISH_POINTS: Record<number, number> = {
-  1: 100,
-  2: 75,
-  3: 60,
-  4: 45,
-  5: 35,
-  6: 25,
-  7: 15,
+  1: 100, 2: 75, 3: 60, 4: 45, 5: 35, 6: 25, 7: 15,
 };
 const DEFAULT_POINTS = 10;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatLockTime(iso: string): string {
-  return new Date(iso).toLocaleString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-    timeZoneName: "short",
-  });
-}
-
-function centsToDisplay(cents: number): string {
-  return (cents / 100).toFixed(2);
-}
 
 function ordinal(n: number): string {
   const s = ["th", "st", "nd", "rd"];
@@ -101,63 +83,34 @@ const ContestDetail = () => {
   const [contestPool, setContestPool] = useState<ContestPool | null>(null);
   const [poolLoading, setPoolLoading] = useState(true);
   const [poolError, setPoolError] = useState<string | null>(null);
-
-  // Wallet balance in cents (matches DB storage)
   const [walletBalanceCents, setWalletBalanceCents] = useState<number | null>(null);
 
-  // Draft state
-  const [draftPicks, setDraftPicks] = useState<DraftPick[]>([]);
-  const [currentEventId, setCurrentEventId] = useState<string>("");
-  const [currentCrewId, setCurrentCrewId] = useState<string>("");
-  const [currentMargin, setCurrentMargin] = useState<string>("");
+  // Draft state — direct click-to-select, Map<crewId, margin>
+  const [crewPicks, setCrewPicks] = useState<Map<string, number>>(new Map());
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [scoringOpen, setScoringOpen] = useState(false);
 
   // Auth guard
   useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/login");
-    }
+    if (!authLoading && !user) navigate("/login");
   }, [user, authLoading, navigate]);
 
-  // Fetch contest pool from Supabase
+  // Fetch contest pool
   useEffect(() => {
     if (!id) return;
     const fetchPool = async () => {
       setPoolLoading(true);
-      setPoolError(null);
       const { data, error } = await supabase
         .from("contest_pools")
-        .select(
-          `
-          id,
-          lock_time,
-          status,
-          entry_fee_cents,
-          prize_pool_cents,
-          payout_structure,
-          current_entries,
-          max_entries,
-          contest_template_id,
-          contest_templates (
-            id,
-            regatta_name,
-            gender_category,
-            min_picks,
-            max_picks
-          ),
-          contest_pool_crews (
-            id,
-            crew_id,
-            crew_name,
-            event_id
-          )
-        `,
-        )
+        .select(`
+          id, lock_time, status, entry_fee_cents, prize_pool_cents, payout_structure,
+          current_entries, max_entries, contest_template_id,
+          contest_templates (id, regatta_name, gender_category, min_picks, max_picks),
+          contest_pool_crews (id, crew_id, crew_name, event_id)
+        `)
         .eq("id", id)
         .single();
-
       if (error || !data) {
-        console.error("Error fetching contest pool:", error);
         setPoolError("Contest not found.");
       } else {
         setContestPool(data as unknown as ContestPool);
@@ -167,44 +120,34 @@ const ContestDetail = () => {
     fetchPool();
   }, [id]);
 
-  // Fetch wallet balance in cents
+  // Fetch wallet
   useEffect(() => {
     if (!user) return;
     const fetchWallet = async () => {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("wallets")
         .select("available_balance")
         .eq("user_id", user.id)
         .single();
-      if (!error && data) {
-        setWalletBalanceCents(Number(data.available_balance));
-      }
+      if (data) setWalletBalanceCents(Number(data.available_balance));
     };
     fetchWallet();
   }, [user]);
 
-  // Derived: group crews by event_id
+  // Derived state
   const crewsByEvent = useMemo(() => {
     if (!contestPool) return {} as Record<string, PoolCrew[]>;
-    return contestPool.contest_pool_crews.reduce(
-      (acc, crew) => {
-        if (!acc[crew.event_id]) acc[crew.event_id] = [];
-        acc[crew.event_id].push(crew);
-        return acc;
-      },
-      {} as Record<string, PoolCrew[]>,
-    );
+    return contestPool.contest_pool_crews.reduce((acc, crew) => {
+      if (!acc[crew.event_id]) acc[crew.event_id] = [];
+      acc[crew.event_id].push(crew);
+      return acc;
+    }, {} as Record<string, PoolCrew[]>);
   }, [contestPool]);
 
-  const pickedEvents = useMemo(() => new Set(draftPicks.map((p) => p.eventId)), [draftPicks]);
-  const availableEventIds = useMemo(
-    () => Object.keys(crewsByEvent).filter((eid) => !pickedEvents.has(eid)),
-    [crewsByEvent, pickedEvents],
-  );
-  const availableCrews = useMemo(
-    () => (currentEventId ? crewsByEvent[currentEventId] || [] : []),
-    [crewsByEvent, currentEventId],
-  );
+  const events = Object.keys(crewsByEvent);
+  const minPicks = contestPool?.contest_templates?.min_picks ?? 2;
+  const maxPicks = contestPool?.contest_templates?.max_picks ?? 4;
+  const isOpen = contestPool?.status === "open" && new Date(contestPool.lock_time) > new Date();
 
   const payoutRows = useMemo(() => {
     if (!contestPool?.payout_structure) return [];
@@ -213,148 +156,116 @@ const ContestDetail = () => {
       .sort((a, b) => a.rank - b.rank);
   }, [contestPool]);
 
-  const minPicks = contestPool?.contest_templates?.min_picks ?? 2;
-  const maxPicks = contestPool?.contest_templates?.max_picks ?? 4;
+  const firstPrize = payoutRows.length > 0 ? payoutRows[0].cents : contestPool?.prize_pool_cents ?? 0;
+  const totalPrize = payoutRows.length > 0
+    ? payoutRows.reduce((sum, r) => sum + r.cents, 0)
+    : contestPool?.prize_pool_cents ?? 0;
+  const fillPercent = contestPool ? Math.min(100, (contestPool.current_entries / contestPool.max_entries) * 100) : 0;
 
-  // Draft actions
-  const addPick = () => {
-    if (!currentCrewId || !currentMargin) {
-      toast.error("Please select a crew and enter a margin prediction.");
-      return;
-    }
-    const margin = parseFloat(currentMargin);
-    if (isNaN(margin) || margin <= 0) {
-      toast.error("Please enter a valid margin in seconds (e.g. 1.42).");
-      return;
-    }
-    if (draftPicks.length >= maxPicks) {
-      toast.error(`Maximum ${maxPicks} picks allowed.`);
-      return;
-    }
-    const crew = contestPool!.contest_pool_crews.find((c) => c.crew_id === currentCrewId);
-    if (!crew) return;
+  const formattedLockTime = contestPool?.lock_time
+    ? new Date(contestPool.lock_time).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+    : "";
 
-    if (pickedEvents.has(crew.event_id)) {
-      toast.error("You already have a crew from this event.");
-      return;
+  const allMarginsValid = useMemo(() => {
+    for (const [, margin] of crewPicks) {
+      if (margin === undefined || margin <= 0) return false;
     }
+    return true;
+  }, [crewPicks]);
 
-    setDraftPicks([
-      ...draftPicks,
-      {
-        crewId: crew.crew_id,
-        crewName: crew.crew_name,
-        eventId: crew.event_id,
-        predictedMargin: margin,
-      },
-    ]);
-    setCurrentCrewId("");
-    setCurrentMargin("");
-    setCurrentEventId("");
-    toast.success(`${crew.crew_name} added to your draft.`);
+  const draftPicksList = useMemo(() => {
+    return Array.from(crewPicks.entries()).map(([crewId, margin]) => {
+      const crew = contestPool?.contest_pool_crews.find((c) => c.crew_id === crewId);
+      return { crewId, crewName: crew?.crew_name ?? crewId, eventId: crew?.event_id ?? "", margin };
+    });
+  }, [crewPicks, contestPool]);
+
+  // Crew selection
+  const toggleCrewSelection = (crewId: string) => {
+    setCrewPicks((prev) => {
+      const newPicks = new Map(prev);
+      if (newPicks.has(crewId)) {
+        newPicks.delete(crewId);
+      } else {
+        if (newPicks.size >= maxPicks) { toast.error(`Maximum ${maxPicks} picks allowed`); return prev; }
+        newPicks.set(crewId, 0);
+      }
+      return newPicks;
+    });
   };
 
-  const removePick = (index: number) => {
-    setDraftPicks(draftPicks.filter((_, i) => i !== index));
+  const updateCrewMargin = (crewId: string, margin: number) => {
+    setCrewPicks((prev) => {
+      const newPicks = new Map(prev);
+      newPicks.set(crewId, margin);
+      return newPicks;
+    });
   };
 
-  // Submit entry
+  // Submit
   const handleSubmit = async () => {
     if (!contestPool || !user) return;
 
-    if (draftPicks.length < minPicks) {
-      toast.error(`You must pick at least ${minPicks} crews from different events.`);
-      return;
+    if (crewPicks.size < minPicks) { toast.error(`Select at least ${minPicks} crews from different events.`); return; }
+    const uniqueEvents = new Set(draftPicksList.map((p) => p.eventId));
+    if (uniqueEvents.size < 2) { toast.error("Pick crews from at least 2 different events."); return; }
+
+    for (const [crewId, margin] of crewPicks) {
+      if (margin <= 0) {
+        const crew = contestPool.contest_pool_crews.find((c) => c.crew_id === crewId);
+        toast.error(`Enter a valid margin for ${crew?.crew_name || crewId}`);
+        return;
+      }
     }
 
-    const uniqueEvents = new Set(draftPicks.map((p) => p.eventId));
-    if (uniqueEvents.size < 2) {
-      toast.error("You must pick crews from at least 2 different events.");
-      return;
-    }
-
-    if (walletBalanceCents === null) {
-      toast.error("Unable to verify wallet balance. Please refresh and try again.");
-      return;
-    }
-
-    // All comparisons in cents — no unit mismatch
-    if (walletBalanceCents < contestPool.entry_fee_cents) {
-      toast.error(
-        `Insufficient balance. You need $${centsToDisplay(contestPool.entry_fee_cents)} but have $${centsToDisplay(walletBalanceCents)}.`,
-      );
-      return;
-    }
-
-    if (contestPool.status !== "open") {
-      toast.error("This contest is no longer accepting entries.");
+    if (walletBalanceCents !== null && walletBalanceCents < contestPool.entry_fee_cents) {
+      toast.error(`Insufficient balance. Need ${formatCents(contestPool.entry_fee_cents)}, have ${formatCents(walletBalanceCents)}.`);
       return;
     }
 
     setIsSubmitting(true);
+    const picks = draftPicksList.map((p) => ({
+      crewId: p.crewId,
+      event_id: p.eventId,
+      predictedMargin: p.margin,
+    }));
+
     try {
       const { data, error } = await supabase.functions.invoke("contest-matchmaking", {
         body: {
           contestTemplateId: contestPool.contest_template_id,
           tierId: contestPool.id,
-          picks: draftPicks.map((pick) => ({
-            crewId: pick.crewId,
-            event_id: pick.eventId,
-            predictedMargin: pick.predictedMargin,
-          })),
+          picks,
           entryFeeCents: contestPool.entry_fee_cents,
           stateCode: null,
         },
       });
-
-      if (error) {
-        console.error("Matchmaking error:", error);
-        if (error.message?.includes("Insufficient balance")) {
-          toast.error("Insufficient balance to enter this contest.");
-        } else if (error.message?.includes("already entered")) {
-          toast.error("You have already entered this contest.");
-        } else if (error.message?.includes("not open")) {
-          toast.error("Contest entry period has ended.");
-        } else {
-          toast.error("Failed to submit entry. Please try again.");
-        }
-        return;
-      }
-
-      if (!data?.entryId) {
-        toast.error(data?.error || "Failed to submit entry.");
-        return;
-      }
+      if (error) throw error;
+      if (!data?.entryId) { toast.error(data?.error || "Failed to submit entry."); return; }
 
       toast.success("Entry submitted! You're in the contest.");
-
-      // Refresh wallet
       const { data: walletData } = await supabase
         .from("wallets")
         .select("available_balance")
         .eq("user_id", user.id)
         .single();
       if (walletData) setWalletBalanceCents(Number(walletData.available_balance));
-
       setTimeout(() => navigate("/my-entries"), 1500);
-    } catch (err) {
-      console.error("Unexpected error:", err);
-      toast.error("An unexpected error occurred. Please try again.");
+    } catch (err: any) {
+      const msg = err.message || "An unexpected error occurred.";
+      toast.error(msg);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // ---------------------------------------------------------------------------
-  // Loading / error states
-  // ---------------------------------------------------------------------------
-
+  // Loading / Error
   if (authLoading || poolLoading) {
     return (
       <div className="flex flex-col min-h-screen">
         <Header />
         <main className="flex-1 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Loader2 className="h-12 w-12 animate-spin text-accent" />
         </main>
         <Footer />
       </div>
@@ -367,9 +278,7 @@ const ContestDetail = () => {
         <Header />
         <main className="flex-1 flex flex-col items-center justify-center gap-4">
           <p className="text-xl text-muted-foreground">{poolError || "Contest not found."}</p>
-          <Button variant="outline" onClick={() => navigate("/lobby")}>
-            Back to Lobby
-          </Button>
+          <Button variant="outline" onClick={() => navigate("/lobby")}>Back to Lobby</Button>
         </main>
         <Footer />
       </div>
@@ -377,441 +286,344 @@ const ContestDetail = () => {
   }
 
   const template = contestPool.contest_templates;
-
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
+  const statusLabel = isOpen ? "Open" : contestPool.status.charAt(0).toUpperCase() + contestPool.status.slice(1);
 
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
 
-      <main className="flex-1 gradient-subtle py-12">
-        <div className="container mx-auto px-4 max-w-5xl">
+      {/* ── Gradient Hero Header ── */}
+      <div className="gradient-hero text-primary-foreground">
+        <div className="container mx-auto px-4 max-w-6xl py-6 lg:py-8">
           <Link
-            to={`/regatta/${id}`}
-            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-base"
+            to="/lobby"
+            className="inline-flex items-center gap-2 text-primary-foreground/70 hover:text-primary-foreground text-sm mb-4 transition-base"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to Entry Options
+            Back to Lobby
           </Link>
 
-          {/* Header */}
-          <div className="mb-8">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h1 className="text-4xl font-bold mb-2">{template.regatta_name}</h1>
-                <p className="text-lg text-muted-foreground">
-                  {template.gender_category} Multi-Team Fantasy • Pick {minPicks}–{maxPicks} crews from different events
-                </p>
-              </div>
-              {contestPool.status !== "open" && (
-                <Badge variant="destructive" className="text-sm px-3 py-1 capitalize">
-                  {contestPool.status}
-                </Badge>
-              )}
+          <div className="flex items-start justify-between gap-4 mb-5">
+            <div>
+              <h1 className="font-heading text-3xl lg:text-4xl font-bold mb-1">{template.regatta_name}</h1>
+              <p className="text-primary-foreground/70 text-sm lg:text-base">
+                {template.gender_category} Multi-Team Fantasy · Pick {minPicks}–{maxPicks} crews
+              </p>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {/* Entry Fee */}
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-                      <DollarSign className="h-5 w-5 text-accent" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Entry Fee</p>
-                      <p className="text-2xl font-bold">${centsToDisplay(contestPool.entry_fee_cents)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Prize */}
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center">
-                      <Trophy className="h-5 w-5 text-success" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm text-muted-foreground mb-1">Prizes</p>
-                      {payoutRows.length > 0 ? (
-                        <div className="space-y-0.5">
-                          {payoutRows.map(({ rank, cents }) => (
-                            <div key={rank} className="flex items-center justify-between">
-                              <span className="text-xs text-muted-foreground">#{rank}</span>
-                              <span className="text-sm font-bold text-success">${centsToDisplay(cents)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-2xl font-bold text-success">
-                          ${centsToDisplay(contestPool.prize_pool_cents)}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Lock Time */}
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Clock className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Locks</p>
-                      <p className="text-sm font-semibold">{formatLockTime(contestPool.lock_time)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Wallet */}
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-muted/50 flex items-center justify-center">
-                      <DollarSign className="h-5 w-5 text-foreground" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Your Balance</p>
-                      {walletBalanceCents !== null ? (
-                        <p
-                          className={`text-2xl font-bold ${walletBalanceCents < contestPool.entry_fee_cents ? "text-destructive" : ""}`}
-                        >
-                          ${centsToDisplay(walletBalanceCents)}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">Loading...</p>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <Badge
+              className={`flex-shrink-0 text-sm px-3 py-1 font-semibold ${
+                isOpen
+                  ? "bg-success/20 text-success border-success/30"
+                  : "bg-primary-foreground/10 text-primary-foreground/60 border-primary-foreground/20"
+              }`}
+            >
+              {statusLabel}
+            </Badge>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Draft form */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Current picks */}
-              {draftPicks.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>
-                      Your Draft ({draftPicks.length}/{maxPicks})
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {draftPicks.map((pick, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-4 rounded-lg border-2 border-accent/20 bg-accent/5"
-                      >
-                        <div className="flex-1">
-                          <p className="font-semibold">{pick.crewName}</p>
-                          <p className="text-sm text-muted-foreground">Event: {pick.eventId}</p>
-                          <p className="text-sm mt-1">
-                            Margin prediction: <span className="font-medium">{pick.predictedMargin}s</span>
-                          </p>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removePick(index)}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              )}
+          {/* Stat cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="rounded-xl bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/10 p-3 lg:p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Trophy className="h-4 w-4 text-gold" />
+                <span className="text-xs text-primary-foreground/60 font-medium">1st Prize</span>
+              </div>
+              <p className="font-heading text-xl lg:text-2xl font-bold text-gold">{formatCents(firstPrize)}</p>
+            </div>
+            <div className="rounded-xl bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/10 p-3 lg:p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Zap className="h-4 w-4 text-accent" />
+                <span className="text-xs text-primary-foreground/60 font-medium">Entry Fee</span>
+              </div>
+              <p className="font-heading text-xl lg:text-2xl font-bold">{formatCents(contestPool.entry_fee_cents)}</p>
+            </div>
+            <div className="rounded-xl bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/10 p-3 lg:p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Clock className="h-4 w-4 text-primary-foreground/60" />
+                <span className="text-xs text-primary-foreground/60 font-medium">Locks</span>
+              </div>
+              <p className="font-heading text-lg lg:text-xl font-bold">{formattedLockTime}</p>
+            </div>
+            <div className="rounded-xl bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/10 p-3 lg:p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Users className="h-4 w-4 text-primary-foreground/60" />
+                <span className="text-xs text-primary-foreground/60 font-medium">Entries</span>
+              </div>
+              <p className="font-heading text-xl lg:text-2xl font-bold mb-1.5">
+                {contestPool.current_entries}/{contestPool.max_entries}
+              </p>
+              <div className="h-1 w-full rounded-full bg-primary-foreground/10 overflow-hidden">
+                <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${fillPercent}%` }} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-              {/* Event progress checklist */}
-              {Object.keys(crewsByEvent).length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Event Progress</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    {Object.keys(crewsByEvent).map((eid) => {
-                      const pick = draftPicks.find((p) => p.eventId === eid);
-                      return (
-                        <div key={eid} className="flex items-center gap-3 text-sm">
-                          {pick ? (
-                            <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                          ) : (
-                            <Circle className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          )}
-                          <span className={pick ? "font-medium" : "text-muted-foreground"}>
-                            {eid}
-                          </span>
-                          {pick && (
-                            <Badge variant="secondary" className="ml-auto text-xs">
-                              {pick.crewName}
-                            </Badge>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </CardContent>
-                </Card>
-              )}
+      {/* ── Main Content ── */}
+      <main className="flex-1 bg-background pb-32 lg:pb-12">
+        <div className="container mx-auto px-4 max-w-6xl py-6 lg:py-8">
+          {!isOpen && (
+            <div className="mb-6 p-4 rounded-xl border border-destructive/30 bg-destructive/5 text-center">
+              <p className="text-destructive font-semibold flex items-center justify-center gap-2">
+                <Lock className="h-4 w-4" />
+                Contest is {contestPool.status} — entries are closed.
+              </p>
+            </div>
+          )}
 
-              {/* Add pick form */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Add Crew to Draft</CardTitle>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    {draftPicks.length < minPicks
-                      ? `You need ${minPicks - draftPicks.length} more crew(s) from different events`
-                      : draftPicks.length < maxPicks
-                        ? `Optional: Add up to ${maxPicks - draftPicks.length} more crew(s)`
-                        : "Draft complete!"}
-                  </p>
-                </CardHeader>
+          <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+            {/* ── LEFT: Crew Selection ── */}
+            <div className="flex-1 min-w-0 space-y-5">
+              <div>
+                <h2 className="font-heading text-xl font-bold mb-1">Select Your Crews</h2>
+                <p className="text-sm text-muted-foreground">
+                  Pick {minPicks}–{maxPicks} crews from at least 2 different events
+                </p>
+              </div>
 
-                {draftPicks.length < maxPicks && contestPool.status === "open" && (
-                  <CardContent className="space-y-6">
-                    {/* Step 1: Event */}
-                    <div className="space-y-3">
-                      <Label className="text-base font-semibold">Step 1: Choose Event</Label>
-                      <Select
-                        value={currentEventId}
-                        onValueChange={(v) => {
-                          setCurrentEventId(v);
-                          setCurrentCrewId("");
-                        }}
-                      >
-                        <SelectTrigger className="text-base">
-                          <SelectValue placeholder="Select an event..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableEventIds.map((eid) => (
-                            <SelectItem key={eid} value={eid} className="text-base">
-                              {eid}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+              {events.length === 0 ? (
+                <Card><CardContent className="py-8 text-center text-muted-foreground">No crews available.</CardContent></Card>
+              ) : (
+                events.map((eventId) => (
+                  <div key={eventId}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Badge variant="outline" className="font-semibold text-xs px-2.5 py-1 bg-muted/50">
+                        {eventId}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {crewsByEvent[eventId].length} crews
+                      </span>
                     </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {crewsByEvent[eventId].map((crew) => {
+                        const isSelected = crewPicks.has(crew.crew_id);
+                        const marginVal = crewPicks.get(crew.crew_id) ?? 0;
+                        return (
+                          <div
+                            key={crew.id}
+                            className={`group rounded-xl border-2 transition-all overflow-hidden ${
+                              !isOpen ? "opacity-50 pointer-events-none" : "cursor-pointer"
+                            } ${
+                              isSelected
+                                ? "border-accent bg-accent/5 shadow-sm"
+                                : "border-border hover:border-muted-foreground/30 hover:shadow-sm hover:-translate-y-0.5"
+                            }`}
+                          >
+                            <div
+                              className="flex items-center gap-3 p-3.5"
+                              onClick={() => isOpen && toggleCrewSelection(crew.crew_id)}
+                            >
+                              <div
+                                className={`flex-shrink-0 w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${
+                                  isSelected
+                                    ? "bg-accent border-accent"
+                                    : "border-border group-hover:border-muted-foreground/40"
+                                }`}
+                              >
+                                {isSelected && <Check className="h-4 w-4 text-accent-foreground" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-sm truncate">{crew.crew_name}</p>
+                                <p className="text-xs text-muted-foreground">{eventId}</p>
+                              </div>
+                            </div>
 
-                    {/* Step 2: Crew */}
-                    {currentEventId && (
-                      <div className="space-y-3">
-                        <Label className="text-base font-semibold">Step 2: Select Crew</Label>
-                        <Select value={currentCrewId} onValueChange={setCurrentCrewId}>
-                          <SelectTrigger className="text-base">
-                            <SelectValue placeholder="Select a crew..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {availableCrews.map((crew) => (
-                              <SelectItem key={crew.crew_id} value={crew.crew_id} className="text-base">
-                                {crew.crew_name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-
-                    {/* Step 3: Margin */}
-                    {currentCrewId && (
-                      <div className="space-y-3">
-                        <Label htmlFor="margin" className="text-base font-semibold">
-                          Step 3: Predict Winning Margin (Tie-Breaker)
-                        </Label>
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Input
-                              id="margin"
-                              type="number"
-                              step="0.01"
-                              min="0.01"
-                              placeholder="1.42"
-                              value={currentMargin}
-                              onChange={(e) => setCurrentMargin(e.target.value)}
-                              className="text-base"
-                            />
-                            <span className="text-muted-foreground font-medium">seconds</span>
+                            {isSelected && isOpen && (
+                              <div className="px-3.5 pb-3.5 animate-fade-in">
+                                <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border/50">
+                                  <span className="text-xs text-muted-foreground whitespace-nowrap">Margin:</span>
+                                  <Input
+                                    type="number"
+                                    min="0.01"
+                                    step="0.1"
+                                    placeholder="e.g. 2.5"
+                                    value={marginVal || ""}
+                                    onChange={(e) => updateCrewMargin(crew.crew_id, parseFloat(e.target.value) || 0)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="h-7 text-xs border-0 bg-background px-2"
+                                  />
+                                  <span className="text-xs text-muted-foreground">sec</span>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          <p className="text-sm text-muted-foreground flex items-start gap-2">
-                            <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                            Time gap between 1st and 2nd place in this event. Used only if scores are tied.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    <Button
-                      type="button"
-                      onClick={addPick}
-                      variant="outline"
-                      size="lg"
-                      className="w-full"
-                      disabled={!currentCrewId || !currentMargin}
-                    >
-                      <Plus className="h-5 w-5 mr-2" />
-                      Add Crew to Draft
-                    </Button>
-                  </CardContent>
-                )}
-              </Card>
-
-              {/* Submit */}
-              {draftPicks.length >= minPicks && (
-                <Button
-                  onClick={handleSubmit}
-                  variant="hero"
-                  size="lg"
-                  className="w-full text-lg py-6"
-                  disabled={isSubmitting || contestPool.status !== "open"}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>Submit Draft — ${centsToDisplay(contestPool.entry_fee_cents)}</>
-                  )}
-                </Button>
-              )}
-
-              {contestPool.status !== "open" && (
-                <Card className="border-destructive/30 bg-destructive/5">
-                  <CardContent className="pt-6 text-center">
-                    <p className="text-destructive font-semibold capitalize">
-                      Contest is {contestPool.status} — entries are closed.
-                    </p>
-                  </CardContent>
-                </Card>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
               )}
             </div>
 
-            {/* Sidebar */}
-            <div className="space-y-6">
-              {/* Scoring table — matches scoring-logic.ts */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Trophy className="h-5 w-5 text-accent" />
-                    Finish-Order Scoring
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  <div className="space-y-2">
-                    {Object.entries(FINISH_POINTS).map(([pos, pts]) => (
-                      <div
-                        key={pos}
-                        className={`flex items-center justify-between p-2 rounded ${Number(pos) === 1 ? "bg-accent/5" : "bg-muted/50"}`}
-                      >
-                        <span className={Number(pos) === 1 ? "font-medium" : ""}>{ordinal(Number(pos))} Place</span>
-                        <span className={`font-semibold ${Number(pos) === 1 ? "text-accent font-bold" : ""}`}>
-                          {pts} pts
-                        </span>
-                      </div>
-                    ))}
-                    <div className="flex items-center justify-between p-2 rounded bg-muted/50">
-                      <span>8th+ Place</span>
-                      <span className="font-semibold">{DEFAULT_POINTS} pts</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground pt-2 border-t">
-                    Your total score = sum of all your crews' finish points
-                  </p>
-                </CardContent>
-              </Card>
-
-              {/* How to Win */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">How to Win</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4 text-sm">
-                  <div>
-                    <h4 className="font-semibold mb-2">1. Automatic Finish Points</h4>
-                    <p className="text-muted-foreground">
-                      Your drafted crews earn points based on their actual finish positions.
-                    </p>
-                  </div>
-                  <div>
-                    <h4 className="font-semibold mb-2">2. Margin Accuracy (Tie-Breaker)</h4>
-                    <p className="text-muted-foreground">
-                      If tied on points, the user with the most accurate margin predictions wins.
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-muted/30">
-                    <p className="text-xs font-medium mb-1">Example:</p>
-                    <p className="text-xs text-muted-foreground">
-                      Draft Yale (1st = 100 pts) and Harvard (3rd = 60 pts) = 160 total points.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Prize pool */}
-              <Card className="border-accent/20 bg-accent/5">
-                <CardHeader>
-                  <CardTitle className="text-lg">Prize Pool</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Distributed to top finishers after all entries are submitted.
-                  </p>
-                  {payoutRows.length > 0 ? (
-                    <div className="space-y-2">
+            {/* ── RIGHT: Sidebar ── */}
+            <div className="w-full lg:w-[340px] xl:w-[380px] flex-shrink-0 space-y-4 lg:sticky lg:top-4 lg:self-start">
+              {/* Prize Pool */}
+              {payoutRows.length > 0 && (
+                <Card className="border-gold/20">
+                  <CardContent className="p-4">
+                    <h3 className="font-heading text-sm font-bold flex items-center gap-2 mb-3">
+                      <Trophy className="h-4 w-4 text-gold" />
+                      Prize Pool
+                    </h3>
+                    <div className="space-y-1.5">
                       {payoutRows.map(({ rank, cents }) => (
                         <div
                           key={rank}
-                          className="flex items-center justify-between p-2 rounded bg-background border border-border"
+                          className={`flex items-center justify-between py-1.5 px-2.5 rounded-lg text-sm ${
+                            rank === 1 ? "bg-gold/10 font-semibold" : ""
+                          }`}
                         >
-                          <span className="text-sm font-medium">{ordinal(rank)} Place</span>
-                          <span className="text-lg font-bold text-success">${centsToDisplay(cents)}</span>
+                          <span className={rank === 1 ? "text-gold" : "text-muted-foreground"}>
+                            {ordinal(rank)} Place
+                          </span>
+                          <span className={rank === 1 ? "text-gold font-bold" : "font-semibold"}>
+                            {formatCents(cents)}
+                          </span>
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <div className="p-4 rounded-lg bg-background border border-border">
-                      <p className="text-2xl font-bold text-success text-center">
-                        ${centsToDisplay(contestPool.prize_pool_cents)}
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t text-xs text-muted-foreground">
+                      <span>Total</span>
+                      <span className="font-semibold text-foreground">{formatCents(totalPrize)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Scoring — Collapsible */}
+              <Collapsible open={scoringOpen} onOpenChange={setScoringOpen}>
+                <Card>
+                  <CardContent className="p-4">
+                    <CollapsibleTrigger className="flex items-center justify-between w-full">
+                      <h3 className="font-heading text-sm font-bold">How Scoring Works</h3>
+                      <ChevronDown
+                        className={`h-4 w-4 text-muted-foreground transition-transform ${scoringOpen ? "rotate-180" : ""}`}
+                      />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-3 text-sm">
+                        {Object.entries(FINISH_POINTS).map(([pos, pts]) => (
+                          <div key={pos} className="flex items-center justify-between py-1">
+                            <span className="text-muted-foreground">{ordinal(Number(pos))}:</span>
+                            <span className="font-semibold">{pts} pts</span>
+                          </div>
+                        ))}
+                        <div className="flex items-center justify-between py-1">
+                          <span className="text-muted-foreground">8th+:</span>
+                          <span className="font-semibold">{DEFAULT_POINTS} pts</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-3 pt-2 border-t">
+                        Margin predictions are tiebreakers only — they don't add to your score.
                       </p>
-                      <p className="text-xs text-center text-muted-foreground mt-1">Total prize pool</p>
+                    </CollapsibleContent>
+                  </CardContent>
+                </Card>
+              </Collapsible>
+
+              {/* Your Draft */}
+              <Card className="border-2 border-accent/30 shadow-sm">
+                <CardContent className="p-4">
+                  <h3 className="font-heading text-sm font-bold flex items-center gap-2 mb-3">
+                    Your Draft
+                    <Badge variant="secondary" className="text-xs ml-auto">
+                      {crewPicks.size}/{maxPicks} picks
+                    </Badge>
+                  </h3>
+
+                  {draftPicksList.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-4 text-center">
+                      Click crews above to build your draft
+                    </p>
+                  ) : (
+                    <div className="space-y-2 mb-4">
+                      {draftPicksList.map((pick) => (
+                        <div
+                          key={pick.crewId}
+                          className="flex items-center justify-between py-1.5 px-2.5 rounded-lg bg-accent/5 text-sm"
+                        >
+                          <div className="min-w-0">
+                            <span className="font-medium">{pick.crewName}</span>
+                            <span className="text-xs text-muted-foreground ml-2">
+                              {pick.margin > 0 ? `+${pick.margin}s` : "—"}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => toggleCrewSelection(pick.crewId)}
+                            className="text-muted-foreground hover:text-destructive transition-colors p-0.5"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   )}
-                </CardContent>
-              </Card>
 
-              {/* Entry count progress */}
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-muted-foreground">Entries</span>
-                    <span className="text-sm font-semibold">
-                      {contestPool.current_entries} / {contestPool.max_entries}
-                    </span>
-                  </div>
-                  <div className="w-full bg-muted rounded-full h-2">
-                    <div
-                      className="bg-accent h-2 rounded-full transition-all"
-                      style={{
-                        width: `${Math.min(100, (contestPool.current_entries / contestPool.max_entries) * 100)}%`,
-                      }}
-                    />
-                  </div>
+                  {isOpen && (
+                    <Button
+                      onClick={handleSubmit}
+                      variant="hero"
+                      size="lg"
+                      className="w-full font-semibold"
+                      disabled={isSubmitting || crewPicks.size < minPicks || !allMarginsValid}
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Processing…
+                        </>
+                      ) : (
+                        <>Enter Contest — {formatCents(contestPool.entry_fee_cents)}</>
+                      )}
+                    </Button>
+                  )}
+
+                  {walletBalanceCents !== null && (
+                    <div className={`flex items-center justify-center gap-1.5 mt-3 text-xs ${
+                      walletBalanceCents < contestPool.entry_fee_cents ? "text-destructive" : "text-muted-foreground"
+                    }`}>
+                      <Wallet className="h-3.5 w-3.5" />
+                      Balance: {formatCents(walletBalanceCents)}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
           </div>
         </div>
       </main>
+
+      {/* ── Mobile Sticky Bottom Bar ── */}
+      {isOpen && (
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-md border-t shadow-lg z-50">
+          <div className="container mx-auto px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-semibold text-sm">
+                  {crewPicks.size} pick{crewPicks.size !== 1 ? "s" : ""} selected
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {crewPicks.size < minPicks
+                    ? `Need ${minPicks - crewPicks.size} more`
+                    : !allMarginsValid
+                      ? "Enter margins for all crews"
+                      : `Entry: ${formatCents(contestPool.entry_fee_cents)}`}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="hero"
+                onClick={handleSubmit}
+                disabled={isSubmitting || crewPicks.size < minPicks || !allMarginsValid}
+                className="flex-shrink-0"
+              >
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enter"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>
