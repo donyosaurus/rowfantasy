@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Trophy, Calendar, DollarSign, TrendingUp, Users, Eye } from "lucide-react";
 import myEntriesBg from "@/assets/my-entries-bg.jpg";
+import { CrewLogo } from "@/components/CrewLogo";
 
 interface PickNew {
   crewId: string;
