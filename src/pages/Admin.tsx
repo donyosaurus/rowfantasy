@@ -270,7 +270,7 @@ const Admin = () => {
       crews: [], prizes: [{ rank: 1, amount: "" }], allowOverflow: false,
       multiTier: false, tiers: [defaultTier(0), defaultTier(1)],
     });
-    setNewCrewInput({ crew_name: "", crew_id: "", event_id: "" });
+    setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
   };
 
   const addCrewToForm = () => {
