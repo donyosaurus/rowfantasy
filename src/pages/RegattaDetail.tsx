@@ -111,7 +111,7 @@ const RegattaDetail = () => {
       // Fetch sibling pools (same template, different fees = multi-tier)
       const { data: siblings } = await supabase
         .from("contest_pools")
-        .select(`*, payout_structure, contest_template_id, tier_id, contest_templates (regatta_name, gender_category, min_picks, max_picks), contest_pool_crews (id, crew_id, crew_name, event_id)`)
+        .select(`*, payout_structure, contest_template_id, tier_id, contest_templates (regatta_name, gender_category, min_picks, max_picks), contest_pool_crews (id, crew_id, crew_name, event_id, logo_url)`)
         .eq("contest_template_id", pool.contest_template_id)
         .in("status", ["open", "locked"]);
 
