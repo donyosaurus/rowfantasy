@@ -1,6 +1,7 @@
 import { Trophy, Lock, CheckCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatCents } from "@/lib/formatCurrency";
+import { CrewLogo } from "@/components/CrewLogo";
 import type { EntrantRow, CrewInfo, ParsedPick } from "./types";
 import { parsePicks, getEntrantData, formatEventId } from "./utils";
 
