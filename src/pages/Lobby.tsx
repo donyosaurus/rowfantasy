@@ -39,12 +39,9 @@ interface MappedContest {
   lockTime: string;
   lockTimeRaw: string;
   divisions: string[];
-  entryTiers: number;
   entryFeeCents: number;
-  entryFeeRange?: { min: number; max: number };
   payoutStructure: Record<string, number> | null;
   prizePoolCents: number;
-  maxFirstPrizeCents: number;
   currentEntries: number;
   maxEntries: number;
   allowOverflow: boolean;
@@ -52,7 +49,6 @@ interface MappedContest {
   status: string;
   siblingPoolCount: number;
   userEntered: boolean;
-  isMultiTier: boolean;
 }
 
 const Lobby = () => {
