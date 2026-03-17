@@ -129,7 +129,7 @@ const MyEntries = () => {
       if (poolIds.length > 0) {
         const { data: crewsData, error: crewsError } = await supabase.
         from('contest_pool_crews').
-        select('crew_id, crew_name, contest_pool_id').
+        select('crew_id, crew_name, contest_pool_id, logo_url').
         in('contest_pool_id', poolIds);
 
         if (!crewsError && crewsData) {
