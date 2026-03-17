@@ -22,6 +22,7 @@ interface ContestPool {
   max_entries: number;
   allow_overflow: boolean;
   created_at: string;
+  tier_id: string;
   contest_templates: {
     regatta_name: string;
   };
@@ -40,8 +41,10 @@ interface MappedContest {
   divisions: string[];
   entryTiers: number;
   entryFeeCents: number;
+  entryFeeRange?: { min: number; max: number };
   payoutStructure: Record<string, number> | null;
   prizePoolCents: number;
+  maxFirstPrizeCents: number;
   currentEntries: number;
   maxEntries: number;
   allowOverflow: boolean;
@@ -49,6 +52,7 @@ interface MappedContest {
   status: string;
   siblingPoolCount: number;
   userEntered: boolean;
+  isMultiTier: boolean;
 }
 
 const Lobby = () => {
@@ -68,7 +72,7 @@ const Lobby = () => {
         .select(`
            id, contest_template_id, lock_time, status, entry_fee_cents,
            prize_pool_cents, payout_structure, current_entries, max_entries,
-           allow_overflow, created_at,
+           allow_overflow, created_at, tier_id,
            contest_templates(regatta_name),
            contest_pool_crews(event_id)
          `)
@@ -94,52 +98,75 @@ const Lobby = () => {
         (entriesResult.data || []).map((e: any) => e.pool_id)
       );
 
-      const mapped: MappedContest[] = (poolsResult.data as unknown as ContestPool[]).map((pool) => {
-        const regattaName = pool.contest_templates?.regatta_name || "Unknown Regatta";
+      const allPools = poolsResult.data as unknown as ContestPool[];
+
+      // Group by template
+      const grouped = allPools.reduce((acc, pool) => {
+        const key = pool.contest_template_id;
+        if (!key) return acc;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(pool);
+        return acc;
+      }, {} as Record<string, ContestPool[]>);
+
+      const deduplicated: MappedContest[] = Object.values(grouped).map((pools) => {
+        const userEntered = pools.some((p) => enteredPoolIds.has(p.id));
+        const siblingPoolCount = pools.length;
+
+        // Detect multi-tier
+        const uniqueFees = new Set(pools.map(p => p.entry_fee_cents));
+        const isMultiTier = uniqueFees.size > 1;
+
+        // Pick representative pool (open with capacity, oldest)
+        const sorted = [...pools].sort((a, b) => {
+          const aOpen = a.status === "open" && a.current_entries < a.max_entries ? 1 : 0;
+          const bOpen = b.status === "open" && b.current_entries < b.max_entries ? 1 : 0;
+          if (aOpen !== bOpen) return bOpen - aOpen;
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        });
+        const primary = sorted[0];
+
+        const regattaName = primary.contest_templates?.regatta_name || "Unknown Regatta";
         const genderCategory: "Men's" | "Women's" = regattaName.toLowerCase().includes("women") ? "Women's" : "Men's";
-        const divisions = [...new Set(pool.contest_pool_crews?.map((c) => c.event_id) || [])];
-        const lockTime = new Date(pool.lock_time).toLocaleString("en-US", {
+        const divisions = [...new Set(primary.contest_pool_crews?.map((c) => c.event_id) || [])];
+        const lockTime = new Date(primary.lock_time).toLocaleString("en-US", {
           month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true,
         });
 
+        // Fee range for multi-tier
+        const allFees = pools.map(p => p.entry_fee_cents);
+        const minFee = Math.min(...allFees);
+        const maxFee = Math.max(...allFees);
+
+        // Max first prize across all tiers
+        let maxFirstPrize = 0;
+        for (const pool of pools) {
+          const fp = pool.payout_structure ? (pool.payout_structure['1'] || 0) : pool.prize_pool_cents;
+          if (fp > maxFirstPrize) maxFirstPrize = fp;
+        }
+
+        // Total entries/max across all pools
+        const totalEntries = pools.reduce((s, p) => s + (p.current_entries || 0), 0);
+        const totalMax = pools.reduce((s, p) => s + (p.max_entries || 0), 0);
+
         return {
-          id: pool.id,
-          contestTemplateId: pool.contest_template_id,
+          id: primary.id,
+          contestTemplateId: primary.contest_template_id,
           regattaName, genderCategory, lockTime,
-          lockTimeRaw: pool.lock_time,
-          divisions, entryTiers: 1,
-          entryFeeCents: pool.entry_fee_cents,
-          payoutStructure: pool.payout_structure,
-          prizePoolCents: pool.prize_pool_cents,
-          currentEntries: pool.current_entries || 0,
-          maxEntries: pool.max_entries || 0,
-          allowOverflow: pool.allow_overflow || false,
-          createdAt: pool.created_at,
-          status: pool.status,
-          siblingPoolCount: 1,
-          userEntered: enteredPoolIds.has(pool.id),
+          lockTimeRaw: primary.lock_time,
+          divisions, entryTiers: uniqueFees.size,
+          entryFeeCents: isMultiTier ? minFee : primary.entry_fee_cents,
+          entryFeeRange: isMultiTier ? { min: minFee, max: maxFee } : undefined,
+          payoutStructure: primary.payout_structure,
+          prizePoolCents: primary.prize_pool_cents,
+          maxFirstPrizeCents: maxFirstPrize,
+          currentEntries: isMultiTier ? totalEntries : (primary.current_entries || 0),
+          maxEntries: isMultiTier ? totalMax : (primary.max_entries || 0),
+          allowOverflow: primary.allow_overflow || false,
+          createdAt: primary.created_at,
+          status: primary.status,
+          siblingPoolCount, userEntered, isMultiTier,
         };
-      });
-
-      // Deduplicate by template
-      const grouped = mapped.reduce((acc, contest) => {
-        const key = contest.contestTemplateId;
-        if (!key) return acc;
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(contest);
-        return acc;
-      }, {} as Record<string, MappedContest[]>);
-
-      const deduplicated = Object.values(grouped).map((pools) => {
-        const siblingPoolCount = pools.length;
-        const userEntered = pools.some((p) => enteredPoolIds.has(p.id));
-        const sorted = [...pools].sort((a, b) => {
-          const aOpen = a.status === "open" && a.currentEntries < a.maxEntries ? 1 : 0;
-          const bOpen = b.status === "open" && b.currentEntries < b.maxEntries ? 1 : 0;
-          if (aOpen !== bOpen) return bOpen - aOpen;
-          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-        });
-        return { ...sorted[0], siblingPoolCount, userEntered };
       });
 
       setContests(deduplicated);
@@ -172,58 +199,31 @@ const Lobby = () => {
     <div className="flex flex-col min-h-screen">
       <Header />
 
-      {/* Hero Section */}
       <section className="gradient-hero py-16 pb-24 relative overflow-hidden">
-        {/* Decorative elements */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-10 left-10 w-64 h-64 rounded-full bg-accent blur-3xl" />
           <div className="absolute bottom-10 right-10 w-96 h-96 rounded-full bg-accent blur-3xl" />
         </div>
-        
         <div className="container mx-auto px-4 relative z-10">
           <div className="text-center max-w-3xl mx-auto mb-10">
-            <h1 className="text-4xl md:text-5xl font-heading font-extrabold text-white mb-4 animate-fade-in">
-              Available Contests
-            </h1>
-            <p className="text-lg text-white/70 animate-fade-in" style={{ animationDelay: "0.1s" }}>
-              Pick your crews, predict the margin, win real prizes
-            </p>
+            <h1 className="text-4xl md:text-5xl font-heading font-extrabold text-white mb-4 animate-fade-in">Available Contests</h1>
+            <p className="text-lg text-white/70 animate-fade-in" style={{ animationDelay: "0.1s" }}>Pick your crews, predict the margin, win real prizes</p>
           </div>
-
-          {/* Floating filter card */}
           <div className="max-w-4xl mx-auto animate-fade-in" style={{ animationDelay: "0.2s" }}>
             <Card className="shadow-xl border-0 rounded-2xl">
               <CardContent className="p-4">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                   <div className="relative md:col-span-2">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search contests..."
-                      className="pl-10 rounded-xl border-border/50"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
+                    <Input placeholder="Search contests..." className="pl-10 rounded-xl border-border/50" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                   </div>
                   <Select value={genderFilter} onValueChange={setGenderFilter}>
-                    <SelectTrigger className="rounded-xl border-border/50">
-                      <SelectValue placeholder="Gender" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="mens">Men's</SelectItem>
-                      <SelectItem value="womens">Women's</SelectItem>
-                    </SelectContent>
+                    <SelectTrigger className="rounded-xl border-border/50"><SelectValue placeholder="Gender" /></SelectTrigger>
+                    <SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="mens">Men's</SelectItem><SelectItem value="womens">Women's</SelectItem></SelectContent>
                   </Select>
                   <Select value={lockFilter} onValueChange={setLockFilter}>
-                    <SelectTrigger className="rounded-xl border-border/50">
-                      <SelectValue placeholder="Lock Time" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Times</SelectItem>
-                      <SelectItem value="soon">Next 6 hours</SelectItem>
-                      <SelectItem value="today">Today</SelectItem>
-                      <SelectItem value="week">This Week</SelectItem>
-                    </SelectContent>
+                    <SelectTrigger className="rounded-xl border-border/50"><SelectValue placeholder="Lock Time" /></SelectTrigger>
+                    <SelectContent><SelectItem value="all">All Times</SelectItem><SelectItem value="soon">Next 6 hours</SelectItem><SelectItem value="today">Today</SelectItem><SelectItem value="week">This Week</SelectItem></SelectContent>
                   </Select>
                 </div>
               </CardContent>
@@ -234,25 +234,19 @@ const Lobby = () => {
 
       <main className="flex-1 bg-background -mt-8 relative z-10">
         <div className="container mx-auto px-4 pb-16">
-          {/* Loading skeletons */}
           {loading && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[1, 2, 3].map((i) => (
                 <Card key={i} className="rounded-xl overflow-hidden">
                   <div className="h-1 bg-muted" />
                   <CardContent className="p-6 space-y-4">
-                    <Skeleton className="h-6 w-3/4" />
-                    <Skeleton className="h-4 w-1/2" />
-                    <Skeleton className="h-20 w-full rounded-xl" />
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-10 w-full rounded-xl" />
+                    <Skeleton className="h-6 w-3/4" /><Skeleton className="h-4 w-1/2" /><Skeleton className="h-20 w-full rounded-xl" /><Skeleton className="h-4 w-full" /><Skeleton className="h-10 w-full rounded-xl" />
                   </CardContent>
                 </Card>
               ))}
             </div>
           )}
 
-          {/* Contest Grid */}
           {!loading && filteredContests.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredContests.map((contest, idx) => (
@@ -266,20 +260,22 @@ const Lobby = () => {
                     divisions={contest.divisions}
                     entryTiers={contest.entryTiers}
                     entryFeeCents={contest.entryFeeCents}
+                    entryFeeRange={contest.entryFeeRange}
                     payoutStructure={contest.payoutStructure}
                     prizePoolCents={contest.prizePoolCents}
+                    maxFirstPrizeCents={contest.maxFirstPrizeCents}
                     currentEntries={contest.currentEntries}
                     maxEntries={contest.maxEntries}
                     allowOverflow={contest.allowOverflow}
                     siblingPoolCount={contest.siblingPoolCount}
                     userEntered={contest.userEntered}
+                    isMultiTier={contest.isMultiTier}
                   />
                 </div>
               ))}
             </div>
           )}
 
-          {/* Empty state */}
           {!loading && filteredContests.length === 0 && (
             <Card className="max-w-md mx-auto rounded-2xl shadow-lg border-border/40">
               <CardContent className="py-16 text-center">
@@ -287,14 +283,10 @@ const Lobby = () => {
                   <Trophy className="h-10 w-10 text-accent" />
                 </div>
                 <h3 className="text-xl font-heading font-bold mb-2">
-                  {searchTerm || genderFilter !== "all" || lockFilter !== "all"
-                    ? "No contests match your filters"
-                    : "No contests available yet"}
+                  {searchTerm || genderFilter !== "all" || lockFilter !== "all" ? "No contests match your filters" : "No contests available yet"}
                 </h3>
                 <p className="text-muted-foreground">
-                  {searchTerm || genderFilter !== "all" || lockFilter !== "all"
-                    ? "Try adjusting your search or filters"
-                    : "New contests are posted regularly — check back soon!"}
+                  {searchTerm || genderFilter !== "all" || lockFilter !== "all" ? "Try adjusting your search or filters" : "New contests are posted regularly — check back soon!"}
                 </p>
               </CardContent>
             </Card>

@@ -3,7 +3,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Clock, Trophy, Users, Infinity, Zap } from "lucide-react";
+import { Clock, Trophy, Users, Infinity, Zap, Layers } from "lucide-react";
 import { formatCents } from "@/lib/formatCurrency";
 
 type GenderCategory = "Men's" | "Women's";
@@ -17,13 +17,16 @@ interface ContestCardProps {
   divisions?: string[];
   entryTiers: number;
   entryFeeCents?: number;
+  entryFeeRange?: { min: number; max: number };
   payoutStructure?: Record<string, number> | null;
   prizePoolCents?: number;
+  maxFirstPrizeCents?: number;
   currentEntries?: number;
   maxEntries?: number;
   allowOverflow?: boolean;
   siblingPoolCount?: number;
   userEntered?: boolean;
+  isMultiTier?: boolean;
 }
 
 export const ContestCard = ({
@@ -35,16 +38,19 @@ export const ContestCard = ({
   divisions = [],
   entryTiers,
   entryFeeCents = 0,
+  entryFeeRange,
   payoutStructure,
   prizePoolCents = 0,
+  maxFirstPrizeCents,
   currentEntries = 0,
   maxEntries = 0,
   allowOverflow = false,
   siblingPoolCount = 1,
   userEntered = false,
+  isMultiTier = false,
 }: ContestCardProps) => {
   const hasPayoutStructure = payoutStructure && Object.keys(payoutStructure).length > 0;
-  const firstPlacePrize = hasPayoutStructure ? payoutStructure["1"] : 0;
+  const firstPlacePrize = maxFirstPrizeCents || (hasPayoutStructure ? payoutStructure["1"] : 0);
   const totalPrizes = hasPayoutStructure
     ? Object.values(payoutStructure).reduce((sum, val) => sum + val, 0)
     : prizePoolCents;
@@ -53,7 +59,6 @@ export const ContestCard = ({
   const hasMultiplePools = siblingPoolCount > 1;
   const fillPercent = maxEntries > 0 ? (currentEntries / maxEntries) * 100 : 0;
 
-  // Countdown logic
   const getCountdown = () => {
     if (!lockTimeRaw) return null;
     const lockDate = new Date(lockTimeRaw);
@@ -69,11 +74,9 @@ export const ContestCard = ({
 
   return (
     <Card className="flex flex-col h-full rounded-xl shadow-md card-hover border-border/40 overflow-hidden">
-      {/* Top accent bar */}
       <div className="h-1 gradient-hero" />
       
       <CardContent className="flex-1 p-6 space-y-4">
-        {/* Header */}
         <div className="space-y-3">
           <div className="flex items-start justify-between gap-3">
             <h3 className="font-heading font-bold text-lg leading-tight">{regattaName}</h3>
@@ -84,7 +87,13 @@ export const ContestCard = ({
               >
                 {genderCategory}
               </Badge>
-              {hasMultiplePools && (
+              {isMultiTier && (
+                <Badge variant="secondary" className="bg-gold/10 text-gold border-gold/20 text-xs">
+                  <Layers className="h-3 w-3 mr-1" />
+                  {entryTiers} Tiers
+                </Badge>
+              )}
+              {!isMultiTier && hasMultiplePools && (
                 <Badge variant="secondary" className="bg-accent/10 text-accent border-accent/20 text-xs">
                   <Infinity className="h-3 w-3 mr-1" />
                   Auto-Pool
@@ -94,44 +103,47 @@ export const ContestCard = ({
           </div>
           
           {/* Entry Fee */}
-          {entryFeeCents > 0 && (
-            <div className="flex items-center gap-2">
-              <Zap className="h-4 w-4 text-accent" />
-              <span className="text-sm font-semibold">{formatCents(entryFeeCents)} entry</span>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <Zap className="h-4 w-4 text-accent" />
+            <span className="text-sm font-semibold">
+              {isMultiTier && entryFeeRange
+                ? `${formatCents(entryFeeRange.min)} – ${formatCents(entryFeeRange.max)} entry`
+                : entryFeeCents > 0
+                  ? `${formatCents(entryFeeCents)} entry`
+                  : "Free entry"
+              }
+            </span>
+          </div>
         </div>
 
         {/* Prize Pool */}
-        {(hasPayoutStructure || totalPrizes > 0) && (
+        {(firstPlacePrize > 0 || totalPrizes > 0) && (
           <div className="p-4 rounded-xl bg-gradient-to-br from-amber-50 to-yellow-50/50 dark:from-amber-950/30 dark:to-yellow-950/20 border border-amber-200/40 dark:border-amber-800/30">
             <div className="flex items-center gap-2 mb-1">
               <Trophy className="h-5 w-5 text-gold" />
               <span className="text-xl font-heading font-extrabold text-gold">
-                {hasPayoutStructure ? formatCents(firstPlacePrize) : formatCents(totalPrizes)}
+                {isMultiTier ? `Win up to ${formatCents(firstPlacePrize)}` : hasPayoutStructure ? formatCents(firstPlacePrize) : formatCents(totalPrizes)}
               </span>
             </div>
             <p className="text-xs text-muted-foreground font-medium">
-              {hasPayoutStructure ? `1st Place • ${formatCents(totalPrizes)} total` : "Prize Pool"}
+              {isMultiTier
+                ? "1st Place (highest tier)"
+                : hasPayoutStructure
+                  ? `1st Place • ${formatCents(totalPrizes)} total`
+                  : "Prize Pool"
+              }
             </p>
           </div>
         )}
 
-        {/* Pool Capacity with Progress Bar */}
+        {/* Pool Capacity */}
         {maxEntries > 0 && (
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <span className="flex items-center gap-1.5 text-muted-foreground">
-                <Users className="h-4 w-4" />
-                Entries
-              </span>
+              <span className="flex items-center gap-1.5 text-muted-foreground"><Users className="h-4 w-4" />Entries</span>
               <div className="flex items-center gap-2">
-                <span className="font-semibold">
-                  {currentEntries}/{maxEntries}
-                </span>
-                {isFull && !hasMultiplePools && (
-                  <Badge variant="destructive" className="text-xs">Full</Badge>
-                )}
+                <span className="font-semibold">{currentEntries}/{maxEntries}</span>
+                {isFull && !hasMultiplePools && !isMultiTier && <Badge variant="destructive" className="text-xs">Full</Badge>}
               </div>
             </div>
             <Progress value={fillPercent} className="h-2" />
@@ -144,31 +156,20 @@ export const ContestCard = ({
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Events</p>
             <div className="flex flex-wrap gap-1.5">
               {divisions.slice(0, 3).map((division, idx) => (
-                <Badge key={idx} variant="outline" className="font-normal text-xs">
-                  {division}
-                </Badge>
+                <Badge key={idx} variant="outline" className="font-normal text-xs">{division}</Badge>
               ))}
-              {divisions.length > 3 && (
-                <Badge variant="outline" className="font-normal text-xs text-muted-foreground">
-                  +{divisions.length - 3} more
-                </Badge>
-              )}
+              {divisions.length > 3 && <Badge variant="outline" className="font-normal text-xs text-muted-foreground">+{divisions.length - 3} more</Badge>}
             </div>
           </div>
         )}
 
         {/* Lock Time */}
         <div className="flex items-center justify-between pt-3 border-t">
-          <span className="flex items-center gap-1.5 text-muted-foreground text-sm">
-            <Clock className="h-4 w-4" />
-            Locks
-          </span>
+          <span className="flex items-center gap-1.5 text-muted-foreground text-sm"><Clock className="h-4 w-4" />Locks</span>
           <div className="flex items-center gap-2">
             <span className="font-semibold text-sm">{lockTime}</span>
             {countdown && countdown !== "Locked" && (
-              <Badge className="bg-destructive/10 text-destructive border-destructive/20 text-xs font-semibold">
-                {countdown}
-              </Badge>
+              <Badge className="bg-destructive/10 text-destructive border-destructive/20 text-xs font-semibold">{countdown}</Badge>
             )}
           </div>
         </div>
@@ -178,20 +179,20 @@ export const ContestCard = ({
         <Link to={`/regatta/${id}`} className="w-full">
           <Button
             className={`w-full font-semibold py-6 rounded-xl text-base ${
-              userEntered
-                ? "bg-success/10 text-success border border-success/30 hover:bg-success/20"
-                : ""
+              userEntered ? "bg-success/10 text-success border border-success/30 hover:bg-success/20" : ""
             }`}
-            disabled={!userEntered && isFull && !allowOverflow && !hasMultiplePools}
+            disabled={!userEntered && isFull && !allowOverflow && !hasMultiplePools && !isMultiTier}
             variant={userEntered ? "ghost" : "hero"}
           >
             {userEntered
               ? "✓ Entered"
-              : isFull && (allowOverflow || hasMultiplePools)
-                ? "Join Next Pool"
-                : isFull
-                  ? "Contest Full"
-                  : "View Entry Options"}
+              : isMultiTier
+                ? "View Entry Options"
+                : isFull && (allowOverflow || hasMultiplePools)
+                  ? "Join Next Pool"
+                  : isFull
+                    ? "Contest Full"
+                    : "View Entry Options"}
           </Button>
         </Link>
       </CardFooter>

@@ -8,6 +8,14 @@ interface CrewInput {
   event_id: string;
 }
 
+interface TierInput {
+  name: string;
+  entry_fee_cents: number;
+  max_entries: number;
+  payout_structure: Record<string, number>;
+  allow_overflow: boolean;
+}
+
 interface CreateContestRequest {
   regattaName: string;
   genderCategory: string;
@@ -17,6 +25,7 @@ interface CreateContestRequest {
   crews: CrewInput[];
   payouts: Record<string, number>;
   allowOverflow?: boolean;
+  tiers?: TierInput[];
 }
 
 const VALID_GENDER_CATEGORIES = ["Men's", "Women's", "Mixed"];
@@ -24,8 +33,6 @@ const VALID_GENDER_CATEGORIES = ["Men's", "Women's", "Mixed"];
 function validateRequest(body: CreateContestRequest): string | null {
   if (!body.regattaName || body.regattaName.trim() === '') return 'Regatta name is required';
   if (!body.genderCategory || !VALID_GENDER_CATEGORIES.includes(body.genderCategory)) return `Gender category must be one of: ${VALID_GENDER_CATEGORIES.join(', ')}`;
-  if (typeof body.entryFeeCents !== 'number' || body.entryFeeCents < 0) return 'Entry fee must be a non-negative number';
-  if (typeof body.maxEntries !== 'number' || body.maxEntries < 2) return 'Max entries must be at least 2';
   if (!body.lockTime) return 'Lock time is required';
   const lockDate = new Date(body.lockTime);
   if (isNaN(lockDate.getTime())) return 'Invalid lock time format';
@@ -35,6 +42,25 @@ function validateRequest(body: CreateContestRequest): string | null {
     const crew = body.crews[i];
     if (!crew.crew_name || !crew.crew_id || !crew.event_id) return `Crew at index ${i} is missing required fields`;
   }
+
+  // Multi-tier validation
+  if (body.tiers && body.tiers.length > 0) {
+    if (body.tiers.length < 2) return 'Multi-tier contests require at least 2 tiers';
+    if (body.tiers.length > 5) return 'Maximum 5 tiers allowed';
+    for (let i = 0; i < body.tiers.length; i++) {
+      const tier = body.tiers[i];
+      if (!tier.name || tier.name.trim() === '') return `Tier ${i + 1} name is required`;
+      if (typeof tier.entry_fee_cents !== 'number' || tier.entry_fee_cents < 0) return `Tier ${i + 1} entry fee must be non-negative`;
+      if (typeof tier.max_entries !== 'number' || tier.max_entries < 2) return `Tier ${i + 1} max entries must be at least 2`;
+      if (!tier.payout_structure || typeof tier.payout_structure !== 'object') return `Tier ${i + 1} payout structure is required`;
+      if (!tier.payout_structure['1'] || tier.payout_structure['1'] <= 0) return `Tier ${i + 1} needs at least a 1st place prize`;
+    }
+    return null;
+  }
+
+  // Single-tier validation
+  if (typeof body.entryFeeCents !== 'number' || body.entryFeeCents < 0) return 'Entry fee must be a non-negative number';
+  if (typeof body.maxEntries !== 'number' || body.maxEntries < 2) return 'Max entries must be at least 2';
   if (!body.payouts || typeof body.payouts !== 'object') return 'Payouts structure is required';
   if (!body.payouts['1'] || body.payouts['1'] <= 0) return 'At least a 1st place prize is required';
   for (const [rank, amount] of Object.entries(body.payouts)) {
@@ -81,23 +107,23 @@ Deno.serve(async (req) => {
       });
     }
 
-    const totalGuaranteedPayout = Object.values(body.payouts).reduce((sum, val) => sum + val, 0);
-    const maxRevenue = body.entryFeeCents * body.maxEntries;
-    const projectedRake = maxRevenue - totalGuaranteedPayout;
-    const rakePercentage = maxRevenue > 0 ? ((projectedRake / maxRevenue) * 100).toFixed(2) : '0.00';
+    const isMultiTier = body.tiers && body.tiers.length > 0;
 
-    console.log('Creating contest:', { regattaName: body.regattaName, admin: user.id });
+    console.log('Creating contest:', { regattaName: body.regattaName, admin: user.id, multiTier: isMultiTier, tierCount: body.tiers?.length });
 
-    const { data, error } = await supabaseAdmin.rpc('admin_create_contest', {
+    const rpcParams: any = {
       p_regatta_name: body.regattaName,
       p_gender_category: body.genderCategory,
-      p_entry_fee_cents: body.entryFeeCents,
-      p_max_entries: body.maxEntries,
+      p_entry_fee_cents: body.entryFeeCents || 0,
+      p_max_entries: body.maxEntries || 2,
       p_lock_time: body.lockTime,
       p_crews: body.crews,
-      p_payout_structure: body.payouts,
-      p_allow_overflow: body.allowOverflow ?? false
-    });
+      p_payout_structure: isMultiTier ? null : body.payouts,
+      p_allow_overflow: body.allowOverflow ?? false,
+      p_tiers: isMultiTier ? body.tiers : null,
+    };
+
+    const { data, error } = await supabaseAdmin.rpc('admin_create_contest', rpcParams);
 
     if (error) {
       console.error('Error creating contest:', error);
@@ -109,15 +135,14 @@ Deno.serve(async (req) => {
     await supabaseAdmin.from('compliance_audit_logs').insert({
       admin_id: user.id,
       event_type: 'contest_created',
-      description: `Admin created contest: ${body.regattaName}`,
+      description: `Admin created contest: ${body.regattaName}${isMultiTier ? ` (${body.tiers!.length} tiers)` : ''}`,
       severity: 'info',
       metadata: {
         contest_template_id: data?.contest_template_id,
         contest_pool_id: data?.contest_pool_id,
-        entry_fee_cents: body.entryFeeCents,
-        max_entries: body.maxEntries,
-        total_guaranteed_payout: totalGuaranteedPayout,
-        rake_percentage: rakePercentage,
+        multi_tier: isMultiTier,
+        pools_created: data?.pools_created,
+        tier_count: body.tiers?.length,
       },
     });
 
@@ -127,7 +152,7 @@ Deno.serve(async (req) => {
         contestTemplateId: data?.contest_template_id,
         contestPoolId: data?.contest_pool_id,
         crewsAdded: data?.crews_added,
-        totalPayoutCents: data?.total_payout_cents,
+        poolsCreated: data?.pools_created,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
