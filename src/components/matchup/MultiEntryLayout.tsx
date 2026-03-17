@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Trophy, ChevronDown, ChevronUp, Lock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatCents } from "@/lib/formatCurrency";
+import { CrewLogo } from "@/components/CrewLogo";
 import type { EntrantRow, CrewInfo } from "./types";
 import { parsePicks, getEntrantData, getRankLabel, formatEventId } from "./utils";
 import {
