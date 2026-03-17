@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Trophy, Calendar, DollarSign, TrendingUp, Users, Eye } from "lucide-react";
 import myEntriesBg from "@/assets/my-entries-bg.jpg";
+import { CrewLogo } from "@/components/CrewLogo";
 
 interface PickNew {
   crewId: string;
@@ -53,6 +54,7 @@ interface CrewInfo {
   crew_id: string;
   crew_name: string;
   contest_pool_id: string;
+  logo_url?: string | null;
 }
 
 const MyEntries = () => {
@@ -127,7 +129,7 @@ const MyEntries = () => {
       if (poolIds.length > 0) {
         const { data: crewsData, error: crewsError } = await supabase.
         from('contest_pool_crews').
-        select('crew_id, crew_name, contest_pool_id').
+        select('crew_id, crew_name, contest_pool_id, logo_url').
         in('contest_pool_id', poolIds);
 
         if (!crewsError && crewsData) {
@@ -170,7 +172,7 @@ const MyEntries = () => {
     return <Badge variant="outline" className={config.className}>{config.label}</Badge>;
   };
 
-  const getParsedPicks = (entry: Entry): {crewName: string;margin: number | null;}[] => {
+  const getParsedPicks = (entry: Entry): {crewName: string;margin: number | null;logoUrl?: string | null;}[] => {
     let picks: unknown = entry.picks;
     if (!picks) return [];
 
@@ -192,13 +194,13 @@ const MyEntries = () => {
       if (typeof pick === 'object' && pick !== null && 'crewId' in pick) {
         const pickObj = pick as PickNew;
         const crewInfo = crewMap.get(`${entry.pool_id}-${pickObj.crewId}`);
-        return { crewName: crewInfo?.crew_name || pickObj.crewId, margin: pickObj.predictedMargin };
+        return { crewName: crewInfo?.crew_name || pickObj.crewId, margin: pickObj.predictedMargin, logoUrl: crewInfo?.logo_url };
       }
       if (typeof pick === 'string') {
         const crewInfo = crewMap.get(`${entry.pool_id}-${pick}`);
-        return { crewName: crewInfo?.crew_name || pick, margin: null };
+        return { crewName: crewInfo?.crew_name || pick, margin: null, logoUrl: crewInfo?.logo_url };
       }
-      return { crewName: 'Unknown', margin: null };
+      return { crewName: 'Unknown', margin: null, logoUrl: null };
     });
   };
 
@@ -301,7 +303,8 @@ const MyEntries = () => {
             </div>
             <div className="flex flex-wrap gap-2">
               {parsedPicks.map((pick, idx) =>
-                <Badge key={idx} variant="secondary" className="text-sm rounded-lg bg-primary/5 border border-primary/10">
+                <Badge key={idx} variant="secondary" className="text-sm rounded-lg bg-primary/5 border border-primary/10 flex items-center gap-1.5">
+                  <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={20} />
                   {pick.crewName}
                   {pick.margin !== null &&
                     <span className="ml-1 text-accent font-semibold">(+{pick.margin.toFixed(1)}s)</span>

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Trophy, ChevronDown, ChevronUp, Lock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatCents } from "@/lib/formatCurrency";
+import { CrewLogo } from "@/components/CrewLogo";
 import type { EntrantRow, CrewInfo } from "./types";
 import { parsePicks, getEntrantData, getRankLabel, formatEventId } from "./utils";
 import {
@@ -146,7 +147,7 @@ function EntrantCard({
               <div className="grid gap-1.5 sm:grid-cols-2">
                 {picks.map((pick, idx) => (
                   <div key={idx} className="flex items-center gap-2 rounded-lg bg-muted/40 p-2 text-sm">
-                    <span>🚣</span>
+                    <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={32} />
                     <div className="flex-1 min-w-0">
                       <p className="font-heading font-semibold text-xs truncate">{pick.crewName}</p>
                       {pick.eventId && <p className="text-[10px] text-muted-foreground">{formatEventId(pick.eventId)}</p>}

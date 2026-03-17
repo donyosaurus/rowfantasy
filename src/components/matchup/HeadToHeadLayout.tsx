@@ -1,6 +1,7 @@
 import { Trophy, Lock, CheckCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatCents } from "@/lib/formatCurrency";
+import { CrewLogo } from "@/components/CrewLogo";
 import type { EntrantRow, CrewInfo, ParsedPick } from "./types";
 import { parsePicks, getEntrantData, formatEventId } from "./utils";
 
@@ -86,7 +87,7 @@ function EntrantColumn({
                 className="rounded-lg border border-border bg-card p-2.5 transition-all hover:shadow-sm hover:border-accent/20"
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-base">🚣</span>
+                  <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={32} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-heading font-semibold text-foreground truncate">
                       {pick.crewName}

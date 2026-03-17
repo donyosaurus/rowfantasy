@@ -21,13 +21,13 @@ export function parsePicks(picks: unknown, crewMap: Map<string, CrewInfo>): Pars
     if (typeof pick === "object" && pick !== null && "crewId" in pick) {
       const p = pick as { crewId: string; predictedMargin: number };
       const crew = crewMap.get(p.crewId);
-      return { crewName: crew?.crew_name || p.crewId, crewId: p.crewId, margin: p.predictedMargin, eventId: crew?.event_id || "" };
+      return { crewName: crew?.crew_name || p.crewId, crewId: p.crewId, margin: p.predictedMargin, eventId: crew?.event_id || "", logoUrl: crew?.logo_url };
     }
     if (typeof pick === "string") {
       const crew = crewMap.get(pick);
-      return { crewName: crew?.crew_name || pick, crewId: pick, margin: null, eventId: crew?.event_id || "" };
+      return { crewName: crew?.crew_name || pick, crewId: pick, margin: null, eventId: crew?.event_id || "", logoUrl: crew?.logo_url };
     }
-    return { crewName: "Unknown", crewId: "", margin: null, eventId: "" };
+    return { crewName: "Unknown", crewId: "", margin: null, eventId: "", logoUrl: null };
   });
 }
 
