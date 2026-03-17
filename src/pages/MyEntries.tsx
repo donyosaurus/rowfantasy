@@ -108,7 +108,7 @@ const MyEntries = () => {
       select(`
           id, created_at, status, entry_fee_cents, pool_id, picks, payout_cents, rank,
           contest_templates!inner (regatta_name, lock_time),
-          contest_pools!inner (status, prize_pool_cents, max_entries, current_entries, payout_structure),
+          contest_pools!inner (status, prize_pool_cents, max_entries, current_entries, payout_structure, tier_id, entry_fee_cents),
           contest_scores (rank, total_points, margin_bonus, is_winner, payout_cents)
         `).
       eq('user_id', user.id).
