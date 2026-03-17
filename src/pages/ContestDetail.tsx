@@ -108,7 +108,7 @@ const ContestDetail = () => {
           id, lock_time, status, entry_fee_cents, prize_pool_cents, payout_structure,
           current_entries, max_entries, contest_template_id,
           contest_templates (id, regatta_name, gender_category, min_picks, max_picks),
-          contest_pool_crews (id, crew_id, crew_name, event_id)
+          contest_pool_crews (id, crew_id, crew_name, event_id, logo_url)
         `)
         .eq("id", id)
         .single();
