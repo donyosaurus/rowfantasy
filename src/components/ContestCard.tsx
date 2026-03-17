@@ -3,7 +3,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Clock, Trophy, Users, Infinity, Zap, Layers } from "lucide-react";
+import { Clock, Trophy, Users, Infinity, Zap } from "lucide-react";
 import { formatCents } from "@/lib/formatCurrency";
 
 type GenderCategory = "Men's" | "Women's";
@@ -15,18 +15,14 @@ interface ContestCardProps {
   lockTime: string;
   lockTimeRaw?: string;
   divisions?: string[];
-  entryTiers: number;
   entryFeeCents?: number;
-  entryFeeRange?: { min: number; max: number };
   payoutStructure?: Record<string, number> | null;
   prizePoolCents?: number;
-  maxFirstPrizeCents?: number;
   currentEntries?: number;
   maxEntries?: number;
   allowOverflow?: boolean;
   siblingPoolCount?: number;
   userEntered?: boolean;
-  isMultiTier?: boolean;
 }
 
 export const ContestCard = ({
@@ -36,21 +32,17 @@ export const ContestCard = ({
   lockTime,
   lockTimeRaw,
   divisions = [],
-  entryTiers,
   entryFeeCents = 0,
-  entryFeeRange,
   payoutStructure,
   prizePoolCents = 0,
-  maxFirstPrizeCents,
   currentEntries = 0,
   maxEntries = 0,
   allowOverflow = false,
   siblingPoolCount = 1,
   userEntered = false,
-  isMultiTier = false,
 }: ContestCardProps) => {
   const hasPayoutStructure = payoutStructure && Object.keys(payoutStructure).length > 0;
-  const firstPlacePrize = maxFirstPrizeCents || (hasPayoutStructure ? payoutStructure["1"] : 0);
+  const firstPlacePrize = hasPayoutStructure ? payoutStructure["1"] : 0;
   const totalPrizes = hasPayoutStructure
     ? Object.values(payoutStructure).reduce((sum, val) => sum + val, 0)
     : prizePoolCents;
@@ -87,13 +79,7 @@ export const ContestCard = ({
               >
                 {genderCategory}
               </Badge>
-              {isMultiTier && (
-                <Badge variant="secondary" className="bg-gold/10 text-gold border-gold/20 text-xs">
-                  <Layers className="h-3 w-3 mr-1" />
-                  {entryTiers} Tiers
-                </Badge>
-              )}
-              {!isMultiTier && hasMultiplePools && (
+              {hasMultiplePools && (
                 <Badge variant="secondary" className="bg-accent/10 text-accent border-accent/20 text-xs">
                   <Infinity className="h-3 w-3 mr-1" />
                   Auto-Pool
@@ -106,12 +92,7 @@ export const ContestCard = ({
           <div className="flex items-center gap-2">
             <Zap className="h-4 w-4 text-accent" />
             <span className="text-sm font-semibold">
-              {isMultiTier && entryFeeRange
-                ? `${formatCents(entryFeeRange.min)} – ${formatCents(entryFeeRange.max)} entry`
-                : entryFeeCents > 0
-                  ? `${formatCents(entryFeeCents)} entry`
-                  : "Free entry"
-              }
+              {entryFeeCents > 0 ? `${formatCents(entryFeeCents)} entry` : "Free entry"}
             </span>
           </div>
         </div>
@@ -122,16 +103,11 @@ export const ContestCard = ({
             <div className="flex items-center gap-2 mb-1">
               <Trophy className="h-5 w-5 text-gold" />
               <span className="text-xl font-heading font-extrabold text-gold">
-                {isMultiTier ? `Win up to ${formatCents(firstPlacePrize)}` : hasPayoutStructure ? formatCents(firstPlacePrize) : formatCents(totalPrizes)}
+                {hasPayoutStructure ? formatCents(firstPlacePrize) : formatCents(totalPrizes)}
               </span>
             </div>
             <p className="text-xs text-muted-foreground font-medium">
-              {isMultiTier
-                ? "1st Place (highest tier)"
-                : hasPayoutStructure
-                  ? `1st Place • ${formatCents(totalPrizes)} total`
-                  : "Prize Pool"
-              }
+              {hasPayoutStructure ? `1st Place • ${formatCents(totalPrizes)} total` : "Prize Pool"}
             </p>
           </div>
         )}
@@ -143,7 +119,7 @@ export const ContestCard = ({
               <span className="flex items-center gap-1.5 text-muted-foreground"><Users className="h-4 w-4" />Entries</span>
               <div className="flex items-center gap-2">
                 <span className="font-semibold">{currentEntries}/{maxEntries}</span>
-                {isFull && !hasMultiplePools && !isMultiTier && <Badge variant="destructive" className="text-xs">Full</Badge>}
+                {isFull && !hasMultiplePools && <Badge variant="destructive" className="text-xs">Full</Badge>}
               </div>
             </div>
             <Progress value={fillPercent} className="h-2" />
@@ -181,18 +157,16 @@ export const ContestCard = ({
             className={`w-full font-semibold py-6 rounded-xl text-base ${
               userEntered ? "bg-success/10 text-success border border-success/30 hover:bg-success/20" : ""
             }`}
-            disabled={!userEntered && isFull && !allowOverflow && !hasMultiplePools && !isMultiTier}
+            disabled={!userEntered && isFull && !allowOverflow && !hasMultiplePools}
             variant={userEntered ? "ghost" : "hero"}
           >
             {userEntered
               ? "✓ Entered"
-              : isMultiTier
-                ? "View Entry Options"
-                : isFull && (allowOverflow || hasMultiplePools)
-                  ? "Join Next Pool"
-                  : isFull
-                    ? "Contest Full"
-                    : "View Entry Options"}
+              : isFull && (allowOverflow || hasMultiplePools)
+                ? "Join Next Pool"
+                : isFull
+                  ? "Contest Full"
+                  : "View Entry Options"}
           </Button>
         </Link>
       </CardFooter>

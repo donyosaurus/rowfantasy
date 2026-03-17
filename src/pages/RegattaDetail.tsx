@@ -25,8 +25,6 @@ import {
   Lock,
   X,
   Wallet,
-  Crown,
-  Star,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -72,26 +70,18 @@ function ordinal(n: number): string {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-function tierDisplayName(tierId: string): string {
-  // Convert tier_id like "bronze", "silver", "gold", "tier_1000" to display name
-  const cleaned = tierId.replace(/^tier_/, '').replace(/_/g, ' ');
-  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-}
-
 const RegattaDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
 
   const [contestPool, setContestPool] = useState<ContestPool | null>(null);
-  const [siblingPools, setSiblingPools] = useState<ContestPool[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [crewPicks, setCrewPicks] = useState<Map<string, number>>(new Map());
   const [submitting, setSubmitting] = useState(false);
   const [scoringOpen, setScoringOpen] = useState(false);
   const [walletBalanceCents, setWalletBalanceCents] = useState<number | null>(null);
-  const [userEnteredPoolIds, setUserEnteredPoolIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/login");
@@ -106,42 +96,11 @@ const RegattaDetail = () => {
         .eq("id", id)
         .single();
       if (fetchError || !data) { setError("Contest not found"); setLoading(false); return; }
-      const pool = data as ContestPool;
-      setContestPool(pool);
-
-      // Fetch sibling pools (same template, different fees = multi-tier)
-      const { data: siblings } = await supabase
-        .from("contest_pools")
-        .select(`*, payout_structure, contest_template_id, tier_id, contest_templates (regatta_name, gender_category, min_picks, max_picks), contest_pool_crews (id, crew_id, crew_name, event_id, logo_url)`)
-        .eq("contest_template_id", pool.contest_template_id)
-        .in("status", ["open", "locked"]);
-
-      if (siblings) {
-        setSiblingPools(siblings as ContestPool[]);
-      }
-
+      setContestPool(data as ContestPool);
       setLoading(false);
     };
     fetchPoolData();
   }, [id]);
-
-  // Fetch user's entered pools
-  useEffect(() => {
-    if (!user || siblingPools.length === 0) return;
-    const fetchEntries = async () => {
-      const poolIds = siblingPools.map(p => p.id);
-      const { data } = await supabase
-        .from("contest_entries")
-        .select("pool_id")
-        .eq("user_id", user.id)
-        .in("pool_id", poolIds)
-        .in("status", ["active", "confirmed", "scored"]);
-      if (data) {
-        setUserEnteredPoolIds(new Set(data.map(e => e.pool_id)));
-      }
-    };
-    fetchEntries();
-  }, [user, siblingPools]);
 
   useEffect(() => {
     if (!user) return;
@@ -155,45 +114,6 @@ const RegattaDetail = () => {
     };
     fetchWallet();
   }, [user]);
-
-  // Detect multi-tier: sibling pools with different entry_fee_cents
-  const isMultiTier = useMemo(() => {
-    if (siblingPools.length <= 1) return false;
-    const uniqueFees = new Set(siblingPools.map(p => p.entry_fee_cents));
-    return uniqueFees.size > 1;
-  }, [siblingPools]);
-
-  // Group tier pools (collapse overflow pools into one per tier)
-  const tierPools = useMemo(() => {
-    if (!isMultiTier) return [];
-    const tierMap = new Map<string, ContestPool[]>();
-    for (const pool of siblingPools) {
-      const key = `${pool.entry_fee_cents}_${pool.tier_id}`;
-      if (!tierMap.has(key)) tierMap.set(key, []);
-      tierMap.get(key)!.push(pool);
-    }
-    return Array.from(tierMap.values()).map(pools => {
-      const primary = pools[0];
-      const totalEntries = pools.reduce((s, p) => s + p.current_entries, 0);
-      const totalMax = pools.reduce((s, p) => s + p.max_entries, 0);
-      const hasCapacity = pools.some(p => p.current_entries < p.max_entries && p.status === "open");
-      const userEntered = pools.some(p => userEnteredPoolIds.has(p.id));
-      // Find pool with capacity to link to
-      const entryPool = pools.find(p => p.current_entries < p.max_entries && p.status === "open") || primary;
-      const firstPrize = primary.payout_structure ? primary.payout_structure['1'] || 0 : primary.prize_pool_cents;
-      return { primary, entryPool, totalEntries, totalMax, hasCapacity, userEntered, firstPrize, pools };
-    }).sort((a, b) => a.primary.entry_fee_cents - b.primary.entry_fee_cents);
-  }, [isMultiTier, siblingPools, userEnteredPoolIds]);
-
-  // Find the tier with most entries for "Popular" badge
-  const mostPopularTierIdx = useMemo(() => {
-    if (tierPools.length < 3) return -1;
-    let maxIdx = 0;
-    for (let i = 1; i < tierPools.length; i++) {
-      if (tierPools[i].totalEntries > tierPools[maxIdx].totalEntries) maxIdx = i;
-    }
-    return tierPools[maxIdx].totalEntries > 0 ? maxIdx : -1;
-  }, [tierPools]);
 
   const crewsByDivision = useMemo(() => {
     if (!contestPool?.contest_pool_crews) return {};
@@ -360,152 +280,6 @@ const RegattaDetail = () => {
 
   const statusLabel = isContestOpen ? "Open" : contestPool.status.charAt(0).toUpperCase() + contestPool.status.slice(1);
 
-  // ── MULTI-TIER: Show tier selection page ──
-  if (isMultiTier) {
-    return (
-      <div className="flex flex-col min-h-screen">
-        <Header />
-
-        <div className="gradient-hero text-primary-foreground">
-          <div className="container mx-auto px-4 max-w-5xl py-6 lg:py-8">
-            <Link
-              to="/lobby"
-              className="inline-flex items-center gap-2 text-primary-foreground/70 hover:text-primary-foreground text-sm mb-4 transition-base"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Lobby
-            </Link>
-
-            <div className="flex items-start justify-between gap-4 mb-3">
-              <div>
-                <h1 className="font-heading text-3xl lg:text-4xl font-bold mb-1">
-                  {contestPool.contest_templates.regatta_name}
-                </h1>
-                <p className="text-primary-foreground/70 text-sm lg:text-base">
-                  {contestPool.contest_templates.gender_category} Multi-Team Fantasy · Draft a crew from each event
-                </p>
-              </div>
-              <Badge className="flex-shrink-0 text-sm px-3 py-1 font-semibold bg-success/20 text-success border-success/30">
-                {statusLabel}
-              </Badge>
-            </div>
-
-            <div className="flex items-center gap-2 text-primary-foreground/60 text-sm">
-              <Clock className="h-4 w-4" />
-              <span>Locks {formattedLockTime}</span>
-            </div>
-          </div>
-        </div>
-
-        <main className="flex-1 bg-background">
-          <div className="container mx-auto px-4 max-w-5xl py-8">
-            <h2 className="font-heading text-2xl font-bold mb-2">Choose Your Entry Level</h2>
-            <p className="text-muted-foreground mb-6">Same crews, same events — pick your stakes.</p>
-
-            <div className={`grid gap-5 ${tierPools.length <= 3 ? 'grid-cols-1 md:grid-cols-' + tierPools.length : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
-              {tierPools.map((tier, idx) => {
-                const isHighest = idx === tierPools.length - 1;
-                const isPopular = idx === mostPopularTierIdx;
-                const isFull = !tier.hasCapacity;
-                const fillPct = tier.totalMax > 0 ? Math.min(100, (tier.totalEntries / tier.totalMax) * 100) : 0;
-
-                return (
-                  <Card
-                    key={tier.primary.id}
-                    className={`relative rounded-xl overflow-hidden transition-all ${
-                      isHighest ? "border-2 border-gold shadow-lg" : "border"
-                    } ${tier.userEntered ? "opacity-80" : ""}`}
-                  >
-                    {/* Top accent */}
-                    <div className={`h-1.5 ${isHighest ? "bg-gradient-to-r from-gold to-amber-400" : "gradient-hero"}`} />
-
-                    {/* Badges */}
-                    {isPopular && !tier.userEntered && (
-                      <div className="absolute top-4 right-4">
-                        <Badge className="bg-accent text-accent-foreground text-xs font-semibold">
-                          <Star className="h-3 w-3 mr-1" /> Most Popular
-                        </Badge>
-                      </div>
-                    )}
-                    {tier.userEntered && (
-                      <div className="absolute top-4 right-4">
-                        <Badge className="bg-success/20 text-success border-success/30 text-xs font-semibold">
-                          ✓ Entered
-                        </Badge>
-                      </div>
-                    )}
-
-                    <CardContent className="p-6 space-y-4">
-                      {/* Tier name */}
-                      <div className="flex items-center gap-2">
-                        {isHighest && <Crown className="h-5 w-5 text-gold" />}
-                        <h3 className="font-heading text-xl font-bold">
-                          {tierDisplayName(tier.primary.tier_id)}
-                        </h3>
-                      </div>
-
-                      {/* Entry fee */}
-                      <div className="text-center py-3">
-                        <p className="font-heading text-4xl font-extrabold">{formatCents(tier.primary.entry_fee_cents)}</p>
-                        <p className="text-sm text-muted-foreground">entry</p>
-                      </div>
-
-                      {/* First prize */}
-                      <div className="flex items-center gap-2 justify-center p-3 rounded-lg bg-gradient-to-br from-amber-50 to-yellow-50/50 dark:from-amber-950/30 dark:to-yellow-950/20 border border-amber-200/40 dark:border-amber-800/30">
-                        <Trophy className="h-5 w-5 text-gold" />
-                        <span className="font-heading text-lg font-bold text-gold">Win {formatCents(tier.firstPrize)}</span>
-                      </div>
-
-                      {/* Full payout if multiple places */}
-                      {tier.primary.payout_structure && Object.keys(tier.primary.payout_structure).length > 1 && (
-                        <div className="text-center">
-                          <div className="flex flex-wrap gap-1.5 justify-center">
-                            {Object.entries(tier.primary.payout_structure).sort(([a], [b]) => Number(a) - Number(b)).map(([rank, cents]) => (
-                              <span key={rank} className="text-xs text-muted-foreground">
-                                {ordinal(Number(rank))}: {formatCents(cents)}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Entries */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground flex items-center gap-1.5"><Users className="h-4 w-4" />Entries</span>
-                          <span className="font-semibold">{tier.totalEntries}/{tier.totalMax}</span>
-                        </div>
-                        <Progress value={fillPct} className="h-1.5" />
-                      </div>
-
-                      {/* Action */}
-                      {tier.userEntered ? (
-                        <Button disabled className="w-full rounded-xl" variant="ghost">
-                          ✓ Entered
-                        </Button>
-                      ) : isFull ? (
-                        <Button disabled className="w-full rounded-xl">Full</Button>
-                      ) : (
-                        <Link to={`/contest/${tier.entryPool.id}`} className="block">
-                          <Button className="w-full rounded-xl font-semibold" variant="hero">
-                            Enter — {formatCents(tier.primary.entry_fee_cents)}
-                          </Button>
-                        </Link>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-        </main>
-
-        <Footer />
-      </div>
-    );
-  }
-
-  // ── SINGLE-TIER: Original crew drafting UI ──
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
