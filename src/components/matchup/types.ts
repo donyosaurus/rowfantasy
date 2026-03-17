@@ -36,6 +36,7 @@ export interface CrewInfo {
   crew_id: string;
   crew_name: string;
   event_id: string;
+  logo_url?: string | null;
 }
 
 export interface ParsedPick {
@@ -43,4 +44,5 @@ export interface ParsedPick {
   crewId: string;
   margin: number | null;
   eventId: string;
+  logoUrl?: string | null;
 }

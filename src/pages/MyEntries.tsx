@@ -303,7 +303,8 @@ const MyEntries = () => {
             </div>
             <div className="flex flex-wrap gap-2">
               {parsedPicks.map((pick, idx) =>
-                <Badge key={idx} variant="secondary" className="text-sm rounded-lg bg-primary/5 border border-primary/10">
+                <Badge key={idx} variant="secondary" className="text-sm rounded-lg bg-primary/5 border border-primary/10 flex items-center gap-1.5">
+                  <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={20} />
                   {pick.crewName}
                   {pick.margin !== null &&
                     <span className="ml-1 text-accent font-semibold">(+{pick.margin.toFixed(1)}s)</span>

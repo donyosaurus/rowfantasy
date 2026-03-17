@@ -50,7 +50,7 @@ export function MatchupDialog({
           .in("status", ["active", "scored", "settled", "voided"]),
         supabase
           .from("contest_pool_crews")
-          .select("crew_id, crew_name, event_id")
+          .select("crew_id, crew_name, event_id, logo_url")
           .eq("contest_pool_id", poolId),
         supabase
           .from("contest_scores")

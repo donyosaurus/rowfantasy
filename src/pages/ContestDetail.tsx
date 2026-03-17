@@ -544,9 +544,10 @@ const ContestDetail = () => {
                           key={pick.crewId}
                           className="flex items-center justify-between py-1.5 px-2.5 rounded-lg bg-accent/5 text-sm"
                         >
-                          <div className="min-w-0">
-                            <span className="font-medium">{pick.crewName}</span>
-                            <span className="text-xs text-muted-foreground ml-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={24} />
+                            <span className="font-medium truncate">{pick.crewName}</span>
+                            <span className="text-xs text-muted-foreground flex-shrink-0">
                               {pick.margin > 0 ? `+${pick.margin}s` : "—"}
                             </span>
                           </div>
