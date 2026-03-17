@@ -277,6 +277,9 @@ const MyEntries = () => {
               <CardTitle className="text-lg font-heading">{entry.contest_templates.regatta_name}</CardTitle>
               <CardDescription className="space-y-1 mt-1">
                 <div>
+                  {entry.contest_pools?.tier_id && !entry.contest_pools.tier_id.startsWith('tier_') && (
+                    <span className="capitalize font-medium">{entry.contest_pools.tier_id.replace(/_/g, ' ')} Tier · </span>
+                  )}
                   Entry: ${(entry.entry_fee_cents / 100).toFixed(2)}
                   {prizeText && <span className="text-gold font-medium"> • {prizeText}</span>}
                 </div>
