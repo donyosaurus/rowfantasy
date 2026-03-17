@@ -397,55 +397,54 @@ const ContestDetail = () => {
                         {crewsByEvent[eventId].length} crews
                       </span>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                       {crewsByEvent[eventId].map((crew) => {
                         const isSelected = crewPicks.has(crew.crew_id);
                         const marginVal = crewPicks.get(crew.crew_id) ?? 0;
                         return (
                           <div
                             key={crew.id}
-                            className={`group rounded-xl border-2 transition-all overflow-hidden ${
+                            className={`group relative rounded-xl border-2 transition-all overflow-hidden ${
                               !isOpen ? "opacity-50 pointer-events-none" : "cursor-pointer"
                             } ${
                               isSelected
                                 ? "border-accent bg-accent/5 shadow-sm"
-                                : "border-border hover:border-muted-foreground/30 hover:shadow-sm hover:-translate-y-0.5"
+                                : "border-border hover:border-muted-foreground/30 hover:shadow-md hover:-translate-y-0.5"
                             }`}
                           >
                             <div
-                              className="flex items-center gap-3 p-3.5"
+                              className="flex flex-col items-center text-center p-4 pb-3"
                               onClick={() => isOpen && toggleCrewSelection(crew.crew_id)}
                             >
-                              <div
-                                className={`flex-shrink-0 w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${
-                                  isSelected
-                                    ? "bg-accent border-accent"
-                                    : "border-border group-hover:border-muted-foreground/40"
-                                }`}
-                              >
-                                {isSelected && <Check className="h-4 w-4 text-accent-foreground" />}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-sm truncate">{crew.crew_name}</p>
-                                <p className="text-xs text-muted-foreground">{eventId}</p>
-                              </div>
+                              {isSelected && (
+                                <div className="absolute top-2 left-2">
+                                  <div className="w-5 h-5 rounded-full bg-accent flex items-center justify-center">
+                                    <Check className="h-3 w-3 text-accent-foreground" />
+                                  </div>
+                                </div>
+                              )}
+                              <CrewLogo logoUrl={crew.logo_url} crewName={crew.crew_name} size={48} className="mb-2" />
+                              <p className="font-semibold text-sm">{crew.crew_name}</p>
+                              <p className="text-xs text-muted-foreground">{eventId}</p>
                             </div>
 
                             {isSelected && isOpen && (
-                              <div className="px-3.5 pb-3.5 animate-fade-in">
-                                <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border/50">
-                                  <span className="text-xs text-muted-foreground whitespace-nowrap">Margin:</span>
-                                  <Input
-                                    type="number"
-                                    min="0.01"
-                                    step="0.1"
-                                    placeholder="e.g. 2.5"
-                                    value={marginVal || ""}
-                                    onChange={(e) => updateCrewMargin(crew.crew_id, parseFloat(e.target.value) || 0)}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="h-7 text-xs border-0 bg-background px-2"
-                                  />
-                                  <span className="text-xs text-muted-foreground">sec</span>
+                              <div className="px-3 pb-3 animate-fade-in">
+                                <div className="space-y-1">
+                                  <p className="text-[10px] text-muted-foreground font-medium">Predicted Margin</p>
+                                  <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border/50">
+                                    <Input
+                                      type="number"
+                                      min="0.01"
+                                      step="0.1"
+                                      placeholder="e.g. 2.5"
+                                      className="h-7 text-sm border-0 bg-transparent p-0 focus-visible:ring-0"
+                                      value={marginVal || ""}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onChange={(e) => { e.stopPropagation(); updateCrewMargin(crew.crew_id, parseFloat(e.target.value) || 0); }}
+                                    />
+                                    <span className="text-xs text-muted-foreground">seconds</span>
+                                  </div>
                                 </div>
                               </div>
                             )}
