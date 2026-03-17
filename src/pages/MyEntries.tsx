@@ -37,6 +37,8 @@ interface Entry {
     max_entries: number;
     current_entries: number;
     payout_structure: Record<string, number> | null;
+    tier_id: string;
+    entry_fee_cents: number;
   };
   contest_scores?: Array<{
     rank: number;
