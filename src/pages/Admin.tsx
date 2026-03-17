@@ -277,7 +277,7 @@ const Admin = () => {
     if (!newCrewInput.crew_name || !newCrewInput.crew_id || !newCrewInput.event_id) { toast.error("Please fill in all crew fields"); return; }
     if (createForm.crews.some(c => c.crew_id === newCrewInput.crew_id)) { toast.error("Crew ID already exists"); return; }
     setCreateForm(prev => ({ ...prev, crews: [...prev.crews, { ...newCrewInput }] }));
-    setNewCrewInput({ crew_name: "", crew_id: "", event_id: "" });
+    setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
   };
 
   const removeCrewFromForm = (crewId: string) => {
