@@ -178,7 +178,7 @@ const ContestDetail = () => {
   const draftPicksList = useMemo(() => {
     return Array.from(crewPicks.entries()).map(([crewId, margin]) => {
       const crew = contestPool?.contest_pool_crews.find((c) => c.crew_id === crewId);
-      return { crewId, crewName: crew?.crew_name ?? crewId, eventId: crew?.event_id ?? "", margin };
+      return { crewId, crewName: crew?.crew_name ?? crewId, eventId: crew?.event_id ?? "", margin, logoUrl: crew?.logo_url };
     });
   }, [crewPicks, contestPool]);
 
