@@ -194,13 +194,13 @@ const MyEntries = () => {
       if (typeof pick === 'object' && pick !== null && 'crewId' in pick) {
         const pickObj = pick as PickNew;
         const crewInfo = crewMap.get(`${entry.pool_id}-${pickObj.crewId}`);
-        return { crewName: crewInfo?.crew_name || pickObj.crewId, margin: pickObj.predictedMargin };
+        return { crewName: crewInfo?.crew_name || pickObj.crewId, margin: pickObj.predictedMargin, logoUrl: crewInfo?.logo_url };
       }
       if (typeof pick === 'string') {
         const crewInfo = crewMap.get(`${entry.pool_id}-${pick}`);
-        return { crewName: crewInfo?.crew_name || pick, margin: null };
+        return { crewName: crewInfo?.crew_name || pick, margin: null, logoUrl: crewInfo?.logo_url };
       }
-      return { crewName: 'Unknown', margin: null };
+      return { crewName: 'Unknown', margin: null, logoUrl: null };
     });
   };
 
