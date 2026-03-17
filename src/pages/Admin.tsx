@@ -36,6 +36,7 @@ interface NewCrew {
   crew_name: string;
   crew_id: string;
   event_id: string;
+  logo_url: string | null;
 }
 
 interface PrizeTier {
