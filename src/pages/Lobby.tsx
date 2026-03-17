@@ -232,18 +232,14 @@ const Lobby = () => {
                     lockTime={contest.lockTime}
                     lockTimeRaw={contest.lockTimeRaw}
                     divisions={contest.divisions}
-                    entryTiers={contest.entryTiers}
                     entryFeeCents={contest.entryFeeCents}
-                    entryFeeRange={contest.entryFeeRange}
                     payoutStructure={contest.payoutStructure}
                     prizePoolCents={contest.prizePoolCents}
-                    maxFirstPrizeCents={contest.maxFirstPrizeCents}
                     currentEntries={contest.currentEntries}
                     maxEntries={contest.maxEntries}
                     allowOverflow={contest.allowOverflow}
                     siblingPoolCount={contest.siblingPoolCount}
                     userEntered={contest.userEntered}
-                    isMultiTier={contest.isMultiTier}
                   />
                 </div>
               ))}
