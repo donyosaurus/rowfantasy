@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
+import { Footer } from "@/components/Footer";
 
 import { MatchupDialog } from "@/components/MatchupDialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -338,94 +339,85 @@ const MyEntries = () => {
   };
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
-      {/* Fixed background image + gradient — never stretches */}
+    <div className="flex flex-col min-h-screen">
+      {/* Fixed background image + gradient */}
       <div className="fixed inset-0 bg-cover bg-center bg-no-repeat z-0" style={{ backgroundImage: `url(${myEntriesBg})` }} />
       <div className="fixed inset-0 bg-gradient-to-b from-black/70 via-black/50 to-background z-0" />
 
-      <div className="relative z-10 flex flex-col h-screen">
-        <Header />
+      <Header />
 
-        <main className="flex-1 flex flex-col overflow-hidden">
-          <div className="container mx-auto px-4 flex flex-col flex-1 overflow-hidden pt-10">
-            {/* Static: Title */}
-            <h1 className="text-4xl font-heading font-extrabold text-white mb-8 shrink-0">My Entries</h1>
+      <main className="flex-1 relative z-10">
+        <div className="container mx-auto px-4 py-10">
+          <h1 className="text-4xl font-heading font-extrabold text-white mb-8">My Entries</h1>
 
-            {/* Static: Stats cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 shrink-0">
-              {[
-                { icon: Trophy, label: "Total Entries", value: stats.totalEntries },
-                { icon: Calendar, label: "Active", value: stats.activeEntries },
-                { icon: DollarSign, label: "Winnings", value: `$${stats.totalWinnings.toFixed(2)}` },
-                { icon: TrendingUp, label: "Win Rate", value: `${stats.winRate.toFixed(1)}%` },
-              ].map((stat, i) => (
-                <Card key={i} className="glass rounded-xl border-white/20 shadow-lg animate-fade-in" style={{ animationDelay: `${i * 0.1}s` }}>
-                  <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle className="text-sm font-medium">{stat.label}</CardTitle>
-                    <stat.icon className="h-4 w-4 text-accent" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-heading font-bold">{stat.value}</div>
+          {/* Stats cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            {[
+              { icon: Trophy, label: "Total Entries", value: stats.totalEntries },
+              { icon: Calendar, label: "Active", value: stats.activeEntries },
+              { icon: DollarSign, label: "Winnings", value: `$${stats.totalWinnings.toFixed(2)}` },
+              { icon: TrendingUp, label: "Win Rate", value: `${stats.winRate.toFixed(1)}%` },
+            ].map((stat, i) => (
+              <Card key={i} className="glass rounded-xl border-white/20 shadow-lg animate-fade-in" style={{ animationDelay: `${i * 0.1}s` }}>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">{stat.label}</CardTitle>
+                  <stat.icon className="h-4 w-4 text-accent" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-heading font-bold">{stat.value}</div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Entries List */}
+          <Tabs defaultValue="active" className="space-y-4">
+            <TabsList className="rounded-xl bg-white/10 backdrop-blur-sm p-1 h-auto border border-white/20">
+              <TabsTrigger value="active" className="rounded-lg py-2.5 px-6 font-semibold data-[state=active]:bg-card data-[state=active]:shadow-sm">
+                Active ({activeEntries.length})
+              </TabsTrigger>
+              <TabsTrigger value="completed" className="rounded-lg py-2.5 px-6 font-semibold data-[state=active]:bg-card data-[state=active]:shadow-sm">
+                Completed ({completedEntries.length})
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="active" className="space-y-4">
+              {activeEntries.length === 0 ? (
+                <Card className="rounded-xl shadow-md">
+                  <CardContent className="py-12 text-center">
+                    <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4">
+                      <Trophy className="h-8 w-8 text-accent" />
+                    </div>
+                    <p className="text-muted-foreground mb-4">You don't have any active entries</p>
+                    <Button onClick={() => navigate('/lobby')} variant="hero" className="rounded-xl">
+                      Browse Contests
+                    </Button>
                   </CardContent>
                 </Card>
-              ))}
-            </div>
+              ) : (
+                activeEntries.map((entry) => renderEntryCard(entry, false))
+              )}
+            </TabsContent>
 
-            {/* Tabs wrapper — tabs pinned, content scrollable */}
-            <Tabs defaultValue="active" className="flex flex-col flex-1 overflow-hidden min-h-0">
-              <TabsList className="rounded-xl bg-white/10 backdrop-blur-sm p-1 h-auto border border-white/20 shrink-0 mb-4">
-                <TabsTrigger value="active" className="rounded-lg py-2.5 px-6 font-semibold data-[state=active]:bg-card data-[state=active]:shadow-sm">
-                  Active ({activeEntries.length})
-                </TabsTrigger>
-                <TabsTrigger value="completed" className="rounded-lg py-2.5 px-6 font-semibold data-[state=active]:bg-card data-[state=active]:shadow-sm">
-                  Completed ({completedEntries.length})
-                </TabsTrigger>
-              </TabsList>
+            <TabsContent value="completed" className="space-y-4">
+              {completedEntries.length === 0 ? (
+                <Card className="rounded-xl shadow-md">
+                  <CardContent className="py-12 text-center">
+                    <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                      <Calendar className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                    <p className="text-muted-foreground">No completed entries yet</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                completedEntries.map((entry) => renderEntryCard(entry, true))
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
+      </main>
 
-              {/* Scrollable entry cards area */}
-              <div className="relative flex-1 min-h-0">
-                <div className="absolute inset-0 overflow-y-auto pb-8 my-entries-scroll">
-                  <TabsContent value="active" className="space-y-4 mt-0">
-                    {activeEntries.length === 0 ? (
-                      <Card className="rounded-xl shadow-md">
-                        <CardContent className="py-12 text-center">
-                          <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4">
-                            <Trophy className="h-8 w-8 text-accent" />
-                          </div>
-                          <p className="text-muted-foreground mb-4">You don't have any active entries</p>
-                          <Button onClick={() => navigate('/lobby')} variant="hero" className="rounded-xl">
-                            Browse Contests
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    ) : (
-                      activeEntries.map((entry) => renderEntryCard(entry, false))
-                    )}
-                  </TabsContent>
-
-                  <TabsContent value="completed" className="space-y-4 mt-0">
-                    {completedEntries.length === 0 ? (
-                      <Card className="rounded-xl shadow-md">
-                        <CardContent className="py-12 text-center">
-                          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                            <Calendar className="h-8 w-8 text-muted-foreground" />
-                          </div>
-                          <p className="text-muted-foreground">No completed entries yet</p>
-                        </CardContent>
-                      </Card>
-                    ) : (
-                      completedEntries.map((entry) => renderEntryCard(entry, true))
-                    )}
-                  </TabsContent>
-                </div>
-
-                {/* Bottom fade gradient */}
-                <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-background/80 to-transparent pointer-events-none z-10" />
-              </div>
-            </Tabs>
-          </div>
-        </main>
-      </div>
+      <Footer />
 
       {/* Matchup Dialog */}
       {matchupEntry && user && (
