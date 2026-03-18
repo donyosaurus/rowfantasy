@@ -147,8 +147,9 @@ const ContestDetail = () => {
   }, [contestPool]);
 
   const events = Object.keys(crewsByEvent);
-  const minPicks = contestPool?.contest_templates?.min_picks ?? 2;
-  const maxPicks = contestPool?.contest_templates?.max_picks ?? 4;
+  const numEvents = events.length;
+  const minPicks = Math.min(contestPool?.contest_templates?.min_picks ?? 2, numEvents);
+  const maxPicks = Math.min(contestPool?.contest_templates?.max_picks ?? 4, numEvents);
   const isOpen = contestPool?.status === "open" && new Date(contestPool.lock_time) > new Date();
 
   const payoutRows = useMemo(() => {
