@@ -140,3 +140,22 @@
     @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5;
   }
 }
+
+/* My Entries scrollable area — thin themed scrollbar */
+.my-entries-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.my-entries-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.my-entries-scroll::-webkit-scrollbar-thumb {
+  background: hsl(0 0% 100% / 0.2);
+  border-radius: 9999px;
+}
+.my-entries-scroll::-webkit-scrollbar-thumb:hover {
+  background: hsl(0 0% 100% / 0.35);
+}
+.my-entries-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(0 0% 100% / 0.2) transparent;
+}
