@@ -53,6 +53,7 @@ interface ContestPool {
   current_entries: number;
   max_entries: number;
   contest_template_id: string;
+  entry_tiers: EntryTier[] | null;
   contest_templates: {
     id: string;
     regatta_name: string;
