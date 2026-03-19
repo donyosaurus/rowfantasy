@@ -47,12 +47,20 @@ export const ContestCard = ({
   allowOverflow = false,
   siblingPoolCount = 1,
   userEntered = false,
+  entryTiers = null,
 }: ContestCardProps) => {
+  const hasTiers = entryTiers && entryTiers.length > 0;
+
   const hasPayoutStructure = payoutStructure && Object.keys(payoutStructure).length > 0;
   const firstPlacePrize = hasPayoutStructure ? payoutStructure["1"] : 0;
   const totalPrizes = hasPayoutStructure
     ? Object.values(payoutStructure).reduce((sum, val) => sum + val, 0)
     : prizePoolCents;
+
+  // For tiered contests, find max 1st-place prize across tiers
+  const maxTierFirstPrize = hasTiers
+    ? Math.max(...entryTiers.map(t => t.payout_structure["1"] || 0))
+    : 0;
 
   const isFull = maxEntries > 0 && currentEntries >= maxEntries;
   const hasMultiplePools = siblingPoolCount > 1;
