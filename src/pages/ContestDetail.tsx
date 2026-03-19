@@ -471,7 +471,36 @@ const ContestDetail = () => {
             {/* ── RIGHT: Sidebar ── */}
             <div className="w-full lg:w-[340px] xl:w-[380px] flex-shrink-0 space-y-4 lg:sticky lg:top-4 lg:self-start">
               {/* Prize Pool */}
-              {payoutRows.length > 0 && (
+              {hasTiers ? (
+                <Card className="border-gold/20">
+                  <CardContent className="p-4">
+                    <h3 className="font-heading text-sm font-bold flex items-center gap-2 mb-3">
+                      <Trophy className="h-4 w-4 text-gold" />
+                      Prize Pool
+                    </h3>
+                    <div className="space-y-4">
+                      {entryTiers!.map((tier) => {
+                        const tierPayoutRows = Object.entries(tier.payout_structure)
+                          .map(([rank, cents]) => ({ rank: Number(rank), cents }))
+                          .sort((a, b) => a.rank - b.rank);
+                        return (
+                          <div key={tier.name}>
+                            <p className="text-xs font-semibold text-muted-foreground mb-1.5">{tier.name} ({formatCents(tier.entry_fee_cents)} entry)</p>
+                            <div className="space-y-1">
+                              {tierPayoutRows.map(({ rank, cents }) => (
+                                <div key={rank} className={`flex items-center justify-between py-1.5 px-2.5 rounded-lg text-sm ${rank === 1 ? "bg-gold/10 font-semibold" : ""}`}>
+                                  <span className={rank === 1 ? "text-gold" : "text-muted-foreground"}>{ordinal(rank)} Place</span>
+                                  <span className={rank === 1 ? "text-gold font-bold" : "font-semibold"}>{formatCents(cents)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : payoutRows.length > 0 && (
                 <Card className="border-gold/20">
                   <CardContent className="p-4">
                     <h3 className="font-heading text-sm font-bold flex items-center gap-2 mb-3">
@@ -480,18 +509,9 @@ const ContestDetail = () => {
                     </h3>
                     <div className="space-y-1.5">
                       {payoutRows.map(({ rank, cents }) => (
-                        <div
-                          key={rank}
-                          className={`flex items-center justify-between py-1.5 px-2.5 rounded-lg text-sm ${
-                            rank === 1 ? "bg-gold/10 font-semibold" : ""
-                          }`}
-                        >
-                          <span className={rank === 1 ? "text-gold" : "text-muted-foreground"}>
-                            {ordinal(rank)} Place
-                          </span>
-                          <span className={rank === 1 ? "text-gold font-bold" : "font-semibold"}>
-                            {formatCents(cents)}
-                          </span>
+                        <div key={rank} className={`flex items-center justify-between py-1.5 px-2.5 rounded-lg text-sm ${rank === 1 ? "bg-gold/10 font-semibold" : ""}`}>
+                          <span className={rank === 1 ? "text-gold" : "text-muted-foreground"}>{ordinal(rank)} Place</span>
+                          <span className={rank === 1 ? "text-gold font-bold" : "font-semibold"}>{formatCents(cents)}</span>
                         </div>
                       ))}
                     </div>
@@ -509,9 +529,7 @@ const ContestDetail = () => {
                   <CardContent className="p-4">
                     <CollapsibleTrigger className="flex items-center justify-between w-full">
                       <h3 className="font-heading text-sm font-bold">How Scoring Works</h3>
-                      <ChevronDown
-                        className={`h-4 w-4 text-muted-foreground transition-transform ${scoringOpen ? "rotate-180" : ""}`}
-                      />
+                      <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${scoringOpen ? "rotate-180" : ""}`} />
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-3 text-sm">
@@ -544,6 +562,16 @@ const ContestDetail = () => {
                     </Badge>
                   </h3>
 
+                  {/* Tier Selection */}
+                  {hasTiers && (
+                    <TierSelector
+                      tiers={entryTiers!}
+                      selectedTier={selectedTier}
+                      onSelectTier={setSelectedTier}
+                      walletBalanceCents={walletBalanceCents}
+                    />
+                  )}
+
                   {draftPicksList.length === 0 ? (
                     <p className="text-sm text-muted-foreground py-4 text-center">
                       Click crews above to build your draft
@@ -551,10 +579,7 @@ const ContestDetail = () => {
                   ) : (
                     <div className="space-y-2 mb-4">
                       {draftPicksList.map((pick) => (
-                        <div
-                          key={pick.crewId}
-                          className="flex items-center justify-between py-1.5 px-2.5 rounded-lg bg-accent/5 text-sm"
-                        >
+                        <div key={pick.crewId} className="flex items-center justify-between py-1.5 px-2.5 rounded-lg bg-accent/5 text-sm">
                           <div className="flex items-center gap-2 min-w-0">
                             <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={24} />
                             <span className="font-medium truncate">{pick.crewName}</span>
@@ -562,10 +587,7 @@ const ContestDetail = () => {
                               {pick.margin > 0 ? `+${pick.margin}s` : "—"}
                             </span>
                           </div>
-                          <button
-                            onClick={() => toggleCrewSelection(pick.crewId)}
-                            className="text-muted-foreground hover:text-destructive transition-colors p-0.5"
-                          >
+                          <button onClick={() => toggleCrewSelection(pick.crewId)} className="text-muted-foreground hover:text-destructive transition-colors p-0.5">
                             <X className="h-3.5 w-3.5" />
                           </button>
                         </div>
@@ -579,22 +601,19 @@ const ContestDetail = () => {
                       variant="hero"
                       size="lg"
                       className="w-full font-semibold"
-                      disabled={isSubmitting || crewPicks.size < minPicks || !allMarginsValid}
+                      disabled={isSubmitting || crewPicks.size < minPicks || !allMarginsValid || (hasTiers && !selectedTier)}
                     >
                       {isSubmitting ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Processing…
-                        </>
+                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing…</>
                       ) : (
-                        <>Enter Contest — {formatCents(contestPool.entry_fee_cents)}</>
+                        <>Enter Contest — {formatCents(activeEntryFee)}</>
                       )}
                     </Button>
                   )}
 
                   {walletBalanceCents !== null && (
                     <div className={`flex items-center justify-center gap-1.5 mt-3 text-xs ${
-                      walletBalanceCents < contestPool.entry_fee_cents ? "text-destructive" : "text-muted-foreground"
+                      walletBalanceCents < activeEntryFee ? "text-destructive" : "text-muted-foreground"
                     }`}>
                       <Wallet className="h-3.5 w-3.5" />
                       Balance: {formatCents(walletBalanceCents)}
