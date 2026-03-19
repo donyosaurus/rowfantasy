@@ -142,6 +142,7 @@ export type Database = {
           rank: number | null
           state_code: string | null
           status: string
+          tier_name: string | null
           total_points: number | null
           updated_at: string
           user_id: string
@@ -159,6 +160,7 @@ export type Database = {
           rank?: number | null
           state_code?: string | null
           status?: string
+          tier_name?: string | null
           total_points?: number | null
           updated_at?: string
           user_id: string
@@ -176,6 +178,7 @@ export type Database = {
           rank?: number | null
           state_code?: string | null
           status?: string
+          tier_name?: string | null
           total_points?: number | null
           updated_at?: string
           user_id?: string
@@ -313,6 +316,7 @@ export type Database = {
           created_at: string
           current_entries: number
           entry_fee_cents: number
+          entry_tiers: Json | null
           id: string
           lock_time: string
           max_entries: number
@@ -330,6 +334,7 @@ export type Database = {
           created_at?: string
           current_entries?: number
           entry_fee_cents: number
+          entry_tiers?: Json | null
           id?: string
           lock_time: string
           max_entries: number
@@ -347,6 +352,7 @@ export type Database = {
           created_at?: string
           current_entries?: number
           entry_fee_cents?: number
+          entry_tiers?: Json | null
           id?: string
           lock_time?: string
           max_entries?: number
@@ -1352,19 +1358,34 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      admin_create_contest: {
-        Args: {
-          p_allow_overflow?: boolean
-          p_crews: Json
-          p_entry_fee_cents: number
-          p_gender_category: string
-          p_lock_time: string
-          p_max_entries: number
-          p_payout_structure?: Json
-          p_regatta_name: string
-        }
-        Returns: Json
-      }
+      admin_create_contest:
+        | {
+            Args: {
+              p_allow_overflow?: boolean
+              p_crews: Json
+              p_entry_fee_cents: number
+              p_gender_category: string
+              p_lock_time: string
+              p_max_entries: number
+              p_payout_structure?: Json
+              p_regatta_name: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_allow_overflow?: boolean
+              p_crews: Json
+              p_entry_fee_cents: number
+              p_entry_tiers?: Json
+              p_gender_category: string
+              p_lock_time: string
+              p_max_entries: number
+              p_payout_structure?: Json
+              p_regatta_name: string
+            }
+            Returns: Json
+          }
       admin_update_race_results: {
         Args: { p_contest_pool_id: string; p_results: Json }
         Returns: Json
