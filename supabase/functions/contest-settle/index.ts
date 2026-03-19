@@ -18,6 +18,7 @@ interface ContestPool {
   entry_fee_cents: number;
   current_entries: number;
   tier_id: string;
+  entry_tiers: Array<{ name: string; entry_fee_cents: number; payout_structure: PayoutStructure }> | null;
 }
 
 interface ContestEntry {
