@@ -291,8 +291,6 @@ const MyEntries = () => {
                   Entry: ${(entry.entry_fee_cents / 100).toFixed(2)}
                   {prizeText && <span className="text-gold font-medium"> • {prizeText}</span>}
                 </div>
-                  {prizeText && <span className="text-gold font-medium"> • {prizeText}</span>}
-                </div>
                 {!showScore && <div>Locks: {new Date(entry.contest_templates.lock_time).toLocaleString()}</div>}
                 {showScore && <div>Entered: {new Date(entry.created_at).toLocaleDateString()}</div>}
               </CardDescription>
