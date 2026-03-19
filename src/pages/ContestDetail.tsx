@@ -93,6 +93,7 @@ const ContestDetail = () => {
   const [crewPicks, setCrewPicks] = useState<Map<string, number>>(new Map());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [scoringOpen, setScoringOpen] = useState(false);
+  const [selectedTier, setSelectedTier] = useState<EntryTier | null>(null);
 
   // Auth guard
   useEffect(() => {
