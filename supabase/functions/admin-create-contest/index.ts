@@ -9,6 +9,12 @@ interface CrewInput {
   logo_url?: string | null;
 }
 
+interface EntryTierInput {
+  name: string;
+  entry_fee_cents: number;
+  payout_structure: Record<string, number>;
+}
+
 interface CreateContestRequest {
   regattaName: string;
   genderCategory: string;
@@ -18,6 +24,7 @@ interface CreateContestRequest {
   crews: CrewInput[];
   payouts: Record<string, number>;
   allowOverflow?: boolean;
+  entryTiers?: EntryTierInput[] | null;
 }
 
 const VALID_GENDER_CATEGORIES = ["Men's", "Women's", "Mixed"];
