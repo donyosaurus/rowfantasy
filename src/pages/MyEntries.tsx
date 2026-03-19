@@ -287,7 +287,10 @@ const MyEntries = () => {
               <CardTitle className="text-lg font-heading">{entry.contest_templates.regatta_name}</CardTitle>
               <CardDescription className="space-y-1 mt-1">
                 <div>
+                  {entry.tier_name && <span className="text-accent font-medium">{entry.tier_name} Tier · </span>}
                   Entry: ${(entry.entry_fee_cents / 100).toFixed(2)}
+                  {prizeText && <span className="text-gold font-medium"> • {prizeText}</span>}
+                </div>
                   {prizeText && <span className="text-gold font-medium"> • {prizeText}</span>}
                 </div>
                 {!showScore && <div>Locks: {new Date(entry.contest_templates.lock_time).toLocaleString()}</div>}

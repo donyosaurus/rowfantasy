@@ -45,7 +45,7 @@ export function MatchupDialog({
       const [entriesRes, crewsRes, scoresRes] = await Promise.all([
         supabase
           .from("contest_entries")
-          .select("id, user_id, picks, total_points, margin_error, rank, payout_cents, status, created_at")
+          .select("id, user_id, picks, total_points, margin_error, rank, payout_cents, status, created_at, tier_name")
           .eq("pool_id", poolId)
           .in("status", ["active", "scored", "settled", "voided"]),
         supabase
