@@ -213,8 +213,11 @@ const RegattaDetail = () => {
       if (crew) selectedDivisions.add(crew.event_id);
     }
     if (selectedDivisions.size < 2) { toast.error("You must select crews from at least 2 different events"); return; }
-    if (walletBalanceCents !== null && walletBalanceCents < contestPool.entry_fee_cents) {
-      toast.error(`Insufficient balance. You need ${formatCents(contestPool.entry_fee_cents)} but have ${formatCents(walletBalanceCents)}.`);
+
+    if (hasTiers && !selectedTier) { toast.error("Please select an entry tier"); return; }
+
+    if (walletBalanceCents !== null && walletBalanceCents < activeEntryFee) {
+      toast.error(`Insufficient balance. You need ${formatCents(activeEntryFee)} but have ${formatCents(walletBalanceCents)}.`);
       return;
     }
 
@@ -230,7 +233,8 @@ const RegattaDetail = () => {
           contestTemplateId: contestPool.contest_template_id,
           tierId: contestPool.id,
           picks,
-          entryFeeCents: contestPool.entry_fee_cents,
+          entryFeeCents: activeEntryFee,
+          tierName: selectedTier?.name ?? null,
           stateCode: null,
         },
       });
