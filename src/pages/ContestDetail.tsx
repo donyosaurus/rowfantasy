@@ -640,14 +640,16 @@ const ContestDetail = () => {
                     ? `Need ${minPicks - crewPicks.size} more`
                     : !allMarginsValid
                       ? "Enter margins for all crews"
-                      : `Entry: ${formatCents(contestPool.entry_fee_cents)}`}
+                      : hasTiers && !selectedTier
+                        ? "Select an entry tier"
+                        : `Entry: ${formatCents(activeEntryFee)}`}
                 </p>
               </div>
               <Button
                 size="sm"
                 variant="hero"
                 onClick={handleSubmit}
-                disabled={isSubmitting || crewPicks.size < minPicks || !allMarginsValid}
+                disabled={isSubmitting || crewPicks.size < minPicks || !allMarginsValid || (hasTiers && !selectedTier)}
                 className="flex-shrink-0"
               >
                 {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enter"}
