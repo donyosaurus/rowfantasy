@@ -50,6 +50,7 @@ interface ContestPool {
   payout_structure: Record<string, number> | null;
   contest_template_id: string;
   tier_id: string;
+  entry_tiers: EntryTier[] | null;
   contest_templates: {
     regatta_name: string;
     gender_category: string;
