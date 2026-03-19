@@ -124,7 +124,7 @@ async function processSinglePool(
   // 2. Fetch ALL contest_entries for this pool
   const { data: entriesData, error: entriesError } = await supabaseAdmin
     .from('contest_entries')
-    .select('id, user_id, status, payout_cents')
+    .select('id, user_id, status, payout_cents, entry_fee_cents, tier_name')
     .eq('pool_id', poolId);
 
   if (entriesError) {
