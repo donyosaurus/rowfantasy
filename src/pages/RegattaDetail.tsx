@@ -99,7 +99,7 @@ const RegattaDetail = () => {
         .eq("id", id)
         .single();
       if (fetchError || !data) { setError("Contest not found"); setLoading(false); return; }
-      setContestPool(data as ContestPool);
+      setContestPool(data as unknown as ContestPool);
       setLoading(false);
     };
     fetchPoolData();
