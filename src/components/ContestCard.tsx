@@ -107,8 +107,15 @@ export const ContestCard = ({
           <div className="flex items-center gap-2">
             <Zap className="h-4 w-4 text-accent" />
             <span className="text-sm font-semibold">
-              {entryFeeCents > 0 ? `${formatCents(entryFeeCents)} entry` : "Free entry"}
+              {hasTiers
+                ? `From ${formatCents(entryFeeCents)} entry`
+                : entryFeeCents > 0 ? `${formatCents(entryFeeCents)} entry` : "Free entry"}
             </span>
+            {hasTiers && (
+              <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20">
+                {entryTiers.length} Tiers
+              </span>
+            )}
           </div>
         </div>
 
