@@ -555,7 +555,7 @@ const RegattaDetail = () => {
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium">{crewPicks.size} pick{crewPicks.size !== 1 ? "s" : ""} selected</span>
           {walletBalanceCents !== null && (
-            <span className={`text-xs ${walletBalanceCents < contestPool.entry_fee_cents ? "text-destructive" : "text-muted-foreground"}`}>
+            <span className={`text-xs ${walletBalanceCents < activeEntryFee ? "text-destructive" : "text-muted-foreground"}`}>
               Balance: {formatCents(walletBalanceCents)}
             </span>
           )}
@@ -563,10 +563,10 @@ const RegattaDetail = () => {
         <Button
           variant="hero"
           className="w-full rounded-xl font-semibold"
-          disabled={!isContestOpen || crewPicks.size < minPicks || !allMarginsValid || submitting}
+          disabled={!isContestOpen || crewPicks.size < minPicks || !allMarginsValid || (hasTiers && !selectedTier) || submitting}
           onClick={handleSubmitEntry}
         >
-          {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Entering...</> : `Enter Contest — ${formatCents(contestPool.entry_fee_cents)}`}
+          {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Entering...</> : `Enter Contest — ${formatCents(activeEntryFee)}`}
         </Button>
       </div>
 
