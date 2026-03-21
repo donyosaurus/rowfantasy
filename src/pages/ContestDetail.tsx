@@ -285,7 +285,7 @@ const ContestDetail = () => {
   const statusLabel = isOpen ? "Open" : contestPool.status.charAt(0).toUpperCase() + contestPool.status.slice(1);
 
   return (
-    <div className="flex flex-col min-h-screen bg-gradient-to-b from-primary via-primary/90 to-primary/80">
+    <div className="flex flex-col min-h-screen bg-background">
       <Header />
 
       {/* ── Gradient Hero Header ── */}
