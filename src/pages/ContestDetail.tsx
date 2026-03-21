@@ -260,7 +260,7 @@ const ContestDetail = () => {
 
   if (authLoading || poolLoading) {
     return (
-      <div className="flex flex-col min-h-screen bg-gradient-to-b from-primary via-primary/90 to-primary/80">
+      <div className="flex flex-col min-h-screen bg-background">
         <Header />
         <main className="flex-1 flex items-center justify-center">
           <Loader2 className="h-12 w-12 animate-spin text-accent" />
