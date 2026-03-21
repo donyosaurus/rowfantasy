@@ -427,7 +427,7 @@ const ContestDetail = () => {
                   </CardContent>
                 </Card>
               ) : payoutRows.length > 0 && (
-                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-white/20">
+                <Card className="rounded-xl bg-card shadow-lg border border-border">
                   <CardContent className="p-4">
                     <h3 className="font-heading text-sm font-bold flex items-center gap-2 mb-3">
                       <Trophy className="h-4 w-4 text-gold" />Prize Pool
