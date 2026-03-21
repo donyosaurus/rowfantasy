@@ -267,7 +267,7 @@ const RegattaDetail = () => {
 
   if (authLoading || loading) {
     return (
-      <div className="flex flex-col min-h-screen bg-gradient-to-b from-primary via-primary/90 to-primary/80">
+      <div className="flex flex-col min-h-screen bg-background">
         <Header />
         <main className="flex-1 flex items-center justify-center">
           <Loader2 className="h-12 w-12 animate-spin text-accent" />
@@ -278,7 +278,7 @@ const RegattaDetail = () => {
 
   if (error || !contestPool) {
     return (
-      <div className="flex flex-col min-h-screen bg-gradient-to-b from-primary via-primary/90 to-primary/80">
+      <div className="flex flex-col min-h-screen bg-background">
         <Header />
         <main className="flex-1 flex items-center justify-center">
           <div className="text-center">
@@ -294,7 +294,7 @@ const RegattaDetail = () => {
   const statusLabel = isContestOpen ? "Open" : contestPool.status.charAt(0).toUpperCase() + contestPool.status.slice(1);
 
   return (
-    <div className="flex flex-col min-h-screen bg-gradient-to-b from-primary via-primary/90 to-primary/80">
+    <div className="flex flex-col min-h-screen bg-background">
       <Header />
 
       {/* ── Gradient Hero Header ── */}
@@ -367,21 +367,21 @@ const RegattaDetail = () => {
             {/* ── LEFT: Crew Selection ── */}
             <div className="flex-1 min-w-0 space-y-5">
               <div>
-                <h2 className="font-heading text-xl lg:text-2xl font-bold mb-1 text-white">Select Your Crews</h2>
-                <p className="text-sm text-white/50">
+                <h2 className="font-heading text-xl lg:text-2xl font-bold mb-1 text-foreground">Select Your Crews</h2>
+                <p className="text-sm text-muted-foreground">
                   Draft a crew from each event. Your entry will be matched against other players.
                 </p>
               </div>
 
               {divisions.length === 0 ? (
-                <Card className="bg-white/10 border-white/10"><CardContent className="py-8 text-center text-white/50">No crews available.</CardContent></Card>
+                <Card className="bg-card border-border"><CardContent className="py-8 text-center text-muted-foreground">No crews available.</CardContent></Card>
               ) : (
                 divisions.map((divisionId) => (
                   <div key={divisionId}>
                     <div className="flex items-center gap-2 mb-3">
-                      <div className="flex items-center gap-2 rounded-full bg-white/10 border-l-4 border-accent px-4 py-1.5">
-                        <span className="text-white font-semibold text-xs">{divisionId}</span>
-                        <span className="text-white/50 text-xs">· {crewsByDivision[divisionId].length} crews</span>
+                      <div className="flex items-center gap-2 rounded-full bg-primary text-primary-foreground px-3 py-1">
+                        <span className="font-semibold text-xs">{divisionId}</span>
+                        <span className="opacity-60 text-xs">· {crewsByDivision[divisionId].length} crews</span>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
@@ -410,7 +410,7 @@ const RegattaDetail = () => {
             <div className="w-full lg:w-[340px] lg:sticky lg:top-4 lg:self-start space-y-4">
               {/* Prize Pool */}
               {hasTiers ? (
-                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-white/20">
+                <Card className="rounded-xl bg-card shadow-lg border border-border">
                   <CardContent className="p-4">
                     <h3 className="font-heading text-sm font-bold mb-3 flex items-center gap-2"><Trophy className="h-4 w-4 text-gold" />Prize Pool</h3>
                     <div className="space-y-3">
@@ -437,7 +437,7 @@ const RegattaDetail = () => {
                   </CardContent>
                 </Card>
               ) : payoutRows.length > 0 && (
-                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-white/20">
+                <Card className="rounded-xl bg-card shadow-lg border border-border">
                   <CardContent className="p-4">
                     <h3 className="font-heading text-sm font-bold mb-3 flex items-center gap-2"><Trophy className="h-4 w-4 text-gold" />Prize Pool</h3>
                     <div className="space-y-1.5">
@@ -454,7 +454,7 @@ const RegattaDetail = () => {
               )}
 
               {/* Scoring (Collapsible) */}
-              <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-white/20">
+              <Card className="rounded-xl bg-card shadow-lg border border-border">
                 <CardContent className="p-4">
                   <Collapsible open={scoringOpen} onOpenChange={setScoringOpen}>
                     <CollapsibleTrigger className="flex items-center justify-between w-full">
@@ -476,7 +476,7 @@ const RegattaDetail = () => {
               </Card>
 
               {/* Your Draft */}
-              <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-white/20 ring-2 ring-accent/30">
+              <Card className="rounded-xl bg-card shadow-lg border-2 border-accent/30">
                 <CardContent className="p-4">
                   <h3 className="font-heading text-sm font-bold mb-3 flex items-center gap-2"><Zap className="h-4 w-4 text-accent" />Your Draft</h3>
 
@@ -549,14 +549,13 @@ const RegattaDetail = () => {
                   key={tier.name}
                   disabled={insufficientBalance}
                   onClick={() => !insufficientBalance && setSelectedTier(tier)}
-                  className={`flex-1 min-w-0 rounded-lg px-2 py-1.5 text-center transition-all border-2 text-xs ${
-                    insufficientBalance ? "opacity-40 cursor-not-allowed border-border bg-muted/30"
-                    : isSelected ? "border-accent bg-accent/15 font-bold"
-                    : "border-border bg-secondary cursor-pointer"
+                  className={`flex-1 min-w-0 rounded-lg py-2 text-center transition-all border-2 font-bold ${
+                    insufficientBalance ? "opacity-40 cursor-not-allowed border-border bg-secondary text-muted-foreground"
+                    : isSelected ? "border-accent bg-accent text-accent-foreground"
+                    : "border-border bg-secondary cursor-pointer text-foreground"
                   }`}
                 >
-                  <span className="block text-[9px] text-muted-foreground">{tier.name}</span>
-                  <span className={`block font-bold ${isSelected ? "text-accent" : ""}`}>{displayFee}</span>
+                  {displayFee}
                 </button>
               );
             })}

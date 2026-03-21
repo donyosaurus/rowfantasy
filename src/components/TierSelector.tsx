@@ -1,6 +1,4 @@
 import { formatCents } from "@/lib/formatCurrency";
-import { Star } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 
 export interface EntryTier {
   name: string;
@@ -22,23 +20,12 @@ function ordinal(n: number): string {
 }
 
 export function TierSelector({ tiers, selectedTier, onSelectTier, walletBalanceCents }: TierSelectorProps) {
-  // Find best value tier (highest 1st-place payout ratio)
-  const bestValueIdx = tiers.reduce((bestIdx, tier, idx) => {
-    const ratio = (tier.payout_structure["1"] || 0) / tier.entry_fee_cents;
-    const bestRatio = (tiers[bestIdx].payout_structure["1"] || 0) / tiers[bestIdx].entry_fee_cents;
-    return ratio > bestRatio ? idx : bestIdx;
-  }, 0);
-
-  const highestFeeIdx = tiers.reduce((hi, t, i) => t.entry_fee_cents > tiers[hi].entry_fee_cents ? i : hi, 0);
-  const showBestValue = bestValueIdx === highestFeeIdx;
-
   return (
     <div className="mb-4">
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Choose Your Entry Level</p>
 
-      {/* Compact horizontal tier buttons */}
-      <div className="flex gap-2 overflow-x-auto">
-        {tiers.map((tier, idx) => {
+      <div className="flex gap-2">
+        {tiers.map((tier) => {
           const isSelected = selectedTier?.name === tier.name;
           const insufficientBalance = walletBalanceCents !== null && walletBalanceCents < tier.entry_fee_cents;
           const dollars = tier.entry_fee_cents / 100;
@@ -50,33 +37,23 @@ export function TierSelector({ tiers, selectedTier, onSelectTier, walletBalanceC
               type="button"
               disabled={insufficientBalance}
               onClick={() => !insufficientBalance && onSelectTier(tier)}
-              className={`flex-1 min-w-0 rounded-lg px-3 py-2.5 text-center transition-all duration-200 border-2 ${
+              className={`flex-1 min-w-0 rounded-lg py-3 text-center font-bold text-lg transition-all duration-150 ${
                 insufficientBalance
-                  ? "opacity-40 cursor-not-allowed border-border bg-muted/30"
+                  ? "bg-secondary border border-border text-muted-foreground opacity-40 cursor-not-allowed"
                   : isSelected
-                    ? "border-accent bg-accent/15 scale-105 shadow-sm"
-                    : "border-border bg-secondary hover:bg-muted hover:border-muted-foreground/40 cursor-pointer"
+                    ? "bg-accent text-accent-foreground border-2 border-accent shadow-md scale-105"
+                    : "bg-secondary border border-border text-foreground hover:bg-muted cursor-pointer"
               }`}
             >
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium block">{tier.name}</span>
-              <span className={`text-base font-bold block ${isSelected ? "text-accent" : "text-foreground"}`}>{displayFee}</span>
-              {showBestValue && idx === highestFeeIdx && (
-                <span className="inline-flex items-center gap-0.5 text-[9px] text-gold font-semibold mt-0.5">
-                  <Star className="h-2.5 w-2.5 fill-gold text-gold" />Best
-                </span>
-              )}
-              {insufficientBalance && (
-                <span className="text-[9px] text-destructive block mt-0.5">Low balance</span>
-              )}
+              {displayFee}
             </button>
           );
         })}
       </div>
 
-      {/* Selected tier payout reveal */}
       {selectedTier ? (
-        <div className="mt-2 rounded-md bg-accent/5 border border-accent/20 p-2.5 animate-fade-in">
-          <p className="text-xs font-semibold text-foreground mb-1">{selectedTier.name} Tier</p>
+        <div className="mt-2 rounded-md bg-secondary border border-border p-2.5 animate-fade-in">
+          <p className="text-sm text-foreground font-medium mb-1">{selectedTier.name} Tier</p>
           <div className="space-y-0.5">
             {Object.entries(selectedTier.payout_structure)
               .map(([rank, cents]) => ({ rank: Number(rank), cents }))
@@ -90,7 +67,7 @@ export function TierSelector({ tiers, selectedTier, onSelectTier, walletBalanceC
           </div>
         </div>
       ) : (
-        <p className="text-[10px] text-muted-foreground mt-1.5 text-center">Tap a tier to see prizes</p>
+        <p className="text-xs text-muted-foreground mt-2 text-center">Tap an amount to see prizes</p>
       )}
     </div>
   );
