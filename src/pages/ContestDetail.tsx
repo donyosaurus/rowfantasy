@@ -362,7 +362,7 @@ const ContestDetail = () => {
               </div>
 
               {events.length === 0 ? (
-                <Card className="bg-white/10 border-white/10"><CardContent className="py-8 text-center text-white/50">No crews available.</CardContent></Card>
+                <Card className="bg-card border-border"><CardContent className="py-8 text-center text-muted-foreground">No crews available.</CardContent></Card>
               ) : (
                 events.map((eventId) => (
                   <div key={eventId}>
