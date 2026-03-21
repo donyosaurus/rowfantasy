@@ -568,14 +568,13 @@ const ContestDetail = () => {
                       key={tier.name}
                       disabled={insufficientBalance}
                       onClick={() => !insufficientBalance && setSelectedTier(tier)}
-                      className={`flex-1 min-w-0 rounded-lg px-2 py-1.5 text-center transition-all border-2 text-xs ${
-                        insufficientBalance ? "opacity-40 cursor-not-allowed border-border bg-muted/30"
-                        : isSelected ? "border-accent bg-accent/15 font-bold"
-                        : "border-border bg-secondary cursor-pointer"
+                      className={`flex-1 min-w-0 rounded-lg py-2 text-center transition-all border-2 font-bold ${
+                        insufficientBalance ? "opacity-40 cursor-not-allowed border-border bg-secondary text-muted-foreground"
+                        : isSelected ? "border-accent bg-accent text-accent-foreground"
+                        : "border-border bg-secondary cursor-pointer text-foreground"
                       }`}
                     >
-                      <span className="block text-[9px] text-muted-foreground">{tier.name}</span>
-                      <span className={`block font-bold ${isSelected ? "text-accent" : ""}`}>{displayFee}</span>
+                      {displayFee}
                     </button>
                   );
                 })}
