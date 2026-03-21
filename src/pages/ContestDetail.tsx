@@ -450,7 +450,7 @@ const ContestDetail = () => {
 
               {/* Scoring — Collapsible */}
               <Collapsible open={scoringOpen} onOpenChange={setScoringOpen}>
-                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-white/20">
+                <Card className="rounded-xl bg-card shadow-lg border border-border">
                   <CardContent className="p-4">
                     <CollapsibleTrigger className="flex items-center justify-between w-full">
                       <h3 className="font-heading text-sm font-bold">How Scoring Works</h3>
