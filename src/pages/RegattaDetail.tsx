@@ -367,21 +367,21 @@ const RegattaDetail = () => {
             {/* ── LEFT: Crew Selection ── */}
             <div className="flex-1 min-w-0 space-y-5">
               <div>
-                <h2 className="font-heading text-xl lg:text-2xl font-bold mb-1 text-white">Select Your Crews</h2>
-                <p className="text-sm text-white/50">
+                <h2 className="font-heading text-xl lg:text-2xl font-bold mb-1 text-foreground">Select Your Crews</h2>
+                <p className="text-sm text-muted-foreground">
                   Draft a crew from each event. Your entry will be matched against other players.
                 </p>
               </div>
 
               {divisions.length === 0 ? (
-                <Card className="bg-white/10 border-white/10"><CardContent className="py-8 text-center text-white/50">No crews available.</CardContent></Card>
+                <Card className="bg-card border-border"><CardContent className="py-8 text-center text-muted-foreground">No crews available.</CardContent></Card>
               ) : (
                 divisions.map((divisionId) => (
                   <div key={divisionId}>
                     <div className="flex items-center gap-2 mb-3">
-                      <div className="flex items-center gap-2 rounded-full bg-white/10 border-l-4 border-accent px-4 py-1.5">
-                        <span className="text-white font-semibold text-xs">{divisionId}</span>
-                        <span className="text-white/50 text-xs">· {crewsByDivision[divisionId].length} crews</span>
+                      <div className="flex items-center gap-2 rounded-full bg-primary text-primary-foreground px-3 py-1">
+                        <span className="font-semibold text-xs">{divisionId}</span>
+                        <span className="opacity-60 text-xs">· {crewsByDivision[divisionId].length} crews</span>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
