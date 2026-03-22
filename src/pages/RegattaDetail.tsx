@@ -353,7 +353,7 @@ const RegattaDetail = () => {
       </div>
 
       {/* ── Main Content ── */}
-      <main className="flex-1 pb-32 lg:pb-12">
+      <main className="flex-1 pb-32 lg:pb-12 relative z-10">
         <div className="container mx-auto px-4 max-w-6xl py-6 lg:py-8">
           {!isContestOpen && (
             <div className="mb-6 p-4 rounded-xl border border-destructive/30 bg-destructive/10 text-center">
