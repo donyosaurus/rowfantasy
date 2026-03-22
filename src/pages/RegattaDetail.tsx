@@ -477,7 +477,7 @@ const RegattaDetail = () => {
               </Card>
 
               {/* Your Draft */}
-              <Card className="rounded-xl bg-card shadow-lg border-2 border-accent/30">
+              <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-2 border-accent/30">
                 <CardContent className="p-4">
                   <h3 className="font-heading text-sm font-bold mb-3 flex items-center gap-2"><Zap className="h-4 w-4 text-accent" />Your Draft</h3>
 
