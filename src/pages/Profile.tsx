@@ -266,7 +266,7 @@ const Profile = () => {
       <Header />
       
       {/* Profile Hero */}
-      <section className="gradient-hero py-10 relative overflow-hidden">
+      <section className="gradient-hero py-10 relative overflow-hidden z-10">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-5 right-20 w-64 h-64 rounded-full bg-accent blur-3xl" />
         </div>
