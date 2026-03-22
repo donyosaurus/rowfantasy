@@ -455,7 +455,7 @@ const RegattaDetail = () => {
               )}
 
               {/* Scoring (Collapsible) */}
-              <Card className="rounded-xl bg-card shadow-lg border border-border">
+              <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/10">
                 <CardContent className="p-4">
                   <Collapsible open={scoringOpen} onOpenChange={setScoringOpen}>
                     <CollapsibleTrigger className="flex items-center justify-between w-full">
