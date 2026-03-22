@@ -671,6 +671,19 @@ const Admin = () => {
                 <Input id="regattaName" placeholder="e.g., Harvard-Yale Regatta 2026" value={createForm.regattaName} onChange={(e) => setCreateForm(prev => ({ ...prev, regattaName: e.target.value }))} />
               </div>
               <div>
+                <Label htmlFor="bannerUrl">Banner Image URL (optional)</Label>
+                <Input id="bannerUrl" placeholder="https://example.com/banner.jpg" value={createForm.bannerUrl} onChange={(e) => setCreateForm(prev => ({ ...prev, bannerUrl: e.target.value }))} />
+                <p className="text-xs text-muted-foreground mt-1">Displayed as the contest card header in the lobby</p>
+                {createForm.bannerUrl && (
+                  <img
+                    src={createForm.bannerUrl}
+                    alt="Banner preview"
+                    className="mt-2 w-full h-[200px] object-cover rounded-lg border"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                    onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'block'; }}
+                  />
+                )}
+              <div>
                 <Label htmlFor="genderCategory">Gender Category *</Label>
                 <Select value={createForm.genderCategory} onValueChange={(value) => setCreateForm(prev => ({ ...prev, genderCategory: value }))}>
                   <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
