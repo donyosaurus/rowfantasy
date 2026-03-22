@@ -481,7 +481,7 @@ const ContestDetail = () => {
               </Collapsible>
 
               {/* Your Draft */}
-              <Card className="rounded-xl bg-card shadow-lg border-2 border-accent/30">
+              <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-2 border-accent/30">
                 <CardContent className="p-4">
                   <h3 className="font-heading text-sm font-bold flex items-center gap-2 mb-3">
                     Your Draft
