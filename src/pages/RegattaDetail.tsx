@@ -411,7 +411,7 @@ const RegattaDetail = () => {
             <div className="w-full lg:w-[340px] lg:sticky lg:top-4 lg:self-start space-y-4">
               {/* Prize Pool */}
               {hasTiers ? (
-                <Card className="rounded-xl bg-card shadow-lg border border-border">
+               <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/10">
                   <CardContent className="p-4">
                     <h3 className="font-heading text-sm font-bold mb-3 flex items-center gap-2"><Trophy className="h-4 w-4 text-gold" />Prize Pool</h3>
                     <div className="space-y-3">
