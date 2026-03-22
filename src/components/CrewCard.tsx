@@ -1,6 +1,5 @@
 import { CrewLogo } from "@/components/CrewLogo";
 import { Input } from "@/components/ui/input";
-import { Check } from "lucide-react";
 import { getCrewColor } from "@/lib/school-colors";
 
 interface CrewCardProps {
@@ -24,66 +23,106 @@ export function CrewCard({
 
   return (
     <div
-      className={`group relative rounded-xl bg-card shadow-md transition-all duration-200 overflow-hidden ${
-        !isOpen ? "opacity-50 pointer-events-none" : "cursor-pointer hover:shadow-xl hover:-translate-y-1"
+      className={`relative rounded-[14px] overflow-hidden bg-white transition-all duration-300 ${
+        !isOpen
+          ? "opacity-60 cursor-not-allowed"
+          : "cursor-pointer hover:-translate-y-1.5"
       }`}
       style={{
-        borderWidth: 2,
-        borderStyle: "solid",
-        borderColor: isSelected ? color : "hsl(var(--border))",
-        boxShadow: isSelected ? `0 4px 20px -4px ${color}40` : undefined,
+        width: "100%",
+        minHeight: 255,
+        border: isSelected ? `2px solid ${color}` : `1.5px solid ${color}25`,
+        boxShadow: isSelected
+          ? `0 0 0 3px ${color}25, 0 10px 30px rgba(0,0,0,0.12)`
+          : undefined,
+        animation: `fadeUp 0.4s ease forwards`,
         animationDelay: `${animDelay}ms`,
+        opacity: 0,
       }}
+      onClick={() => isOpen && onToggle(crewId)}
     >
+      {/* Layer 1 — Color fade */}
       <div
-        className="flex flex-col items-center text-center p-4 pb-3"
-        onClick={() => isOpen && onToggle(crewId)}
-      >
-        {/* Selection checkmark */}
-        {isSelected && (
-          <div className="absolute top-2 right-2 z-10">
-            <div className="w-6 h-6 rounded-full bg-accent flex items-center justify-center shadow-md">
-              <Check className="h-3.5 w-3.5 text-accent-foreground" />
-            </div>
-          </div>
-        )}
+        className="absolute top-0 left-0 right-0"
+        style={{
+          height: 120,
+          background: `linear-gradient(180deg, ${color} 0%, ${color} 40%, transparent 100%)`,
+        }}
+      />
 
+      {/* Selected checkmark badge */}
+      {isSelected && (
         <div
-          className="rounded-full flex items-center justify-center mb-2.5"
-          style={{ width: 72, height: 72, backgroundColor: `${color}15` }}
+          className="absolute top-1.5 right-2 w-6 h-6 rounded-full z-10 flex items-center justify-center"
+          style={{ background: color }}
         >
-          <CrewLogo
-            logoUrl={logoUrl}
-            crewName={crewName}
-            size={64}
-            className={isSelected ? "ring-2" : ""}
-            {...(isSelected ? { style: { "--tw-ring-color": color } as any } : {})}
-          />
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path
+              d="M2.5 7.5L5.5 10.5L11.5 4"
+              stroke="white"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </div>
-        <p className="font-bold text-base text-foreground">{crewName}</p>
-        <p className="text-sm text-muted-foreground">{eventId}</p>
+      )}
+
+      {/* Layer 2 — Logo circle */}
+      <div
+        className="absolute left-1/2 -translate-x-1/2 rounded-full bg-white flex items-center justify-center z-[5]"
+        style={{
+          top: 55,
+          width: 78,
+          height: 78,
+          border: "2.5px solid rgba(255,255,255,0.5)",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+        }}
+      >
+        <CrewLogo
+          logoUrl={logoUrl}
+          crewName={crewName}
+          size={44}
+          className="rounded-full"
+        />
       </div>
 
-      {isSelected && isOpen && (
-        <div className="px-3 pb-3 animate-fade-in">
-          <div className="space-y-1">
-            <p className="text-[10px] font-medium text-muted-foreground">Predicted Margin</p>
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-secondary border border-border">
+      {/* Layer 3 — Text & margin input */}
+      <div
+        className="absolute bottom-0 left-0 right-0 text-center"
+        style={{ padding: "10px 14px 16px" }}
+      >
+        <p className="font-semibold text-[15px] text-foreground tracking-tight leading-tight">
+          {crewName}
+        </p>
+        <p
+          className="text-[11px] font-medium mt-[3px] tracking-wider uppercase"
+          style={{ color }}
+        >
+          {eventId}
+        </p>
+
+        {isSelected && isOpen && (
+          <div className="mt-2 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-1.5 p-1.5 rounded-md bg-secondary border border-border">
               <Input
                 type="number"
                 min="0.01"
                 step="0.1"
-                placeholder="e.g. 2.5"
-                className="h-7 text-sm border-0 bg-transparent p-0 focus-visible:ring-0 text-foreground placeholder:text-muted-foreground/50"
+                placeholder="Margin"
+                className="h-6 text-xs border-0 bg-transparent p-0 focus-visible:ring-0 text-foreground placeholder:text-muted-foreground/50"
                 value={marginVal || ""}
                 onClick={(e) => e.stopPropagation()}
-                onChange={(e) => { e.stopPropagation(); onMarginChange(crewId, parseFloat(e.target.value) || 0); }}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  onMarginChange(crewId, parseFloat(e.target.value) || 0);
+                }}
               />
-              <span className="text-xs text-muted-foreground">seconds</span>
+              <span className="text-[10px] text-muted-foreground whitespace-nowrap">sec</span>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

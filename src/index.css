@@ -141,6 +141,11 @@
   }
 }
 
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* My Entries scrollable area — thin themed scrollbar */
 .my-entries-scroll::-webkit-scrollbar {
   width: 6px;
