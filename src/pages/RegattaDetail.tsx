@@ -297,7 +297,8 @@ const RegattaDetail = () => {
   return (
     <div className="flex flex-col min-h-screen relative">
       <DraftPageBackground />
-
+      <div className="relative z-10 flex flex-col min-h-screen">
+      <Header />
       {/* ── Gradient Hero Header ── */}
       <div className="gradient-hero text-primary-foreground relative z-10">
         <div className="container mx-auto px-4 max-w-6xl py-6 lg:py-8">
