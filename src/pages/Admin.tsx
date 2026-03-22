@@ -61,6 +61,7 @@ interface CreateContestForm {
   allowOverflow: boolean;
   multiTier: boolean;
   entryTiers: EntryTierForm[];
+  bannerUrl: string;
 }
 
 const Admin = () => {
