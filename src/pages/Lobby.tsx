@@ -53,6 +53,7 @@ interface MappedContest {
   siblingPoolCount: number;
   userEntered: boolean;
   entryTiers: any[] | null;
+  bannerUrl: string | null;
 }
 
 const Lobby = () => {
