@@ -14,10 +14,11 @@ function getInitials(name: string): string {
   return name.slice(0, 2).toUpperCase();
 }
 
-export function CrewLogo({ logoUrl, crewName, size = 48, className }: CrewLogoProps) {
+export function CrewLogo({ logoUrl, crewName, size = 48, className, ...rest }: CrewLogoProps & React.HTMLAttributes<HTMLDivElement>) {
   const [imgError, setImgError] = useState(false);
 
   const showImage = logoUrl && !imgError;
+  const containerSize = Math.round(size * 1.18);
 
   return (
     <div
@@ -25,7 +26,8 @@ export function CrewLogo({ logoUrl, crewName, size = 48, className }: CrewLogoPr
         "rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 bg-white text-foreground font-heading font-bold select-none",
         className
       )}
-      style={{ width: size, height: size, fontSize: size * 0.35 }}
+      style={{ width: containerSize, height: containerSize, fontSize: size * 0.35 }}
+      {...rest}
     >
       {showImage ? (
         <img
