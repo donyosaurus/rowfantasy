@@ -22,7 +22,7 @@ export function CrewLogo({ logoUrl, crewName, size = 48, className }: CrewLogoPr
   return (
     <div
       className={cn(
-        "rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 bg-primary text-primary-foreground font-heading font-bold select-none",
+        "rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 bg-white text-foreground font-heading font-bold select-none",
         className
       )}
       style={{ width: size, height: size, fontSize: size * 0.35 }}
