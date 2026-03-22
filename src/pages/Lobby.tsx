@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { LobbyBackground } from "@/components/LobbyBackground";
 
 interface ContestPool {
   id: string;
