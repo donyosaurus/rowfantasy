@@ -442,6 +442,7 @@ export type Database = {
       }
       contest_templates: {
         Row: {
+          banner_url: string | null
           created_at: string
           crews: Json
           divisions: Json
@@ -457,6 +458,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          banner_url?: string | null
           created_at?: string
           crews?: Json
           divisions?: Json
@@ -472,6 +474,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          banner_url?: string | null
           created_at?: string
           crews?: Json
           divisions?: Json
@@ -1358,34 +1361,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      admin_create_contest:
-        | {
-            Args: {
-              p_allow_overflow?: boolean
-              p_crews: Json
-              p_entry_fee_cents: number
-              p_gender_category: string
-              p_lock_time: string
-              p_max_entries: number
-              p_payout_structure?: Json
-              p_regatta_name: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_allow_overflow?: boolean
-              p_crews: Json
-              p_entry_fee_cents: number
-              p_entry_tiers?: Json
-              p_gender_category: string
-              p_lock_time: string
-              p_max_entries: number
-              p_payout_structure?: Json
-              p_regatta_name: string
-            }
-            Returns: Json
-          }
+      admin_create_contest: {
+        Args: {
+          p_allow_overflow?: boolean
+          p_banner_url?: string
+          p_crews: Json
+          p_entry_fee_cents: number
+          p_entry_tiers?: Json
+          p_gender_category: string
+          p_lock_time: string
+          p_max_entries: number
+          p_payout_structure?: Json
+          p_regatta_name: string
+        }
+        Returns: Json
+      }
       admin_update_race_results: {
         Args: { p_contest_pool_id: string; p_results: Json }
         Returns: Json

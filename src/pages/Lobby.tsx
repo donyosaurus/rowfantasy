@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { LobbyBackground } from "@/components/LobbyBackground";
 
 interface ContestPool {
   id: string;
@@ -26,6 +27,7 @@ interface ContestPool {
   entry_tiers: unknown;
   contest_templates: {
     regatta_name: string;
+    banner_url: string | null;
   };
   contest_pool_crews: {
     event_id: string;
@@ -51,6 +53,7 @@ interface MappedContest {
   siblingPoolCount: number;
   userEntered: boolean;
   entryTiers: any[] | null;
+  bannerUrl: string | null;
 }
 
 const Lobby = () => {
@@ -71,7 +74,7 @@ const Lobby = () => {
            id, contest_template_id, lock_time, status, entry_fee_cents,
            prize_pool_cents, payout_structure, current_entries, max_entries,
            allow_overflow, created_at, tier_id, entry_tiers,
-           contest_templates(regatta_name),
+           contest_templates(regatta_name, banner_url),
            contest_pool_crews(event_id)
          `)
         .in("status", ["open", "locked"]);
@@ -143,6 +146,7 @@ const Lobby = () => {
           status: primary.status,
           siblingPoolCount, userEntered,
           entryTiers: (primary.entry_tiers as any[] | null) || null,
+          bannerUrl: primary.contest_templates?.banner_url || null,
         };
       });
 
@@ -173,7 +177,8 @@ const Lobby = () => {
   }, [contests, searchTerm, genderFilter, lockFilter]);
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen relative">
+      <LobbyBackground />
       <Header />
 
       <section className="gradient-hero py-16 pb-24 relative overflow-hidden">
@@ -209,7 +214,7 @@ const Lobby = () => {
         </div>
       </section>
 
-      <main className="flex-1 bg-background -mt-8 relative z-10">
+      <main className="flex-1 -mt-8 relative z-10">
         <div className="container mx-auto px-4 pb-16">
           {loading && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -244,6 +249,7 @@ const Lobby = () => {
                     siblingPoolCount={contest.siblingPoolCount}
                     userEntered={contest.userEntered}
                     entryTiers={contest.entryTiers}
+                    bannerUrl={contest.bannerUrl}
                   />
                 </div>
               ))}

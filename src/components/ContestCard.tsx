@@ -1,9 +1,4 @@
 import { Link } from "react-router-dom";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Clock, Trophy, Users, Infinity, Zap } from "lucide-react";
 import { formatCents } from "@/lib/formatCurrency";
 
 type GenderCategory = "Men's" | "Women's";
@@ -30,6 +25,41 @@ interface ContestCardProps {
   siblingPoolCount?: number;
   userEntered?: boolean;
   entryTiers?: EntryTier[] | null;
+  bannerUrl?: string | null;
+}
+
+const CARD_GRADIENTS = [
+  'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)',
+  'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+  'linear-gradient(135deg, #0c1222 0%, #1b3a4b 100%)',
+  'linear-gradient(135deg, #1a0e2e 0%, #2d1b69 100%)',
+  'linear-gradient(135deg, #1e1e1e 0%, #2d3436 100%)',
+  'linear-gradient(135deg, #0a1628 0%, #1a3c34 100%)',
+];
+
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+function getCountdown(lockTimeRaw?: string): string | null {
+  if (!lockTimeRaw) return null;
+  const lockDate = new Date(lockTimeRaw);
+  const now = new Date();
+  const diffMs = lockDate.getTime() - now.getTime();
+  if (diffMs <= 0) return "Locked";
+  const totalMinutes = Math.ceil(diffMs / (1000 * 60));
+  const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
+  const minutes = totalMinutes % 60;
+  if (days > 0) return `${days}d ${hours}h`;
+  if (totalHours > 0) return `${totalHours}h ${minutes}m`;
+  return `${totalMinutes}m`;
 }
 
 export const ContestCard = ({
@@ -38,7 +68,6 @@ export const ContestCard = ({
   genderCategory,
   lockTime,
   lockTimeRaw,
-  divisions = [],
   entryFeeCents = 0,
   payoutStructure,
   prizePoolCents = 0,
@@ -48,154 +77,136 @@ export const ContestCard = ({
   siblingPoolCount = 1,
   userEntered = false,
   entryTiers = null,
+  bannerUrl = null,
 }: ContestCardProps) => {
   const hasTiers = entryTiers && entryTiers.length > 0;
-
   const hasPayoutStructure = payoutStructure && Object.keys(payoutStructure).length > 0;
   const firstPlacePrize = hasPayoutStructure ? payoutStructure["1"] : 0;
   const totalPrizes = hasPayoutStructure
     ? Object.values(payoutStructure).reduce((sum, val) => sum + val, 0)
     : prizePoolCents;
-
-  // For tiered contests, find max 1st-place prize across tiers
   const maxTierFirstPrize = hasTiers
     ? Math.max(...entryTiers.map(t => t.payout_structure["1"] || 0))
     : 0;
 
-  const isFull = maxEntries > 0 && currentEntries >= maxEntries;
-  const hasMultiplePools = siblingPoolCount > 1;
   const fillPercent = maxEntries > 0 ? (currentEntries / maxEntries) * 100 : 0;
+  const countdown = getCountdown(lockTimeRaw);
+  const gradientIndex = hashString(regattaName) % CARD_GRADIENTS.length;
 
-  const getCountdown = () => {
-    if (!lockTimeRaw) return null;
-    const lockDate = new Date(lockTimeRaw);
-    const now = new Date();
-    const hoursLeft = (lockDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-    if (hoursLeft <= 0) return "Locked";
-    if (hoursLeft <= 1) return `${Math.ceil(hoursLeft * 60)}m left`;
-    if (hoursLeft <= 24) return `${Math.ceil(hoursLeft)}h left`;
-    return null;
-  };
+  const prizeDisplay = hasTiers
+    ? `Up to ${formatCents(maxTierFirstPrize)}`
+    : hasPayoutStructure
+      ? formatCents(firstPlacePrize)
+      : formatCents(totalPrizes);
 
-  const countdown = getCountdown();
+  const entryDisplay = hasTiers
+    ? `From ${formatCents(entryFeeCents)}`
+    : entryFeeCents > 0
+      ? formatCents(entryFeeCents)
+      : "Free";
+
+  const lockTimeFormatted = lockTimeRaw
+    ? new Date(lockTimeRaw).toLocaleString("en-US", {
+        weekday: "short",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })
+    : lockTime;
 
   return (
-    <Card className="flex flex-col h-full rounded-xl shadow-md card-hover border-border/40 overflow-hidden">
-      <div className="h-1 gradient-hero" />
-      
-      <CardContent className="flex-1 p-6 space-y-4">
-        <div className="space-y-3">
-          <div className="flex items-start justify-between gap-3">
-            <h3 className="font-heading font-bold text-lg leading-tight">{regattaName}</h3>
-            <div className="flex flex-col items-end gap-1.5">
-              <Badge
-                variant="secondary"
-                className="flex-shrink-0 bg-primary/10 text-primary border-primary/20 font-semibold px-2.5 py-0.5 text-xs"
-              >
-                {genderCategory}
-              </Badge>
-              {hasMultiplePools && (
-                <Badge variant="secondary" className="bg-accent/10 text-accent border-accent/20 text-xs">
-                  <Infinity className="h-3 w-3 mr-1" />
-                  Auto-Pool
-                </Badge>
-              )}
-            </div>
-          </div>
-          
-          {/* Entry Fee */}
-          <div className="flex items-center gap-2">
-            <Zap className="h-4 w-4 text-accent" />
-            <span className="text-sm font-semibold">
-              {hasTiers
-                ? `From ${formatCents(entryFeeCents)} entry`
-                : entryFeeCents > 0 ? `${formatCents(entryFeeCents)} entry` : "Free entry"}
-            </span>
-            {hasTiers && (
-              <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20">
-                {entryTiers.length} Tiers
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Prize Pool */}
-        {(firstPlacePrize > 0 || totalPrizes > 0 || maxTierFirstPrize > 0) && (
-          <div className="p-4 rounded-xl bg-gradient-to-br from-amber-50 to-yellow-50/50 dark:from-amber-950/30 dark:to-yellow-950/20 border border-amber-200/40 dark:border-amber-800/30">
-            <div className="flex items-center gap-2 mb-1">
-              <Trophy className="h-5 w-5 text-gold" />
-              <span className="text-xl font-heading font-extrabold text-gold">
-                {hasTiers
-                  ? `Win up to ${formatCents(maxTierFirstPrize)}`
-                  : hasPayoutStructure ? formatCents(firstPlacePrize) : formatCents(totalPrizes)}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground font-medium">
-              {hasTiers
-                ? `${entryTiers.length} tier levels available`
-                : hasPayoutStructure ? `1st Place • ${formatCents(totalPrizes)} total` : "Prize Pool"}
-            </p>
-          </div>
-        )}
-
-        {/* Pool Capacity */}
-        {maxEntries > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="flex items-center gap-1.5 text-muted-foreground"><Users className="h-4 w-4" />Entries</span>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold">{currentEntries}/{maxEntries}</span>
-                {isFull && !hasMultiplePools && <Badge variant="destructive" className="text-xs">Full</Badge>}
-              </div>
-            </div>
-            <Progress value={fillPercent} className="h-2" />
-          </div>
-        )}
-
-        {/* Divisions */}
-        {divisions.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Events</p>
-            <div className="flex flex-wrap gap-1.5">
-              {divisions.slice(0, 3).map((division, idx) => (
-                <Badge key={idx} variant="outline" className="font-normal text-xs">{division}</Badge>
-              ))}
-              {divisions.length > 3 && <Badge variant="outline" className="font-normal text-xs text-muted-foreground">+{divisions.length - 3} more</Badge>}
-            </div>
-          </div>
-        )}
-
-        {/* Lock Time */}
-        <div className="flex items-center justify-between pt-3 border-t">
-          <span className="flex items-center gap-1.5 text-muted-foreground text-sm"><Clock className="h-4 w-4" />Locks</span>
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-sm">{lockTime}</span>
-            {countdown && countdown !== "Locked" && (
-              <Badge className="bg-destructive/10 text-destructive border-destructive/20 text-xs font-semibold">{countdown}</Badge>
-            )}
-          </div>
-        </div>
-      </CardContent>
-
-      <CardFooter className="p-6 pt-0">
-        <Link to={`/regatta/${id}`} className="w-full">
-          <Button
-            className={`w-full font-semibold py-6 rounded-xl text-base ${
-              userEntered ? "bg-success/10 text-success border border-success/30 hover:bg-success/20" : ""
-            }`}
-            disabled={!userEntered && isFull && !allowOverflow && !hasMultiplePools}
-            variant={userEntered ? "ghost" : "hero"}
+    <Link to={`/regatta/${id}`} className="block group">
+      <div className="rounded-xl overflow-hidden bg-white shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-slate-200/80">
+        {/* Banner Area */}
+        <div className="relative h-40 overflow-hidden">
+          {bannerUrl ? (
+            <img
+              src={bannerUrl}
+              alt={regattaName}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                // Fallback to gradient on error
+                const target = e.currentTarget;
+                target.style.display = 'none';
+                const fallback = target.nextElementSibling as HTMLElement;
+                if (fallback) fallback.style.display = 'flex';
+              }}
+            />
+          ) : null}
+          <div
+            className={`absolute inset-0 flex items-center justify-center ${bannerUrl ? 'hidden' : ''}`}
+            style={{ background: CARD_GRADIENTS[gradientIndex] }}
           >
-            {userEntered
-              ? "✓ Entered"
-              : isFull && (allowOverflow || hasMultiplePools)
-                ? "Join Next Pool"
-                : isFull
-                  ? "Contest Full"
-                  : "View Entry Options"}
-          </Button>
-        </Link>
-      </CardFooter>
-    </Card>
+            <span className="text-white/20 text-3xl font-bold text-center px-6 select-none">
+              {regattaName}
+            </span>
+          </div>
+
+          {/* Countdown pill */}
+          {countdown && countdown !== "Locked" && (
+            <div className="absolute bottom-3 left-3 bg-black/60 text-white text-xs font-semibold px-3 py-1 rounded-full backdrop-blur-sm">
+              {countdown}
+            </div>
+          )}
+          {countdown === "Locked" && (
+            <div className="absolute bottom-3 left-3 bg-red-600/80 text-white text-xs font-semibold px-3 py-1 rounded-full backdrop-blur-sm">
+              Locked
+            </div>
+          )}
+
+          {/* Entered badge */}
+          {userEntered && (
+            <div className="absolute top-3 right-3 bg-emerald-500/90 text-white text-xs font-semibold px-3 py-1 rounded-full backdrop-blur-sm">
+              ✓ Entered
+            </div>
+          )}
+        </div>
+
+        {/* Fill bar */}
+        {maxEntries > 0 && (
+          <div className="h-1 bg-slate-200">
+            <div
+              className="h-full bg-teal-400 transition-all duration-500"
+              style={{ width: `${Math.min(fillPercent, 100)}%` }}
+            />
+          </div>
+        )}
+
+        {/* Info Area */}
+        <div className="p-4 bg-white">
+          <h3 className="text-lg font-bold text-slate-900 line-clamp-1">{regattaName}</h3>
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+            <span className="text-sm text-slate-500">{genderCategory}</span>
+            <span className="text-slate-300">·</span>
+            <span className="text-sm text-slate-500">Locks {lockTimeFormatted}</span>
+            {hasTiers && (
+              <>
+                <span className="text-slate-300">·</span>
+                <span className="bg-teal-50 text-teal-700 text-xs font-medium px-2 py-0.5 rounded-full">
+                  {entryTiers.length} Tiers
+                </span>
+              </>
+            )}
+          </div>
+
+          <div className="border-t border-slate-100 my-3" />
+
+          <div className="flex justify-between text-center">
+            <div>
+              <div className="font-bold text-slate-900">{currentEntries}/{maxEntries}</div>
+              <div className="text-xs text-slate-500">Entries</div>
+            </div>
+            <div>
+              <div className="font-bold text-slate-900">{entryDisplay}</div>
+              <div className="text-xs text-slate-500">Entry</div>
+            </div>
+            <div>
+              <div className="font-bold text-slate-900">{prizeDisplay}</div>
+              <div className="text-xs text-slate-500">Prizes</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Link>
   );
 };
