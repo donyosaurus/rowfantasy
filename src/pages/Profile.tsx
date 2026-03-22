@@ -296,7 +296,7 @@ const Profile = () => {
       </section>
 
       {/* Stats bar */}
-      <div className="bg-background border-b">
+      <div className="border-b border-white/10 relative z-10">
         <div className="container mx-auto px-4 max-w-6xl">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-5 -mt-1">
             {[
