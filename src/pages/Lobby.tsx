@@ -214,7 +214,7 @@ const Lobby = () => {
         </div>
       </section>
 
-      <main className="flex-1 bg-background -mt-8 relative z-10">
+      <main className="flex-1 -mt-8 relative z-10">
         <div className="container mx-auto px-4 pb-16">
           {loading && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
