@@ -582,6 +582,7 @@ const RegattaDetail = () => {
       </div>
 
       <Footer />
+      </div>
     </div>
   );
 };
