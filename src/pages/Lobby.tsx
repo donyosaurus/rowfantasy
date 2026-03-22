@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import { LobbyBackground } from "@/components/LobbyBackground";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { ContestCard } from "@/components/ContestCard";
@@ -174,8 +173,7 @@ const Lobby = () => {
   }, [contests, searchTerm, genderFilter, lockFilter]);
 
   return (
-    <div className="flex flex-col min-h-screen relative">
-      <LobbyBackground />
+    <div className="flex flex-col min-h-screen">
       <Header />
 
       <section className="gradient-hero py-16 pb-24 relative overflow-hidden">
