@@ -683,6 +683,7 @@ const Admin = () => {
                     onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'block'; }}
                   />
                 )}
+              </div>
               <div>
                 <Label htmlFor="genderCategory">Gender Category *</Label>
                 <Select value={createForm.genderCategory} onValueChange={(value) => setCreateForm(prev => ({ ...prev, genderCategory: value }))}>
