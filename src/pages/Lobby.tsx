@@ -146,6 +146,7 @@ const Lobby = () => {
           status: primary.status,
           siblingPoolCount, userEntered,
           entryTiers: (primary.entry_tiers as any[] | null) || null,
+          bannerUrl: primary.contest_templates?.banner_url || null,
         };
       });
 
