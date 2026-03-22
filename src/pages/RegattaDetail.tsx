@@ -1,6 +1,7 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { CrewLogo } from "@/components/CrewLogo";
 import { CrewCard } from "@/components/CrewCard";
+import { DraftPageBackground } from "@/components/DraftPageBackground";
 import { useEffect, useState, useMemo } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -294,9 +295,10 @@ const RegattaDetail = () => {
   const statusLabel = isContestOpen ? "Open" : contestPool.status.charAt(0).toUpperCase() + contestPool.status.slice(1);
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <div className="flex flex-col min-h-screen relative">
+      <DraftPageBackground />
+      <div className="relative z-10 flex flex-col min-h-screen">
       <Header />
-
       {/* ── Gradient Hero Header ── */}
       <div className="gradient-hero text-primary-foreground">
         <div className="container mx-auto px-4 max-w-6xl py-6 lg:py-8">
@@ -366,9 +368,9 @@ const RegattaDetail = () => {
           <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
             {/* ── LEFT: Crew Selection ── */}
             <div className="flex-1 min-w-0 space-y-5">
-              <div>
-                <h2 className="font-heading text-xl lg:text-2xl font-bold mb-1 text-foreground">Select Your Crews</h2>
-                <p className="text-sm text-muted-foreground">
+               <div>
+                <h2 className="font-heading text-xl lg:text-2xl font-bold mb-1 text-white">Select Your Crews</h2>
+                <p className="text-sm text-slate-400">
                   Draft a crew from each event. Your entry will be matched against other players.
                 </p>
               </div>
@@ -410,7 +412,7 @@ const RegattaDetail = () => {
             <div className="w-full lg:w-[340px] lg:sticky lg:top-4 lg:self-start space-y-4">
               {/* Prize Pool */}
               {hasTiers ? (
-                <Card className="rounded-xl bg-card shadow-lg border border-border">
+               <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/10">
                   <CardContent className="p-4">
                     <h3 className="font-heading text-sm font-bold mb-3 flex items-center gap-2"><Trophy className="h-4 w-4 text-gold" />Prize Pool</h3>
                     <div className="space-y-3">
@@ -437,7 +439,7 @@ const RegattaDetail = () => {
                   </CardContent>
                 </Card>
               ) : payoutRows.length > 0 && (
-                <Card className="rounded-xl bg-card shadow-lg border border-border">
+                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/10">
                   <CardContent className="p-4">
                     <h3 className="font-heading text-sm font-bold mb-3 flex items-center gap-2"><Trophy className="h-4 w-4 text-gold" />Prize Pool</h3>
                     <div className="space-y-1.5">
@@ -454,7 +456,7 @@ const RegattaDetail = () => {
               )}
 
               {/* Scoring (Collapsible) */}
-              <Card className="rounded-xl bg-card shadow-lg border border-border">
+              <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/10">
                 <CardContent className="p-4">
                   <Collapsible open={scoringOpen} onOpenChange={setScoringOpen}>
                     <CollapsibleTrigger className="flex items-center justify-between w-full">
@@ -476,7 +478,7 @@ const RegattaDetail = () => {
               </Card>
 
               {/* Your Draft */}
-              <Card className="rounded-xl bg-card shadow-lg border-2 border-accent/30">
+              <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-2 border-accent/30">
                 <CardContent className="p-4">
                   <h3 className="font-heading text-sm font-bold mb-3 flex items-center gap-2"><Zap className="h-4 w-4 text-accent" />Your Draft</h3>
 
@@ -580,6 +582,7 @@ const RegattaDetail = () => {
       </div>
 
       <Footer />
+      </div>
     </div>
   );
 };

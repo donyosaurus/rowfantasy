@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { DraftPageBackground } from "@/components/DraftPageBackground";
 import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -285,7 +286,9 @@ const ContestDetail = () => {
   const statusLabel = isOpen ? "Open" : contestPool.status.charAt(0).toUpperCase() + contestPool.status.slice(1);
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <div className="flex flex-col min-h-screen relative">
+      <DraftPageBackground />
+      <div className="relative z-10 flex flex-col min-h-screen">
       <Header />
 
       {/* ── Gradient Hero Header ── */}
@@ -355,8 +358,8 @@ const ContestDetail = () => {
             {/* ── LEFT: Crew Selection ── */}
             <div className="flex-1 min-w-0 space-y-5">
               <div>
-                <h2 className="font-heading text-xl lg:text-2xl font-bold mb-1 text-foreground">Select Your Crews</h2>
-                <p className="text-sm text-muted-foreground">
+                <h2 className="font-heading text-xl lg:text-2xl font-bold mb-1 text-white">Select Your Crews</h2>
+                <p className="text-sm text-slate-400">
                   Draft a crew from each event. Your entry will be matched against other players.
                 </p>
               </div>
@@ -398,7 +401,7 @@ const ContestDetail = () => {
             <div className="w-full lg:w-[340px] xl:w-[380px] flex-shrink-0 space-y-4 lg:sticky lg:top-4 lg:self-start">
               {/* Prize Pool */}
               {hasTiers ? (
-                <Card className="rounded-xl bg-card shadow-lg border border-border">
+                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/10">
                   <CardContent className="p-4">
                     <h3 className="font-heading text-sm font-bold flex items-center gap-2 mb-3">
                       <Trophy className="h-4 w-4 text-gold" />Prize Pool
@@ -427,7 +430,7 @@ const ContestDetail = () => {
                   </CardContent>
                 </Card>
               ) : payoutRows.length > 0 && (
-                <Card className="rounded-xl bg-card shadow-lg border border-border">
+                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/10">
                   <CardContent className="p-4">
                     <h3 className="font-heading text-sm font-bold flex items-center gap-2 mb-3">
                       <Trophy className="h-4 w-4 text-gold" />Prize Pool
@@ -450,7 +453,7 @@ const ContestDetail = () => {
 
               {/* Scoring — Collapsible */}
               <Collapsible open={scoringOpen} onOpenChange={setScoringOpen}>
-                <Card className="rounded-xl bg-card shadow-lg border border-border">
+                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/10">
                   <CardContent className="p-4">
                     <CollapsibleTrigger className="flex items-center justify-between w-full">
                       <h3 className="font-heading text-sm font-bold">How Scoring Works</h3>
@@ -478,7 +481,7 @@ const ContestDetail = () => {
               </Collapsible>
 
               {/* Your Draft */}
-              <Card className="rounded-xl bg-card shadow-lg border-2 border-accent/30">
+              <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-2 border-accent/30">
                 <CardContent className="p-4">
                   <h3 className="font-heading text-sm font-bold flex items-center gap-2 mb-3">
                     Your Draft
@@ -610,6 +613,7 @@ const ContestDetail = () => {
       )}
 
       <Footer />
+      </div>
     </div>
   );
 };
