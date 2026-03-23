@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { CrewCard } from "@/components/CrewCard";
 import { CrewLogo } from "@/components/CrewLogo";
+import { DraftPicksList } from "@/components/DraftPicksList";
 import {
   Collapsible,
   CollapsibleContent,
@@ -445,57 +446,59 @@ const ContestDetail = () => {
 
             {/* ── RIGHT: Sidebar ── */}
             <div className="w-full lg:w-[340px] xl:w-[380px] flex-shrink-0 space-y-4 lg:sticky lg:top-4 lg:self-start">
-              {/* Prize Pool */}
-              {hasTiers ? (
-                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/10">
-                  <CardContent className="p-4">
-                    <h3 className="font-heading text-sm font-bold flex items-center gap-2 mb-3">
-                      <Trophy className="h-4 w-4 text-gold" />Prize Pool
-                    </h3>
-                    <div className="space-y-3">
-                      {entryTiers!.map((tier) => {
-                        const tierPayoutRows = Object.entries(tier.payout_structure)
-                          .map(([rank, cents]) => ({ rank: Number(rank), cents }))
-                          .sort((a, b) => a.rank - b.rank);
-                        const accentClass = TIER_ACCENT[tier.name] || "border-l-accent bg-accent/5";
-                        return (
-                          <div key={tier.name} className={`border-l-4 rounded-r-lg pl-3 py-2 ${accentClass}`}>
-                            <p className="text-xs font-semibold text-foreground mb-1">{tier.name} <span className="text-muted-foreground font-normal">({formatCents(tier.entry_fee_cents)} entry)</span></p>
-                            <div className="space-y-0.5">
-                              {tierPayoutRows.map(({ rank, cents }) => (
-                                <div key={rank} className="flex justify-between text-sm">
-                                  <span className={rank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}>{ordinal(rank)}</span>
-                                  <span className={rank === 1 ? "font-bold text-gold" : "font-medium"}>{formatCents(cents)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : payoutRows.length > 0 && (
-                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/10">
-                  <CardContent className="p-4">
-                    <h3 className="font-heading text-sm font-bold flex items-center gap-2 mb-3">
-                      <Trophy className="h-4 w-4 text-gold" />Prize Pool
-                    </h3>
-                    <div className="space-y-1.5">
-                      {payoutRows.map(({ rank, cents }) => (
-                        <div key={rank} className="flex justify-between text-sm">
-                          <span className={rank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}>{ordinal(rank)}</span>
-                          <span className={rank === 1 ? "font-bold text-gold" : "font-medium"}>{formatCents(cents)}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex items-center justify-between mt-2 pt-2 border-t text-xs text-muted-foreground">
-                      <span>Total</span>
-                      <span className="font-semibold text-foreground">{formatCents(totalPrize)}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              {/* Your Draft — always first */}
+              <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-2 border-accent/30">
+                <CardContent className="p-4">
+                  <h3 className="font-heading text-sm font-bold flex items-center gap-2 mb-3">
+                    <Zap className="h-4 w-4 text-accent" />Your Draft
+                  </h3>
+
+                  {hasTiers && (
+                    <TierSelector
+                      tiers={entryTiers!}
+                      selectedTier={selectedTier}
+                      onSelectTier={setSelectedTier}
+                      walletBalanceCents={walletBalanceCents}
+                    />
+                  )}
+
+                  <DraftPicksList
+                    picks={draftPicksList}
+                    events={events}
+                    maxPicks={maxPicks}
+                    onRemove={toggleCrewSelection}
+                  />
+
+                  <div className="mt-4">
+                    {isOpen && (
+                      <Button
+                        onClick={handleSubmit}
+                        variant="hero"
+                        size="lg"
+                        className="w-full font-semibold"
+                        disabled={isSubmitting || crewPicks.size < minPicks || !allMarginsValid || (hasTiers && !selectedTier)}
+                      >
+                        {isSubmitting ? (
+                          <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing…</>
+                        ) : hasTiers && !selectedTier ? (
+                          "Select a Tier"
+                        ) : (
+                          <>Enter Contest — {formatCents(activeEntryFee)}</>
+                        )}
+                      </Button>
+                    )}
+
+                    {walletBalanceCents !== null && (
+                      <div className={`flex items-center justify-center gap-1.5 mt-3 text-xs ${
+                        walletBalanceCents < activeEntryFee ? "text-destructive" : "text-muted-foreground"
+                      }`}>
+                        <Wallet className="h-3.5 w-3.5" />
+                        Balance: {formatCents(walletBalanceCents)}
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* Scoring — Collapsible */}
               <Collapsible open={scoringOpen} onOpenChange={setScoringOpen}>
@@ -526,76 +529,28 @@ const ContestDetail = () => {
                 </Card>
               </Collapsible>
 
-              {/* Your Draft */}
-              <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-2 border-accent/30">
-                <CardContent className="p-4">
-                  <h3 className="font-heading text-sm font-bold flex items-center gap-2 mb-3">
-                    Your Draft
-                    <Badge variant="secondary" className="text-xs ml-auto">
-                      {crewPicks.size}/{maxPicks} picks
-                    </Badge>
-                  </h3>
-
-                  {hasTiers && (
-                    <TierSelector
-                      tiers={entryTiers!}
-                      selectedTier={selectedTier}
-                      onSelectTier={setSelectedTier}
-                      walletBalanceCents={walletBalanceCents}
-                    />
-                  )}
-
-                  {draftPicksList.length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-4 text-center">
-                      Click crews above to build your draft
-                    </p>
-                  ) : (
-                    <div className="space-y-2 mb-4">
-                      {draftPicksList.map((pick) => (
-                        <div key={pick.crewId} className="flex items-center justify-between py-1.5 px-2.5 rounded-lg bg-accent/5 text-sm">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={24} />
-                            <span className="font-medium truncate">{pick.crewName}</span>
-                            <span className="text-xs text-muted-foreground flex-shrink-0">
-                              {pick.margin > 0 ? `+${pick.margin}s` : "—"}
-                            </span>
-                          </div>
-                          <button onClick={() => toggleCrewSelection(pick.crewId)} className="text-muted-foreground hover:text-destructive transition-colors p-0.5">
-                            <X className="h-3.5 w-3.5" />
-                          </button>
+              {/* Prize Pool — only for non-tiered contests */}
+              {!hasTiers && payoutRows.length > 0 && (
+                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/10">
+                  <CardContent className="p-4">
+                    <h3 className="font-heading text-sm font-bold flex items-center gap-2 mb-3">
+                      <Trophy className="h-4 w-4 text-gold" />Prize Pool
+                    </h3>
+                    <div className="space-y-1.5">
+                      {payoutRows.map(({ rank, cents }) => (
+                        <div key={rank} className="flex justify-between text-sm">
+                          <span className={rank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}>{ordinal(rank)}</span>
+                          <span className={rank === 1 ? "font-bold text-gold" : "font-medium"}>{formatCents(cents)}</span>
                         </div>
                       ))}
                     </div>
-                  )}
-
-                  {isOpen && (
-                    <Button
-                      onClick={handleSubmit}
-                      variant="hero"
-                      size="lg"
-                      className="w-full font-semibold"
-                      disabled={isSubmitting || crewPicks.size < minPicks || !allMarginsValid || (hasTiers && !selectedTier)}
-                    >
-                      {isSubmitting ? (
-                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing…</>
-                      ) : hasTiers && !selectedTier ? (
-                        "Select a Tier"
-                      ) : (
-                        <>Enter Contest — {formatCents(activeEntryFee)}</>
-                      )}
-                    </Button>
-                  )}
-
-                  {walletBalanceCents !== null && (
-                    <div className={`flex items-center justify-center gap-1.5 mt-3 text-xs ${
-                      walletBalanceCents < activeEntryFee ? "text-destructive" : "text-muted-foreground"
-                    }`}>
-                      <Wallet className="h-3.5 w-3.5" />
-                      Balance: {formatCents(walletBalanceCents)}
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t text-xs text-muted-foreground">
+                      <span>Total</span>
+                      <span className="font-semibold text-foreground">{formatCents(totalPrize)}</span>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </div>
         </div>
