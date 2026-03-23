@@ -139,7 +139,6 @@ const Lobby = () => {
 
         const regattaName = primary.contest_templates?.regatta_name || "Unknown Regatta";
         const genderCategory: "Men's" | "Women's" = regattaName.toLowerCase().includes("women") ? "Women's" : "Men's";
-        const divisions = [...new Set(primary.contest_pool_crews?.map((c) => c.event_id) || [])];
         const lockTime = new Date(primary.lock_time).toLocaleString("en-US", {
           month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true,
         });
