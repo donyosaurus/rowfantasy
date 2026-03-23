@@ -243,24 +243,25 @@ Deno.serve(async (req) => {
           targetPool = available;
           console.log("[matchmaking] Using overflow pool:", targetPoolId);
         } else {
-        // Clone the original pool for a new overflow slot
-        const { data: newPoolId, error: cloneError } = await supabaseAdmin.rpc("clone_contest_pool", {
-          p_original_pool_id: contestPoolId,
-        });
-
-        if (cloneError || !newPoolId) {
-          console.error("[matchmaking] Clone error:", cloneError);
-          return new Response(JSON.stringify({ error: "Unable to allocate to a contest pool. Please try again." }), {
-            status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          // Clone the original pool for a new overflow slot
+          const { data: newPoolId, error: cloneError } = await supabaseAdmin.rpc("clone_contest_pool", {
+            p_original_pool_id: contestPoolId,
           });
+
+          if (cloneError || !newPoolId) {
+            console.error("[matchmaking] Clone error:", cloneError);
+            return new Response(JSON.stringify({ error: "Unable to allocate to a contest pool. Please try again." }), {
+              status: 500,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+
+          const { data: newPool } = await supabaseAdmin.from("contest_pools").select("*").eq("id", newPoolId).single();
+
+          targetPoolId = newPoolId;
+          targetPool = newPool;
+          console.log("[matchmaking] Cloned new overflow pool:", newPoolId);
         }
-
-        const { data: newPool } = await supabaseAdmin.from("contest_pools").select("*").eq("id", newPoolId).single();
-
-        targetPoolId = newPoolId;
-        targetPool = newPool;
-        console.log("[matchmaking] Cloned new overflow pool:", newPoolId);
       }
     }
 
