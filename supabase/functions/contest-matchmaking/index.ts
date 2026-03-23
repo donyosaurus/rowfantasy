@@ -91,20 +91,40 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check for duplicate entry
-    const { data: existingEntry } = await auth.supabase
-      .from("contest_entries")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("contest_template_id", body.contestTemplateId)
-      .eq("status", "active")
-      .maybeSingle();
+    // Check for duplicate entry — for tiered contests, check per tier_name
+    // For non-tiered, check per template
+    if (body.tierName) {
+      // Tiered: allow one entry per tier
+      const { data: existingEntry } = await auth.supabase
+        .from("contest_entries")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("contest_template_id", body.contestTemplateId)
+        .eq("tier_name", body.tierName)
+        .eq("status", "active")
+        .maybeSingle();
 
-    if (existingEntry) {
-      return new Response(JSON.stringify({ error: "You have already entered this contest." }), {
-        status: 409,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      if (existingEntry) {
+        return new Response(JSON.stringify({ error: `You have already entered the ${body.tierName} tier.` }), {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else {
+      const { data: existingEntry } = await auth.supabase
+        .from("contest_entries")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("contest_template_id", body.contestTemplateId)
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (existingEntry) {
+        return new Response(JSON.stringify({ error: "You have already entered this contest." }), {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // -----------------------------------------------------------------------
