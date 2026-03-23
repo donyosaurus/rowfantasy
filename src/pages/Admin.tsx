@@ -160,6 +160,8 @@ const Admin = () => {
       setContests(poolsData || []);
       const { data: logsData } = await supabase.from("compliance_audit_logs").select("*").order("created_at", { ascending: false }).limit(100);
       setComplianceLogs(logsData || []);
+      const { data: groupsData } = await supabase.from("contest_groups").select("id, name").order("display_order");
+      setContestGroups(groupsData || []);
       setLoading(false);
     } catch (error) {
       console.error("Error loading dashboard data:", error);
