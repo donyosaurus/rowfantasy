@@ -105,7 +105,7 @@ const ContestDetail = () => {
         .from("contest_pools")
         .select(`
           id, lock_time, status, entry_fee_cents, prize_pool_cents, payout_structure,
-          current_entries, max_entries, contest_template_id,
+          current_entries, max_entries, contest_template_id, tier_name,
           contest_templates (id, regatta_name, gender_category, min_picks, max_picks),
           contest_pool_crews (id, crew_id, crew_name, event_id, logo_url)
         `)
@@ -114,7 +114,35 @@ const ContestDetail = () => {
       if (error || !data) {
         setPoolError("Contest not found.");
       } else {
-        setContestPool(data as unknown as ContestPool);
+        const pool = data as unknown as ContestPool;
+        // If this is a tiered contest, fetch all tier pools for the template
+        if (pool.contest_templates?.id) {
+          const { data: allPools } = await supabase
+            .from("contest_pools")
+            .select("id, tier_name, entry_fee_cents, payout_structure, current_entries, max_entries, status")
+            .eq("contest_template_id", pool.contest_template_id)
+            .in("status", ["open", "locked"]);
+          
+          const tierPools = (allPools || []).filter((p: any) => p.tier_name);
+          if (tierPools.length > 1) {
+            // Build entry_tiers from the separate tier pools
+            const tiers: EntryTier[] = [];
+            const seenTiers = new Set<string>();
+            for (const tp of tierPools) {
+              if (seenTiers.has(tp.tier_name)) continue;
+              seenTiers.add(tp.tier_name);
+              tiers.push({
+                name: tp.tier_name,
+                entry_fee_cents: tp.entry_fee_cents,
+                payout_structure: (tp.payout_structure as Record<string, number>) || {},
+              });
+            }
+            tiers.sort((a, b) => a.entry_fee_cents - b.entry_fee_cents);
+            // Inject synthesized entry_tiers into the pool object
+            (pool as any).entry_tiers = tiers;
+          }
+        }
+        setContestPool(pool);
       }
       setPoolLoading(false);
     };
