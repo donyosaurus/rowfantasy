@@ -635,6 +635,11 @@ const Admin = () => {
               </Card>
             </TabsContent>
 
+            {/* Contest Groups Tab */}
+            <TabsContent value="groups" className="space-y-4">
+              <ContestGroupsManager />
+            </TabsContent>
+
             {/* Compliance Tab */}
             <TabsContent value="compliance" className="space-y-4">
               <Card>
