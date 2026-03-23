@@ -455,7 +455,7 @@ const Admin = () => {
           allowOverflow: createForm.allowOverflow,
           entryTiers: entryTiersPayload,
           bannerUrl: createForm.bannerUrl.trim() || null,
-          contestGroupId: createForm.contestGroupId || null,
+          contestGroupId: (createForm.contestGroupId && createForm.contestGroupId !== "none") ? createForm.contestGroupId : null,
         }
       });
       if (error) throw error;

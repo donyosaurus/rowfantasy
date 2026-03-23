@@ -2,12 +2,13 @@ import { useState, useEffect, useMemo } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { ContestCard } from "@/components/ContestCard";
-import { Loader2, Trophy } from "lucide-react";
+import { Trophy } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { LobbyBackground } from "@/components/LobbyBackground";
+import { ContestGroupSection } from "@/components/lobby/ContestGroupSection";
 
 interface ContestPool {
   id: string;
@@ -26,10 +27,19 @@ interface ContestPool {
   contest_templates: {
     regatta_name: string;
     banner_url: string | null;
+    contest_group_id: string | null;
+    display_order_in_group: number;
   };
   contest_pool_crews: {
     event_id: string;
   }[];
+}
+
+interface ContestGroup {
+  id: string;
+  name: string;
+  description: string | null;
+  display_order: number;
 }
 
 interface MappedContest {
@@ -52,11 +62,14 @@ interface MappedContest {
   userEntered: boolean;
   entryTiers: any[] | null;
   bannerUrl: string | null;
+  contestGroupId: string | null;
+  displayOrderInGroup: number;
 }
 
 const Lobby = () => {
   const { user } = useAuth();
   const [contests, setContests] = useState<MappedContest[]>([]);
+  const [groups, setGroups] = useState<ContestGroup[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -69,7 +82,7 @@ const Lobby = () => {
            id, contest_template_id, lock_time, status, entry_fee_cents,
            prize_pool_cents, payout_structure, current_entries, max_entries,
            allow_overflow, created_at, tier_id, entry_tiers,
-           contest_templates(regatta_name, banner_url),
+           contest_templates(regatta_name, banner_url, contest_group_id, display_order_in_group),
            contest_pool_crews(event_id)
          `)
         .in("status", ["open", "locked"]);
@@ -82,13 +95,21 @@ const Lobby = () => {
             .in("status", ["active", "confirmed", "scored"])
         : Promise.resolve({ data: null, error: null });
 
-      const [poolsResult, entriesResult] = await Promise.all([poolsPromise, userEntriesPromise]);
+      const groupsPromise = supabase
+        .from("contest_groups")
+        .select("id, name, description, display_order")
+        .eq("is_visible", true)
+        .order("display_order");
+
+      const [poolsResult, entriesResult, groupsResult] = await Promise.all([poolsPromise, userEntriesPromise, groupsPromise]);
 
       if (poolsResult.error) {
         console.error("Error fetching contests:", poolsResult.error);
         setLoading(false);
         return;
       }
+
+      setGroups(groupsResult.data || []);
 
       const enteredPoolIds = new Set(
         (entriesResult.data || []).map((e: any) => e.pool_id)
@@ -140,6 +161,8 @@ const Lobby = () => {
           siblingPoolCount, userEntered,
           entryTiers: (primary.entry_tiers as any[] | null) || null,
           bannerUrl: primary.contest_templates?.banner_url || null,
+          contestGroupId: primary.contest_templates?.contest_group_id || null,
+          displayOrderInGroup: primary.contest_templates?.display_order_in_group || 0,
         };
       });
 
@@ -149,6 +172,25 @@ const Lobby = () => {
 
     fetchContests();
   }, [user]);
+
+  const hasGroups = groups.length > 0;
+
+  const groupedSections = useMemo(() => {
+    if (!hasGroups) return null;
+
+    const sections: { group: ContestGroup; contests: MappedContest[] }[] = groups.map(g => ({
+      group: g,
+      contests: contests
+        .filter(c => c.contestGroupId === g.id)
+        .sort((a, b) => a.displayOrderInGroup - b.displayOrderInGroup || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
+    }));
+
+    const ungrouped = contests
+      .filter(c => !c.contestGroupId)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    return { sections, ungrouped };
+  }, [contests, groups, hasGroups]);
 
   return (
     <div className="flex flex-col min-h-screen relative">
@@ -183,7 +225,26 @@ const Lobby = () => {
             </div>
           )}
 
-          {!loading && contests.length > 0 && (
+          {!loading && contests.length > 0 && hasGroups && groupedSections && (
+            <div>
+              {groupedSections.sections.map((s) => (
+                <ContestGroupSection
+                  key={s.group.id}
+                  title={s.group.name}
+                  description={s.group.description}
+                  contests={s.contests}
+                />
+              ))}
+              {groupedSections.ungrouped.length > 0 && (
+                <ContestGroupSection
+                  title="More Contests"
+                  contests={groupedSections.ungrouped}
+                />
+              )}
+            </div>
+          )}
+
+          {!loading && contests.length > 0 && !hasGroups && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-0">
               {contests.map((contest, idx) => (
                 <div key={contest.id} className="animate-fade-in" style={{ animationDelay: `${idx * 0.05}s` }}>
