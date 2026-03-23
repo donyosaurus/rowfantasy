@@ -105,6 +105,7 @@ const Admin = () => {
   const [exporting, setExporting] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [creatingContest, setCreatingContest] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
   const [createForm, setCreateForm] = useState<CreateContestForm>({
     regattaName: "",
     genderCategory: "Men's",
