@@ -64,6 +64,24 @@ interface CreateContestForm {
   bannerUrl: string;
 }
 
+const CARD_GRADIENTS = [
+  'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)',
+  'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+  'linear-gradient(135deg, #0c1222 0%, #1b3a4b 100%)',
+  'linear-gradient(135deg, #1a0e2e 0%, #2d1b69 100%)',
+  'linear-gradient(135deg, #1e1e1e 0%, #2d3436 100%)',
+  'linear-gradient(135deg, #0a1628 0%, #1a3c34 100%)',
+];
+
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
 const Admin = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
