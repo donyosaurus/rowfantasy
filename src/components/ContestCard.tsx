@@ -198,20 +198,49 @@ export const ContestCard = ({
           </div>
 
           <div className="flex gap-2 mt-4">
-            <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
-              <div className="text-base font-bold text-slate-900">{currentEntries}/{maxEntries}</div>
-              <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Entries</div>
-            </div>
-            <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
-              <div className="text-base font-bold text-teal-600">{entryDisplay}</div>
-              <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Entry</div>
-            </div>
-            <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
-              <div className="text-base font-bold text-amber-600 flex items-center justify-center gap-1">
-                {prizeDisplay} 🏅
-              </div>
-              <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Prizes</div>
-            </div>
+            {hasTiers ? (
+              <>
+                {entryTiers.sort((a, b) => a.entry_fee_cents - b.entry_fee_cents).map((tier) => (
+                  <div
+                    key={tier.name}
+                    className="bg-slate-50 border border-slate-200 rounded-lg py-2 text-center flex-1"
+                  >
+                    <div className="text-sm font-bold text-slate-900">{formatCents(tier.entry_fee_cents)}</div>
+                    <div className="text-[10px] font-medium text-slate-500 mt-0.5">{tier.name}</div>
+                  </div>
+                ))}
+              </>
+            ) : hasOverflow ? (
+              <>
+                <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
+                  <div className="text-base font-bold text-teal-600">{entryDisplay}</div>
+                  <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Entry</div>
+                </div>
+                <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
+                  <div className="text-base font-bold text-amber-600 flex items-center justify-center gap-1">
+                    {prizeDisplay} 🏅
+                  </div>
+                  <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Prizes</div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
+                  <div className="text-base font-bold text-slate-900">{currentEntries}/{maxEntries}</div>
+                  <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Entries</div>
+                </div>
+                <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
+                  <div className="text-base font-bold text-teal-600">{entryDisplay}</div>
+                  <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Entry</div>
+                </div>
+                <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
+                  <div className="text-base font-bold text-amber-600 flex items-center justify-center gap-1">
+                    {prizeDisplay} 🏅
+                  </div>
+                  <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Prizes</div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
