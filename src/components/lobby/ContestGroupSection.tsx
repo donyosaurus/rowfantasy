@@ -83,10 +83,9 @@ export const ContestGroupSection = ({ title, description, contests }: Props) => 
       </div>
       <div
         ref={scrollRef}
-        className="flex gap-5 overflow-x-auto pb-4 snap-x snap-mandatory"
+        className="flex gap-5 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
-        <style>{`[data-scroll-hide]::-webkit-scrollbar { display: none; }`}</style>
         {contests.map((c, idx) => (
           <div
             key={c.id}
