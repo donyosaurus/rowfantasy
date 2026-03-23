@@ -13,8 +13,7 @@ interface Contest {
   prizePoolCents: number;
   currentEntries: number;
   maxEntries: number;
-  allowOverflow: boolean;
-  siblingPoolCount: number;
+  hasOverflow: boolean;
   userEntered: boolean;
   entryTiers: any[] | null;
   bannerUrl: string | null;
@@ -103,8 +102,7 @@ export const ContestGroupSection = ({ title, description, contests }: Props) => 
               prizePoolCents={c.prizePoolCents}
               currentEntries={c.currentEntries}
               maxEntries={c.maxEntries}
-              allowOverflow={c.allowOverflow}
-              siblingPoolCount={c.siblingPoolCount}
+              hasOverflow={c.hasOverflow}
               userEntered={c.userEntered}
               entryTiers={c.entryTiers}
               bannerUrl={c.bannerUrl}

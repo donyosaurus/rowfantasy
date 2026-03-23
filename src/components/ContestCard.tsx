@@ -186,14 +186,6 @@ export const ContestCard = ({
               <span className="text-sm text-slate-500">{genderCategory}</span>
               <span className="text-slate-300">·</span>
               <span className="text-sm text-slate-500">Locks {lockTimeFormatted}</span>
-              {hasTiers && (
-                <>
-                  <span className="text-slate-300">·</span>
-                  <span className="bg-gradient-to-r from-teal-500 to-cyan-500 text-white text-xs font-semibold px-2.5 py-0.5 rounded-full">
-                    {entryTiers.length} Tiers
-                  </span>
-                </>
-              )}
             </div>
           </div>
 
