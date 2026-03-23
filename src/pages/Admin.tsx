@@ -799,6 +799,18 @@ const Admin = () => {
                   </div>
                 </div>
               </div>
+              {contestGroups.length > 0 && (
+                <div>
+                  <Label>Contest Group (optional)</Label>
+                  <Select value={createForm.contestGroupId} onValueChange={(value) => setCreateForm(prev => ({ ...prev, contestGroupId: value }))}>
+                    <SelectTrigger><SelectValue placeholder="Select a group..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None / Ungrouped</SelectItem>
+                      {contestGroups.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div>
                 <Label htmlFor="genderCategory">Gender Category *</Label>
                 <Select value={createForm.genderCategory} onValueChange={(value) => setCreateForm(prev => ({ ...prev, genderCategory: value }))}>
