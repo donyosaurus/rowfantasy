@@ -1,0 +1,1 @@
+ALTER TABLE public.contest_pools ADD COLUMN IF NOT EXISTS tier_name text DEFAULT NULL;

@@ -356,6 +356,7 @@ export type Database = {
           settled_at: string | null
           status: string
           tier_id: string
+          tier_name: string | null
           winner_ids: string[] | null
         }
         Insert: {
@@ -374,6 +375,7 @@ export type Database = {
           settled_at?: string | null
           status?: string
           tier_id: string
+          tier_name?: string | null
           winner_ids?: string[] | null
         }
         Update: {
@@ -392,6 +394,7 @@ export type Database = {
           settled_at?: string | null
           status?: string
           tier_id?: string
+          tier_name?: string | null
           winner_ids?: string[] | null
         }
         Relationships: [
