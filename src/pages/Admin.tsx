@@ -278,6 +278,7 @@ const Admin = () => {
         { name: "Silver", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
       ],
       bannerUrl: "",
+      contestGroupId: "",
     });
     setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
   };
