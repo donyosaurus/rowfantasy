@@ -1,5 +1,6 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { CrewLogo } from "@/components/CrewLogo";
+import { DraftPicksList } from "@/components/DraftPicksList";
 import { CrewCard } from "@/components/CrewCard";
 import { DraftPageBackground } from "@/components/DraftPageBackground";
 import { useEffect, useState, useMemo } from "react";

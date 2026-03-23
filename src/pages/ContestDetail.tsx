@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { CrewCard } from "@/components/CrewCard";
 import { CrewLogo } from "@/components/CrewLogo";
+import { DraftPicksList } from "@/components/DraftPicksList";
 import {
   Collapsible,
   CollapsibleContent,
