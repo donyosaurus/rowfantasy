@@ -50,16 +50,14 @@ interface MappedContest {
   genderCategory: "Men's" | "Women's";
   lockTime: string;
   lockTimeRaw: string;
-  divisions: string[];
   entryFeeCents: number;
   payoutStructure: Record<string, number> | null;
   prizePoolCents: number;
   currentEntries: number;
   maxEntries: number;
-  allowOverflow: boolean;
+  hasOverflow: boolean;
   createdAt: string;
   status: string;
-  siblingPoolCount: number;
   userEntered: boolean;
   entryTiers: any[] | null;
   bannerUrl: string | null;
