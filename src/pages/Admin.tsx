@@ -543,6 +543,7 @@ const Admin = () => {
               <TabsTrigger value="users">Users</TabsTrigger>
               <TabsTrigger value="transactions">Transactions</TabsTrigger>
               <TabsTrigger value="contests">Contests</TabsTrigger>
+              <TabsTrigger value="groups">Groups</TabsTrigger>
               <TabsTrigger value="compliance">Compliance Logs</TabsTrigger>
             </TabsList>
 
