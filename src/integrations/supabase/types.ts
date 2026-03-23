@@ -200,6 +200,36 @@ export type Database = {
           },
         ]
       }
+      contest_groups: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          display_order: number
+          id: string
+          is_visible: boolean
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_visible?: boolean
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_visible?: boolean
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       contest_instances: {
         Row: {
           completed_at: string | null
@@ -443,8 +473,10 @@ export type Database = {
       contest_templates: {
         Row: {
           banner_url: string | null
+          contest_group_id: string | null
           created_at: string
           crews: Json
+          display_order_in_group: number | null
           divisions: Json
           entry_tiers: Json
           gender_category: string
@@ -459,8 +491,10 @@ export type Database = {
         }
         Insert: {
           banner_url?: string | null
+          contest_group_id?: string | null
           created_at?: string
           crews?: Json
+          display_order_in_group?: number | null
           divisions?: Json
           entry_tiers?: Json
           gender_category: string
@@ -475,8 +509,10 @@ export type Database = {
         }
         Update: {
           banner_url?: string | null
+          contest_group_id?: string | null
           created_at?: string
           crews?: Json
+          display_order_in_group?: number | null
           divisions?: Json
           entry_tiers?: Json
           gender_category?: string
@@ -489,7 +525,15 @@ export type Database = {
           status?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "contest_templates_contest_group_id_fkey"
+            columns: ["contest_group_id"]
+            isOneToOne: false
+            referencedRelation: "contest_groups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       feature_flags: {
         Row: {
@@ -1361,21 +1405,38 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      admin_create_contest: {
-        Args: {
-          p_allow_overflow?: boolean
-          p_banner_url?: string
-          p_crews: Json
-          p_entry_fee_cents: number
-          p_entry_tiers?: Json
-          p_gender_category: string
-          p_lock_time: string
-          p_max_entries: number
-          p_payout_structure?: Json
-          p_regatta_name: string
-        }
-        Returns: Json
-      }
+      admin_create_contest:
+        | {
+            Args: {
+              p_allow_overflow?: boolean
+              p_banner_url?: string
+              p_crews: Json
+              p_entry_fee_cents: number
+              p_entry_tiers?: Json
+              p_gender_category: string
+              p_lock_time: string
+              p_max_entries: number
+              p_payout_structure?: Json
+              p_regatta_name: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_allow_overflow?: boolean
+              p_banner_url?: string
+              p_contest_group_id?: string
+              p_crews: Json
+              p_entry_fee_cents: number
+              p_entry_tiers?: Json
+              p_gender_category: string
+              p_lock_time: string
+              p_max_entries: number
+              p_payout_structure?: Json
+              p_regatta_name: string
+            }
+            Returns: Json
+          }
       admin_update_race_results: {
         Args: { p_contest_pool_id: string; p_results: Json }
         Returns: Json
