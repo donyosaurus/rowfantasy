@@ -210,8 +210,8 @@ const Lobby = () => {
         </div>
       </section>
 
-      <main className="flex-1 -mt-8 relative z-10">
-        <div className="container mx-auto px-4 pb-16 pt-6">
+      <main className="flex-1 relative z-10">
+        <div className="container mx-auto px-4 pb-16 pt-12">
           {loading && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[1, 2, 3].map((i) => (
