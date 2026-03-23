@@ -16,14 +16,12 @@ interface ContestCardProps {
   genderCategory: GenderCategory;
   lockTime: string;
   lockTimeRaw?: string;
-  divisions?: string[];
   entryFeeCents?: number;
   payoutStructure?: Record<string, number> | null;
   prizePoolCents?: number;
   currentEntries?: number;
   maxEntries?: number;
-  allowOverflow?: boolean;
-  siblingPoolCount?: number;
+  hasOverflow?: boolean;
   userEntered?: boolean;
   entryTiers?: EntryTier[] | null;
   bannerUrl?: string | null;
