@@ -134,8 +134,8 @@ export const ContestCard = ({
     : "";
 
   return (
-    <Link to={`/regatta/${id}`} className="block group">
-      <div className="rounded-xl overflow-hidden bg-white shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-slate-200/80">
+    <Link to={`/regatta/${id}`} className="block group h-full">
+      <div className="rounded-xl overflow-hidden bg-white shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-slate-200/80 flex flex-col h-full">
         {/* Banner Area */}
         <div className="relative h-40 overflow-hidden">
           {bannerUrl ? (
