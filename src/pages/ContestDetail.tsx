@@ -398,7 +398,7 @@ const ContestDetail = () => {
             <div className="rounded-xl bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/10 p-3 lg:p-4">
               <div className="flex items-center gap-2 mb-1"><Trophy className="h-4 w-4 text-gold" /><span className="text-xs text-primary-foreground/60 font-medium">1st Prize</span></div>
               <p className="font-heading text-xl lg:text-2xl font-bold text-gold">
-                {headerStats.firstPricePrefix || ""}{formatCents(headerStats.firstPrize)}
+                {headerStats.firstPrizePrefix || ""}{formatCents(headerStats.firstPrize)}
               </p>
             </div>
             <div className="rounded-xl bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/10 p-3 lg:p-4">
