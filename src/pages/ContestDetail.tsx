@@ -424,9 +424,9 @@ const ContestDetail = () => {
       <main className="flex-1 pb-32 lg:pb-12">
         <div className="container mx-auto px-4 max-w-6xl py-6 lg:py-8">
           {!isOpen && (
-            <div className="mb-6 p-4 rounded-xl border border-destructive/30 bg-destructive/10 text-center">
-              <p className="text-destructive font-semibold flex items-center justify-center gap-2">
-                <Lock className="h-4 w-4" />
+            <div className="mb-6 px-6 py-3 rounded-xl border border-red-500/30 bg-red-500/10 text-center">
+              <p className="text-red-400 font-medium text-sm flex items-center justify-center gap-2">
+                <Lock className="h-4 w-4 text-red-400" />
                 Contest is {contestPool.status} — entries are closed.
               </p>
             </div>
