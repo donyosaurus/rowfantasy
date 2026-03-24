@@ -395,25 +395,25 @@ const ContestDetail = () => {
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="rounded-xl bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/10 p-3 lg:p-4">
-              <div className="flex items-center gap-2 mb-1"><Trophy className="h-4 w-4 text-gold" /><span className="text-xs text-primary-foreground/60 font-medium">1st Prize</span></div>
-              <p className="font-heading text-xl lg:text-2xl font-bold text-gold">
+            <div className="rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 px-5 py-4 hover:bg-white/15 transition-colors">
+              <div className="flex items-center gap-2 mb-1"><Trophy className="h-4 w-4 text-amber-400" /><span className="text-xs text-accent font-medium">1st Prize</span></div>
+              <p className="font-heading text-xl lg:text-2xl font-bold text-white">
                 {headerStats.firstPrizePrefix || ""}{formatCents(headerStats.firstPrize)}
               </p>
             </div>
-            <div className="rounded-xl bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/10 p-3 lg:p-4">
-              <div className="flex items-center gap-2 mb-1"><Zap className="h-4 w-4 text-accent" /><span className="text-xs text-primary-foreground/60 font-medium">Entry Fee</span></div>
-              <p className="font-heading text-xl lg:text-2xl font-bold">{headerStats.entryFeeLabel}</p>
+            <div className="rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 px-5 py-4 hover:bg-white/15 transition-colors">
+              <div className="flex items-center gap-2 mb-1"><Zap className="h-4 w-4 text-accent" /><span className="text-xs text-accent font-medium">Entry Fee</span></div>
+              <p className="font-heading text-xl lg:text-2xl font-bold text-white">{headerStats.entryFeeLabel}</p>
             </div>
-            <div className="rounded-xl bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/10 p-3 lg:p-4">
-              <div className="flex items-center gap-2 mb-1"><Clock className="h-4 w-4 text-primary-foreground/60" /><span className="text-xs text-primary-foreground/60 font-medium">Locks</span></div>
-              <p className="font-heading text-lg lg:text-xl font-bold">{formattedLockTime}</p>
+            <div className="rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 px-5 py-4 hover:bg-white/15 transition-colors">
+              <div className="flex items-center gap-2 mb-1"><Clock className="h-4 w-4 text-white/60" /><span className="text-xs text-accent font-medium">Locks</span></div>
+              <p className="font-heading text-lg lg:text-xl font-bold text-white">{formattedLockTime}</p>
             </div>
-            <div className="rounded-xl bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/10 p-3 lg:p-4">
-              <div className="flex items-center gap-2 mb-1"><Users className="h-4 w-4 text-primary-foreground/60" /><span className="text-xs text-primary-foreground/60 font-medium">{headerStats.entriesSublabel || "Entries"}</span></div>
-              <p className="font-heading text-xl lg:text-2xl font-bold mb-1.5">{headerStats.entriesLabel}</p>
+            <div className="rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 px-5 py-4 hover:bg-white/15 transition-colors">
+              <div className="flex items-center gap-2 mb-1"><Users className="h-4 w-4 text-white/60" /><span className="text-xs text-accent font-medium">{headerStats.entriesSublabel || "Entries"}</span></div>
+              <p className="font-heading text-xl lg:text-2xl font-bold text-white mb-1.5">{headerStats.entriesLabel}</p>
               {!headerStats.isTiered && (
-                <div className="h-1 w-full rounded-full bg-primary-foreground/10 overflow-hidden"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${fillPercent}%` }} /></div>
+                <div className="h-1 w-full rounded-full bg-white/10 overflow-hidden"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${fillPercent}%` }} /></div>
               )}
             </div>
           </div>
@@ -424,9 +424,9 @@ const ContestDetail = () => {
       <main className="flex-1 pb-32 lg:pb-12">
         <div className="container mx-auto px-4 max-w-6xl py-6 lg:py-8">
           {!isOpen && (
-            <div className="mb-6 p-4 rounded-xl border border-destructive/30 bg-destructive/10 text-center">
-              <p className="text-destructive font-semibold flex items-center justify-center gap-2">
-                <Lock className="h-4 w-4" />
+            <div className="mb-6 px-6 py-3 rounded-xl border border-red-500/30 bg-red-500/10 text-center">
+              <p className="text-red-400 font-medium text-sm flex items-center justify-center gap-2">
+                <Lock className="h-4 w-4 text-red-400" />
                 Contest is {contestPool.status} — entries are closed.
               </p>
             </div>
@@ -448,7 +448,7 @@ const ContestDetail = () => {
                 events.map((eventId) => (
                   <div key={eventId}>
                     <div className="flex items-center gap-2 mb-3">
-                      <div className="flex items-center gap-2 rounded-full bg-white text-slate-900 px-3 py-1 shadow-sm">
+                      <div className="flex items-center gap-2 rounded-full bg-white/10 text-white/80 px-3 py-1 border border-white/10">
                         <span className="font-semibold text-xs">{eventId}</span>
                         <span className="opacity-60 text-xs">· {crewsByEvent[eventId].length} crews</span>
                       </div>
@@ -478,9 +478,9 @@ const ContestDetail = () => {
             {/* ── RIGHT: Sidebar ── */}
             <div className="w-full lg:w-[340px] xl:w-[380px] flex-shrink-0 space-y-4 lg:sticky lg:top-4 lg:self-start">
               {/* 1. Your Draft — always first */}
-              <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-2 border-accent/30">
+              <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/20 border-t-2 border-t-accent">
                 <CardContent className="p-4">
-                  <h3 className="font-heading text-sm font-bold flex items-center gap-2 mb-3">
+                  <h3 className="font-heading text-sm font-bold flex items-center gap-2 mb-3 text-slate-900">
                     <Zap className="h-4 w-4 text-accent" />Your Draft
                   </h3>
 
@@ -533,7 +533,7 @@ const ContestDetail = () => {
 
               {/* 2. Prize Pool — Collapsible */}
               <Collapsible open={prizePoolOpen} onOpenChange={setPrizePoolOpen}>
-                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/10">
+                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/20">
                   <CardContent className="p-4">
                     <CollapsibleTrigger className="flex items-center justify-between w-full">
                       <h3 className="font-heading text-sm font-bold flex items-center gap-2">
@@ -591,7 +591,7 @@ const ContestDetail = () => {
 
               {/* 3. Scoring — Collapsible */}
               <Collapsible open={scoringOpen} onOpenChange={setScoringOpen}>
-                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/10">
+                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/20">
                   <CardContent className="p-4">
                     <CollapsibleTrigger className="flex items-center justify-between w-full">
                       <h3 className="font-heading text-sm font-bold">How Scoring Works</h3>

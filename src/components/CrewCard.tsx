@@ -23,30 +23,32 @@ export function CrewCard({
 
   return (
     <div
-      className={`relative rounded-[14px] overflow-hidden bg-white transition-all duration-300 ${
+      className={`relative rounded-[14px] overflow-hidden bg-white transition-all duration-300 border ${
         !isOpen
           ? "opacity-60 cursor-not-allowed"
-          : "cursor-pointer hover:-translate-y-1.5"
+          : "cursor-pointer hover:-translate-y-1.5 hover:shadow-xl"
       }`}
       style={{
         width: "100%",
         minHeight: 255,
-        border: isSelected ? `2px solid ${color}` : `1.5px solid ${color}25`,
+        border: isSelected
+          ? `2px solid ${color}`
+          : `1.5px solid rgba(255,255,255,0.2)`,
         boxShadow: isSelected
-          ? `0 0 0 3px ${color}25, 0 10px 30px rgba(0,0,0,0.12)`
-          : undefined,
+          ? `0 0 0 3px ${color}25, 0 10px 30px rgba(0,0,0,0.15)`
+          : `0 4px 20px rgba(0,0,0,0.12)`,
         animation: `fadeUp 0.4s ease forwards`,
         animationDelay: `${animDelay}ms`,
         opacity: 0,
       }}
       onClick={() => isOpen && onToggle(crewId)}
     >
-      {/* Layer 1 — Color fade */}
+      {/* Layer 1 — Color fade — vibrant */}
       <div
         className="absolute top-0 left-0 right-0"
         style={{
           height: 120,
-          background: `linear-gradient(180deg, ${color} 0%, ${color} 40%, transparent 100%)`,
+          background: `linear-gradient(180deg, ${color} 0%, ${color}ee 50%, transparent 100%)`,
         }}
       />
 
@@ -92,7 +94,7 @@ export function CrewCard({
         className="absolute bottom-0 left-0 right-0 text-center"
         style={{ padding: "10px 14px 16px" }}
       >
-        <p className="font-semibold text-[15px] text-foreground tracking-tight leading-tight">
+        <p className="font-semibold text-[15px] text-slate-900 tracking-tight leading-tight">
           {crewName}
         </p>
         <p
@@ -104,13 +106,13 @@ export function CrewCard({
 
         {isSelected && isOpen && (
           <div className="mt-2 animate-fade-in" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-1.5 p-1.5 rounded-md bg-secondary border border-border">
+            <div className="flex items-center gap-1.5 p-1.5 rounded-md bg-slate-100 border border-slate-200">
               <Input
                 type="number"
                 min="0.01"
                 step="0.1"
                 placeholder="Margin"
-                className="h-6 text-xs border-0 bg-transparent p-0 focus-visible:ring-0 text-foreground placeholder:text-muted-foreground/50"
+                className="h-6 text-xs border-0 bg-transparent p-0 focus-visible:ring-0 text-slate-900 placeholder:text-slate-400"
                 value={marginVal || ""}
                 onClick={(e) => e.stopPropagation()}
                 onChange={(e) => {
@@ -118,7 +120,7 @@ export function CrewCard({
                   onMarginChange(crewId, parseFloat(e.target.value) || 0);
                 }}
               />
-              <span className="text-[10px] text-muted-foreground whitespace-nowrap">sec</span>
+              <span className="text-[10px] text-slate-500 whitespace-nowrap">sec</span>
             </div>
           </div>
         )}
