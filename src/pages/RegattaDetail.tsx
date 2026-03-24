@@ -488,9 +488,9 @@ const RegattaDetail = () => {
             {/* ── RIGHT: Sticky Sidebar ── */}
             <div className="w-full lg:w-[340px] lg:sticky lg:top-4 lg:self-start space-y-4">
               {/* 1. Your Draft — always first */}
-              <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-2 border-accent/30">
+              <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/20 border-t-2 border-t-accent">
                 <CardContent className="p-4">
-                  <h3 className="font-heading text-sm font-bold mb-3 flex items-center gap-2"><Zap className="h-4 w-4 text-accent" />Your Draft</h3>
+                  <h3 className="font-heading text-sm font-bold mb-3 flex items-center gap-2 text-slate-900"><Zap className="h-4 w-4 text-accent" />Your Draft</h3>
 
                   {/* Tier Selection */}
                   {hasTiers && (
