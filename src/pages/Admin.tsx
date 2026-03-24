@@ -239,6 +239,32 @@ const Admin = () => {
     } catch (error: any) { console.error("Error voiding contest:", error); toast.error(error.message || "Failed to void contest"); } finally { setVoidingPoolId(null); }
   };
 
+  const voidTier = async (templateId: string, tierName: string) => {
+    if (!confirm(`Void all ${tierName} tier pools? Entry fees will be refunded for ${tierName} entrants only.`)) return;
+    setVoidingPoolId(templateId);
+    try {
+      const tierPools = contests.filter((p: any) => p.contest_template_id === templateId && p.tier_name === tierName && p.status !== 'voided' && p.status !== 'settled');
+      for (const pool of tierPools) {
+        await supabase.functions.invoke("admin-contest-void", { body: { contestPoolId: pool.id } });
+      }
+      toast.success(`${tierName} tier voided and refunds issued`);
+      loadDashboardData();
+    } catch (error: any) { console.error("Error voiding tier:", error); toast.error(error.message || "Failed to void tier"); } finally { setVoidingPoolId(null); }
+  };
+
+  const voidAllTiers = async (templateId: string) => {
+    if (!confirm("Void ALL tiers for this contest? All entry fees will be refunded.")) return;
+    setVoidingPoolId(templateId);
+    try {
+      const allPools = contests.filter((p: any) => p.contest_template_id === templateId && p.status !== 'voided' && p.status !== 'settled');
+      for (const pool of allPools) {
+        await supabase.functions.invoke("admin-contest-void", { body: { contestPoolId: pool.id } });
+      }
+      toast.success("All tiers voided and refunds issued");
+      loadDashboardData();
+    } catch (error: any) { console.error("Error voiding all tiers:", error); toast.error(error.message || "Failed to void contest"); } finally { setVoidingPoolId(null); }
+  };
+
   const isContestPastLockTime = (contest: any) => new Date() > new Date(contest.lock_time);
 
   const groupedContests = useMemo(() => {
