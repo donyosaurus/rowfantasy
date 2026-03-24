@@ -239,6 +239,32 @@ const Admin = () => {
     } catch (error: any) { console.error("Error voiding contest:", error); toast.error(error.message || "Failed to void contest"); } finally { setVoidingPoolId(null); }
   };
 
+  const voidTier = async (templateId: string, tierName: string) => {
+    if (!confirm(`Void all ${tierName} tier pools? Entry fees will be refunded for ${tierName} entrants only.`)) return;
+    setVoidingPoolId(templateId);
+    try {
+      const tierPools = contests.filter((p: any) => p.contest_template_id === templateId && p.tier_name === tierName && p.status !== 'voided' && p.status !== 'settled');
+      for (const pool of tierPools) {
+        await supabase.functions.invoke("admin-contest-void", { body: { contestPoolId: pool.id } });
+      }
+      toast.success(`${tierName} tier voided and refunds issued`);
+      loadDashboardData();
+    } catch (error: any) { console.error("Error voiding tier:", error); toast.error(error.message || "Failed to void tier"); } finally { setVoidingPoolId(null); }
+  };
+
+  const voidAllTiers = async (templateId: string) => {
+    if (!confirm("Void ALL tiers for this contest? All entry fees will be refunded.")) return;
+    setVoidingPoolId(templateId);
+    try {
+      const allPools = contests.filter((p: any) => p.contest_template_id === templateId && p.status !== 'voided' && p.status !== 'settled');
+      for (const pool of allPools) {
+        await supabase.functions.invoke("admin-contest-void", { body: { contestPoolId: pool.id } });
+      }
+      toast.success("All tiers voided and refunds issued");
+      loadDashboardData();
+    } catch (error: any) { console.error("Error voiding all tiers:", error); toast.error(error.message || "Failed to void contest"); } finally { setVoidingPoolId(null); }
+  };
+
   const isContestPastLockTime = (contest: any) => new Date() > new Date(contest.lock_time);
 
   const groupedContests = useMemo(() => {
@@ -258,6 +284,24 @@ const Admin = () => {
       let overallStatus = 'settled';
       for (const s of statusPriority) { if (pools.some((p: any) => p.status === s)) { overallStatus = s; break; } }
 
+      const hasTiers = pools.some((p: any) => p.tier_name);
+
+      // Sub-group by tier_name
+      const tierMap = new Map<string, any[]>();
+      for (const pool of pools) {
+        const tierKey = pool.tier_name || '__default__';
+        if (!tierMap.has(tierKey)) tierMap.set(tierKey, []);
+        tierMap.get(tierKey)!.push(pool);
+      }
+      const tierGroups = Array.from(tierMap.entries()).map(([tierName, tierPools]) => ({
+        tierName: tierName === '__default__' ? null : tierName,
+        pools: tierPools,
+        entryFeeCents: tierPools[0].entry_fee_cents,
+        totalEntries: tierPools.reduce((sum: number, p: any) => sum + p.current_entries, 0),
+        totalMaxEntries: tierPools.reduce((sum: number, p: any) => sum + p.max_entries, 0),
+        overallStatus: tierPools.some((p: any) => p.status === 'open') ? 'open' : tierPools[0].status,
+      }));
+
       return {
         primary,
         pools,
@@ -267,6 +311,8 @@ const Admin = () => {
         totalPrize,
         overallStatus,
         regattaName: primary.contest_templates?.regatta_name || 'Unknown',
+        hasTiers,
+        tierGroups,
       };
     });
   }, [contests]);
@@ -586,50 +632,77 @@ const Admin = () => {
                   <Button onClick={() => setCreateModalOpen(true)}><Plus className="mr-2 h-4 w-4" />Create Contest</Button>
                 </CardHeader>
                 <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead><tr className="border-b"><th className="text-left p-2">Regatta</th><th className="text-left p-2">Entry Fee</th><th className="text-left p-2">Entries</th><th className="text-left p-2">Prize Pool</th><th className="text-left p-2">Status</th><th className="text-left p-2">Actions</th></tr></thead>
-                      <tbody>
-                        {groupedContests.map((group) => {
-                          const { primary, poolCount, totalEntries, totalMaxEntries, totalPrize, overallStatus, regattaName } = group;
-                          const hasTiers = primary.entry_tiers && Array.isArray(primary.entry_tiers) && primary.entry_tiers.length > 0;
-                          return (
-                            <tr key={primary.id} className="border-b hover:bg-muted/50">
-                              <td className="p-2">
-                                <span>{regattaName}</span>
-                                {poolCount > 1 && <Badge variant="outline" className="ml-2 text-xs">{poolCount} Pools</Badge>}
-                                {hasTiers && <Badge variant="secondary" className="ml-2 text-xs">{primary.entry_tiers.length} Tiers</Badge>}
-                              </td>
-                              <td className="p-2">
-                                {hasTiers
-                                  ? `From $${(primary.entry_fee_cents / 100).toFixed(2)}`
-                                  : `$${(primary.entry_fee_cents / 100).toFixed(2)}`
-                                }
-                              </td>
-                              <td className="p-2">{totalEntries} / {totalMaxEntries}</td>
-                              <td className="p-2">${(totalPrize / 100).toFixed(2)}</td>
-                              <td className="p-2">
-                                <Badge variant={overallStatus === "settled" ? "default" : overallStatus === "scoring_completed" ? "secondary" : overallStatus === "results_entered" ? "secondary" : overallStatus === "locked" ? "outline" : "secondary"}>
+                  <div className="space-y-4">
+                    {groupedContests.map((group) => {
+                      const { primary, pools, poolCount, totalEntries, totalMaxEntries, totalPrize, overallStatus, regattaName, hasTiers, tierGroups } = group;
+                      const tierColors: Record<string, string> = { Bronze: 'border-amber-400', Silver: 'border-slate-400', Gold: 'border-yellow-400', Platinum: 'border-purple-400', Diamond: 'border-cyan-400' };
+                      return (
+                        <div key={primary.id} className="border rounded-lg p-4 space-y-3">
+                          {/* Header */}
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-lg">{regattaName}</span>
+                                {hasTiers && <Badge variant="secondary" className="text-xs">{tierGroups.length} Tiers</Badge>}
+                                <Badge variant={overallStatus === "settled" ? "default" : overallStatus === "voided" ? "destructive" : "secondary"}>
                                   {overallStatus === "results_entered" ? "results entered" : overallStatus}
                                 </Badge>
-                              </td>
-                              <td className="p-2">
-                                <div className="flex gap-2 flex-wrap">
-                                  {(overallStatus === "locked" || (overallStatus === "open" && isContestPastLockTime(primary))) && <Button size="sm" variant="outline" onClick={() => openResultsModal(primary)}>Enter Results</Button>}
-                                  {overallStatus === "results_entered" && <Button size="sm" variant="secondary" disabled={scoringPoolId === primary.id} onClick={() => calculateScores(primary.id)}>{scoringPoolId === primary.id ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Scoring...</> : "Calculate Scores"}</Button>}
-                                  {overallStatus === "scoring_completed" && <Button size="sm" variant="default" disabled={settlingPoolId === primary.id} onClick={() => settlePayouts(primary.id)}>{settlingPoolId === primary.id ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Settling...</> : "Settle Payouts"}</Button>}
-                                  {overallStatus === "settling" && <span className="text-sm text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Processing...</span>}
-                                  {overallStatus === "settled" && <span className="text-sm text-muted-foreground">Completed</span>}
-                                  {overallStatus === "open" && !isContestPastLockTime(primary) && <span className="text-sm text-muted-foreground">Awaiting lock</span>}
-                                  {overallStatus !== "settled" && overallStatus !== "voided" && <Button size="sm" variant="destructive" disabled={voidingPoolId === primary.id} onClick={() => voidContest(primary.id)}>{voidingPoolId === primary.id ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Voiding...</> : "Void"}</Button>}
-                                  {overallStatus === "voided" && <span className="text-sm text-destructive">Voided</span>}
+                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                {primary.contest_templates?.regatta_name ? '' : ''}{poolCount} pool{poolCount > 1 ? 's' : ''} · Locks {new Date(primary.lock_time).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit", hour12: true })}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Tier breakdown or simple pool view */}
+                          {hasTiers ? (
+                            <div className="space-y-2">
+                              {tierGroups.map((tier) => (
+                                <div key={tier.tierName || 'default'} className={`border-l-4 ${tierColors[tier.tierName || ''] || 'border-slate-300'} rounded-r-lg bg-muted/30 p-3`}>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="font-semibold text-sm">{tier.tierName} (${(tier.entryFeeCents / 100).toFixed(2)})</span>
+                                    {tier.overallStatus !== 'settled' && tier.overallStatus !== 'voided' && (
+                                      <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => voidTier(primary.contest_template_id, tier.tierName!)}>
+                                        Void Tier
+                                      </Button>
+                                    )}
+                                    {tier.overallStatus === 'voided' && <span className="text-xs text-destructive">Voided</span>}
+                                  </div>
+                                  {tier.pools.map((pool: any, idx: number) => (
+                                    <div key={pool.id} className="text-xs text-muted-foreground flex items-center gap-2">
+                                      <span>Pool {idx + 1}: {pool.current_entries}/{pool.max_entries} entries</span>
+                                      <span>·</span>
+                                      <Badge variant="outline" className="text-[10px] h-5">{pool.status}</Badge>
+                                      {idx > 0 && <span className="text-muted-foreground/60">(overflow)</span>}
+                                    </div>
+                                  ))}
                                 </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-sm text-muted-foreground">
+                              {totalEntries}/{totalMaxEntries} entries · ${(totalPrize / 100).toFixed(2)} prize pool · ${(primary.entry_fee_cents / 100).toFixed(2)} entry
+                            </div>
+                          )}
+
+                          {/* Actions */}
+                          <div className="flex gap-2 flex-wrap pt-2 border-t">
+                            {(overallStatus === "locked" || (overallStatus === "open" && isContestPastLockTime(primary))) && <Button size="sm" variant="outline" onClick={() => openResultsModal(primary)}>Enter Results</Button>}
+                            {overallStatus === "results_entered" && <Button size="sm" variant="secondary" disabled={scoringPoolId === primary.id} onClick={() => calculateScores(primary.id)}>{scoringPoolId === primary.id ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Scoring...</> : "Calculate Scores"}</Button>}
+                            {overallStatus === "scoring_completed" && <Button size="sm" variant="default" disabled={settlingPoolId === primary.id} onClick={() => settlePayouts(primary.id)}>{settlingPoolId === primary.id ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Settling...</> : hasTiers ? "Settle All Tiers" : "Settle Payouts"}</Button>}
+                            {overallStatus === "settling" && <span className="text-sm text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Processing...</span>}
+                            {overallStatus === "settled" && <span className="text-sm text-muted-foreground">Completed</span>}
+                            {overallStatus === "open" && !isContestPastLockTime(primary) && <span className="text-sm text-muted-foreground">Awaiting lock</span>}
+                            {overallStatus !== "settled" && overallStatus !== "voided" && (
+                              <Button size="sm" variant="destructive" disabled={voidingPoolId === primary.contest_template_id || voidingPoolId === primary.id} onClick={() => hasTiers ? voidAllTiers(primary.contest_template_id) : voidContest(primary.id)}>
+                                {(voidingPoolId === primary.contest_template_id || voidingPoolId === primary.id) ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Voiding...</> : hasTiers ? "Void All" : "Void"}
+                              </Button>
+                            )}
+                            {overallStatus === "voided" && <span className="text-sm text-destructive">Voided</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </CardContent>
               </Card>

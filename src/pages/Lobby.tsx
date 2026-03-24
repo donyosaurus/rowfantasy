@@ -143,13 +143,27 @@ const Lobby = () => {
           month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true,
         });
 
-        // Aggregate across ALL pools for this template
-        const totalCurrentEntries = pools.reduce((sum, p) => sum + p.current_entries, 0);
-        const totalMaxEntries = pools.reduce((sum, p) => sum + p.max_entries, 0);
-
         // Detect tiers: distinct tier_name values (excluding null)
         const tierNames = [...new Set(pools.map(p => p.tier_name).filter(Boolean))];
         const hasTiers = tierNames.length > 1;
+        const hasOverflow = pools.some(p => p.allow_overflow);
+
+        // For tiered contests, maxEntries is per-tier (all tiers share same max)
+        // For non-tiered, aggregate across all pools
+        const perTierMax = pools[0]?.max_entries || 0;
+        let displayCurrentEntries: number;
+        let displayMaxEntries: number;
+
+        if (hasTiers) {
+          displayMaxEntries = perTierMax;
+          displayCurrentEntries = 0; // not meaningful for tiered
+        } else if (hasOverflow) {
+          displayMaxEntries = perTierMax;
+          displayCurrentEntries = 0;
+        } else {
+          displayCurrentEntries = pools.reduce((sum, p) => sum + p.current_entries, 0);
+          displayMaxEntries = pools.reduce((sum, p) => sum + p.max_entries, 0);
+        }
 
         // For display: lowest entry fee, highest first-place prize
         const lowestFee = Math.min(...pools.map(p => p.entry_fee_cents));
@@ -176,9 +190,9 @@ const Lobby = () => {
           entryFeeCents: hasTiers ? lowestFee : primary.entry_fee_cents,
           payoutStructure: primary.payout_structure,
           prizePoolCents: hasTiers ? highestFirstPrize : primary.prize_pool_cents,
-          currentEntries: totalCurrentEntries,
-          maxEntries: totalMaxEntries,
-          hasOverflow: pools.some(p => p.allow_overflow),
+          currentEntries: displayCurrentEntries,
+          maxEntries: displayMaxEntries,
+          hasOverflow,
           createdAt: primary.created_at,
           status: primary.status,
           userEntered,
@@ -268,7 +282,7 @@ const Lobby = () => {
           )}
 
           {!loading && contests.length > 0 && !hasGroups && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-0">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch relative z-0">
               {contests.map((contest, idx) => (
                 <div key={contest.id} className="animate-fade-in" style={{ animationDelay: `${idx * 0.05}s` }}>
                   <ContestCard

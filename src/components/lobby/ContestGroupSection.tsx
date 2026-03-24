@@ -88,7 +88,7 @@ export const ContestGroupSection = ({ title, description, contests }: Props) => 
         {contests.map((c, idx) => (
           <div
             key={c.id}
-            className="snap-start flex-shrink-0 w-[380px] animate-fade-in"
+            className="snap-start flex-shrink-0 w-[380px] animate-fade-in h-full"
             style={{ animationDelay: `${idx * 0.05}s` }}
           >
             <ContestCard
