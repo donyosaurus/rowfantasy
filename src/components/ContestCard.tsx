@@ -189,20 +189,20 @@ export const ContestCard = ({
         )}
 
         {/* Info Area */}
-        <div className="p-4 bg-white">
+        <div className="p-4 bg-white flex-1 flex flex-col">
           <div className="border-l-4 border-teal-400 pl-3">
             <div className="flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-amber-500 group-hover:scale-110 transition-transform" />
+              <Trophy className="h-4 w-4 text-amber-500 group-hover:scale-110 transition-transform flex-shrink-0" />
               <h3 className="text-lg font-bold text-slate-900 line-clamp-1">{regattaName}</h3>
             </div>
-            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+            <div className="flex items-center gap-1.5 mt-1 line-clamp-1">
               <span className="text-sm text-slate-500">{genderCategory}</span>
               <span className="text-slate-300">·</span>
               <span className="text-sm text-slate-500">Locks {lockTimeFormatted}</span>
             </div>
           </div>
 
-          <div className="flex gap-2 mt-4">
+          <div className="flex gap-2 mt-auto pt-4">
             {/* Entries box — all layouts get it */}
             <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
               <div className="text-base font-bold text-slate-900">{entriesDisplay}</div>
