@@ -405,25 +405,25 @@ const RegattaDetail = () => {
 
           {/* Stat Cards Row */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="rounded-xl bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/10 p-3 lg:p-4">
-              <div className="flex items-center gap-2 mb-1"><Trophy className="h-4 w-4 text-gold" /><span className="text-xs text-primary-foreground/60 font-medium">1st Prize</span></div>
-              <p className="font-heading text-xl lg:text-2xl font-bold text-gold">
+            <div className="rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 px-5 py-4 hover:bg-white/15 transition-colors">
+              <div className="flex items-center gap-2 mb-1"><Trophy className="h-4 w-4 text-amber-400" /><span className="text-xs text-accent font-medium">1st Prize</span></div>
+              <p className="font-heading text-xl lg:text-2xl font-bold text-white">
                 {headerStats.firstPrizePrefix || ""}{formatCents(headerStats.firstPrize)}
               </p>
             </div>
-            <div className="rounded-xl bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/10 p-3 lg:p-4">
-              <div className="flex items-center gap-2 mb-1"><Zap className="h-4 w-4 text-accent" /><span className="text-xs text-primary-foreground/60 font-medium">Entry Fee</span></div>
-              <p className="font-heading text-xl lg:text-2xl font-bold">{headerStats.entryFeeLabel}</p>
+            <div className="rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 px-5 py-4 hover:bg-white/15 transition-colors">
+              <div className="flex items-center gap-2 mb-1"><Zap className="h-4 w-4 text-accent" /><span className="text-xs text-accent font-medium">Entry Fee</span></div>
+              <p className="font-heading text-xl lg:text-2xl font-bold text-white">{headerStats.entryFeeLabel}</p>
             </div>
-            <div className="rounded-xl bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/10 p-3 lg:p-4">
-              <div className="flex items-center gap-2 mb-1"><Clock className="h-4 w-4 text-primary-foreground/60" /><span className="text-xs text-primary-foreground/60 font-medium">Locks</span></div>
-              <p className="font-heading text-lg lg:text-xl font-bold">{formattedLockTime}</p>
+            <div className="rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 px-5 py-4 hover:bg-white/15 transition-colors">
+              <div className="flex items-center gap-2 mb-1"><Clock className="h-4 w-4 text-white/60" /><span className="text-xs text-accent font-medium">Locks</span></div>
+              <p className="font-heading text-lg lg:text-xl font-bold text-white">{formattedLockTime}</p>
             </div>
-            <div className="rounded-xl bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/10 p-3 lg:p-4">
-              <div className="flex items-center gap-2 mb-1"><Users className="h-4 w-4 text-primary-foreground/60" /><span className="text-xs text-primary-foreground/60 font-medium">{headerStats.entriesSublabel || "Entries"}</span></div>
-              <p className="font-heading text-xl lg:text-2xl font-bold mb-1.5">{headerStats.entriesLabel}</p>
+            <div className="rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 px-5 py-4 hover:bg-white/15 transition-colors">
+              <div className="flex items-center gap-2 mb-1"><Users className="h-4 w-4 text-white/60" /><span className="text-xs text-accent font-medium">{headerStats.entriesSublabel || "Entries"}</span></div>
+              <p className="font-heading text-xl lg:text-2xl font-bold text-white mb-1.5">{headerStats.entriesLabel}</p>
               {!headerStats.isTiered && (
-                <div className="h-1 w-full rounded-full bg-primary-foreground/10 overflow-hidden"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${fillPercent}%` }} /></div>
+                <div className="h-1 w-full rounded-full bg-white/10 overflow-hidden"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${fillPercent}%` }} /></div>
               )}
             </div>
           </div>
