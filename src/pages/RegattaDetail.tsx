@@ -463,7 +463,7 @@ const RegattaDetail = () => {
                         <span className="opacity-60 text-xs">· {crewsByDivision[divisionId].length} crews</span>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                       {crewsByDivision[divisionId].map((crew, idx) => (
                         <CrewCard
                           key={crew.id}

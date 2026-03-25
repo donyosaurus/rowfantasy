@@ -23,14 +23,12 @@ export function CrewCard({
 
   return (
     <div
-      className={`relative rounded-[14px] overflow-hidden bg-white transition-all duration-300 border ${
+      className={`relative rounded-[14px] overflow-hidden bg-white transition-all duration-300 border w-full h-[255px] ${
         !isOpen
           ? "opacity-60 cursor-not-allowed"
           : "cursor-pointer hover:-translate-y-1.5 hover:shadow-xl"
       }`}
       style={{
-        width: "100%",
-        minHeight: 255,
         border: isSelected
           ? `2px solid ${color}`
           : `1.5px solid rgba(255,255,255,0.2)`,
