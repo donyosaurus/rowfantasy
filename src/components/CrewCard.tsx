@@ -92,7 +92,7 @@ export function CrewCard({
         className="absolute bottom-0 left-0 right-0 text-center"
         style={{ padding: "10px 14px 16px" }}
       >
-        <p className="font-semibold text-[15px] text-slate-900 tracking-tight leading-tight">
+        <p className="font-bold text-xl text-slate-900 tracking-tight leading-tight">
           {crewName}
         </p>
         <p
