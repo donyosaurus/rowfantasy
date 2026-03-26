@@ -25,8 +25,29 @@ export async function performComplianceChecks(
 ): Promise<ComplianceCheckResult> {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  // 1. Check geo eligibility first
-  if (context.ipAddress && context.ipAddress !== 'unknown') {
+  // 0. Check if geo restrictions are enabled via feature flag
+  const { data: flag } = await supabase
+    .from('feature_flags')
+    .select('value')
+    .eq('key', 'ipbase_enabled')
+    .single();
+
+  const geoEnabled = (flag?.value as any)?.enabled === true;
+
+  // 0b. Check if user is admin — admins bypass geo and compliance geo checks
+  let isAdmin = false;
+  if (context.userId) {
+    const { data: adminRole } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', context.userId)
+      .eq('role', 'admin')
+      .maybeSingle();
+    isAdmin = !!adminRole;
+  }
+
+  // 1. Check geo eligibility first (only if enabled and not admin)
+  if (geoEnabled && !isAdmin && context.ipAddress && context.ipAddress !== 'unknown') {
     const geoResult = await checkGeoEligibility(context.ipAddress, context.userId);
     
     if (!geoResult.allowed) {
@@ -51,43 +72,45 @@ export async function performComplianceChecks(
     }
   }
 
-  // 2. Check state regulations
-  const { data: stateRule, error: stateError } = await supabase
-    .from('state_regulation_rules')
-    .select('*')
-    .eq('state_code', context.stateCode)
-    .single();
+  // 2. Check state regulations (skip for admins when geo is the concern)
+  if (!isAdmin) {
+    const { data: stateRule, error: stateError } = await supabase
+      .from('state_regulation_rules')
+      .select('*')
+      .eq('state_code', context.stateCode)
+      .single();
 
-  if (stateError || !stateRule) {
-    await logComplianceEvent(supabase, {
-      userId: context.userId,
-      eventType: 'state_check_failed',
-      severity: 'error',
-      description: `State regulation check failed for ${context.stateCode}`,
-      stateCode: context.stateCode,
-      ipAddress: context.ipAddress,
-    });
-    
-    return {
-      allowed: false,
-      reason: 'State not supported or regulations unavailable',
-    };
-  }
+    if (stateError || !stateRule) {
+      await logComplianceEvent(supabase, {
+        userId: context.userId,
+        eventType: 'state_check_failed',
+        severity: 'error',
+        description: `State regulation check failed for ${context.stateCode}`,
+        stateCode: context.stateCode,
+        ipAddress: context.ipAddress,
+      });
+      
+      return {
+        allowed: false,
+        reason: 'State not supported or regulations unavailable',
+      };
+    }
 
-  if (stateRule.status === 'prohibited' || stateRule.status === 'restricted') {
-    await logComplianceEvent(supabase, {
-      userId: context.userId,
-      eventType: 'state_prohibited',
-      severity: 'warn',
-      description: `Attempted ${context.actionType} from ${stateRule.status} state ${context.stateCode}`,
-      stateCode: context.stateCode,
-      ipAddress: context.ipAddress,
-    });
-    
-    return {
-      allowed: false,
-      reason: `Service not available in ${stateRule.state_name}`,
-    };
+    if (stateRule.status === 'prohibited' || stateRule.status === 'restricted') {
+      await logComplianceEvent(supabase, {
+        userId: context.userId,
+        eventType: 'state_prohibited',
+        severity: 'warn',
+        description: `Attempted ${context.actionType} from ${stateRule.status} state ${context.stateCode}`,
+        stateCode: context.stateCode,
+        ipAddress: context.ipAddress,
+      });
+      
+      return {
+        allowed: false,
+        reason: `Service not available in ${stateRule.state_name}`,
+      };
+    }
   }
 
   // 3. Check user profile and age verification
@@ -124,18 +147,20 @@ export async function performComplianceChecks(
   const birthDate = new Date(profile.date_of_birth);
   const age = Math.floor((Date.now() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
   
-  if (age < stateRule.min_age) {
+  // For admins, use default min age of 18 since we skip state rule check
+  const minAge = 18;
+  if (age < minAge) {
     await logComplianceEvent(supabase, {
       userId: context.userId,
       eventType: 'underage_blocked',
       severity: 'error',
-      description: `User age ${age} is below minimum ${stateRule.min_age}`,
+      description: `User age ${age} is below minimum ${minAge}`,
       stateCode: context.stateCode,
     });
     
     return {
       allowed: false,
-      reason: `You must be at least ${stateRule.min_age} years old to use this service`,
+      reason: `You must be at least ${minAge} years old to use this service`,
     };
   }
 
@@ -194,7 +219,6 @@ export async function performComplianceChecks(
   if (context.actionType === 'deposit') {
     const depositLimit = profile.deposit_limit_monthly || 250000; // Default $2,500
     
-    // Get current month deposits
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
@@ -239,9 +263,8 @@ export async function performComplianceChecks(
     }
   }
 
-  // 5. Check withdrawal limits and restrictions (Phase 4 light controls)
+  // 5. Check withdrawal limits and restrictions
   if (context.actionType === 'withdrawal') {
-    // Per-transaction cap: $200
     if (context.amountCents > 20000) {
       return {
         allowed: false,
@@ -249,7 +272,6 @@ export async function performComplianceChecks(
       };
     }
 
-    // Check for pending withdrawals (only 1 at a time)
     const { data: pendingWithdrawals } = await supabase
       .from('transactions')
       .select('id')
@@ -264,10 +286,9 @@ export async function performComplianceChecks(
       };
     }
 
-    // 10-minute cooldown between withdrawals
     if (profile.withdrawal_last_requested_at) {
       const lastWithdrawal = new Date(profile.withdrawal_last_requested_at);
-      const cooldownMs = 10 * 60 * 1000; // 10 minutes
+      const cooldownMs = 10 * 60 * 1000;
       const timeSinceLastWithdrawal = Date.now() - lastWithdrawal.getTime();
       
       if (timeSinceLastWithdrawal < cooldownMs) {
@@ -279,7 +300,6 @@ export async function performComplianceChecks(
       }
     }
 
-    // Daily withdrawal cap: $500
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
@@ -310,7 +330,6 @@ export async function performComplianceChecks(
       }
     }
 
-    // 24-hour hold on newly deposited funds
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     
     const { data: recentDeposits } = await supabase
@@ -335,7 +354,6 @@ export async function performComplianceChecks(
       }
     }
 
-    // Update withdrawal timestamp
     await supabase
       .from('profiles')
       .update({ withdrawal_last_requested_at: new Date().toISOString() })

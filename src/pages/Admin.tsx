@@ -569,10 +569,30 @@ const Admin = () => {
               <div className="flex items-center gap-2"><Settings className="h-5 w-5" /><CardTitle>System Configuration</CardTitle></div>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-4 items-center">
                 <div className="flex items-center gap-2"><span className="text-sm font-medium">Real Money:</span><Badge variant={featureFlags.real_money_enabled?.enabled ? "default" : "secondary"}>{featureFlags.real_money_enabled?.enabled ? "ON" : "OFF"}</Badge></div>
                 <div className="flex items-center gap-2"><span className="text-sm font-medium">Regulated Mode:</span><Badge variant={featureFlags.regulated_mode?.enabled ? "default" : "secondary"}>{featureFlags.regulated_mode?.enabled ? "ON" : "OFF"}</Badge></div>
-                <div className="flex items-center gap-2"><span className="text-sm font-medium">IP Verification:</span><Badge variant={featureFlags.ipbase_enabled?.enabled ? "default" : "secondary"}>{featureFlags.ipbase_enabled?.enabled ? "ON" : "OFF"}</Badge></div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Geofencing:</span>
+                  <Switch
+                    checked={!!featureFlags.ipbase_enabled?.enabled}
+                    onCheckedChange={async (checked) => {
+                      const confirmMsg = checked
+                        ? "Enabling geofencing will block users from 28 states that require DFS licensing. Admins will always bypass restrictions. Continue?"
+                        : "Disabling geofencing will allow users from all states to access the platform. Are you sure?";
+                      if (!confirm(confirmMsg)) return;
+                      const { error } = await supabase
+                        .from("feature_flags")
+                        .upsert({ key: "ipbase_enabled", value: { enabled: checked } as any }, { onConflict: "key" });
+                      if (error) { toast.error("Failed to update geofencing setting"); return; }
+                      setFeatureFlags((prev: any) => ({ ...prev, ipbase_enabled: { enabled: checked } }));
+                      toast.success(checked ? "Geofencing enabled" : "Geofencing disabled");
+                    }}
+                  />
+                  <Badge variant={featureFlags.ipbase_enabled?.enabled ? "default" : "secondary"}>
+                    {featureFlags.ipbase_enabled?.enabled ? "ON" : "OFF"}
+                  </Badge>
+                </div>
                 <div className="flex items-center gap-2"><span className="text-sm font-medium">Payment Provider:</span><Badge variant="outline">{featureFlags.payments_provider?.name || "mock"}</Badge></div>
               </div>
             </CardContent>
