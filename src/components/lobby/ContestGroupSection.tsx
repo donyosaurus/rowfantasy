@@ -17,6 +17,7 @@ interface Contest {
   userEntered: boolean;
   entryTiers: any[] | null;
   bannerUrl: string | null;
+  events?: string[];
 }
 
 interface Props {
@@ -106,6 +107,7 @@ export const ContestGroupSection = ({ title, description, contests }: Props) => 
               userEntered={c.userEntered}
               entryTiers={c.entryTiers}
               bannerUrl={c.bannerUrl}
+              events={c.events}
             />
           </div>
         ))}

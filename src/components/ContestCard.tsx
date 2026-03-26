@@ -25,6 +25,7 @@ interface ContestCardProps {
   userEntered?: boolean;
   entryTiers?: EntryTier[] | null;
   bannerUrl?: string | null;
+  events?: string[];
 }
 
 const CARD_GRADIENTS = [
@@ -67,6 +68,32 @@ function formatFee(cents: number): string {
   return `$${dollars.toFixed(2)}`;
 }
 
+const MAX_VISIBLE_EVENTS = 4;
+
+const EventPills = ({ events }: { events: string[] }) => {
+  if (!events || events.length === 0) return null;
+  const visible = events.slice(0, MAX_VISIBLE_EVENTS);
+  const remaining = events.length - MAX_VISIBLE_EVENTS;
+
+  return (
+    <div className="flex flex-wrap gap-1.5 mt-2 mb-3">
+      {visible.map((evt) => (
+        <span
+          key={evt}
+          className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-xs font-semibold text-slate-600 border border-slate-200"
+        >
+          {evt}
+        </span>
+      ))}
+      {remaining > 0 && (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-50 text-xs font-medium text-slate-400 border border-slate-100">
+          +{remaining} more
+        </span>
+      )}
+    </div>
+  );
+};
+
 export const ContestCard = ({
   id,
   regattaName,
@@ -82,6 +109,7 @@ export const ContestCard = ({
   userEntered = false,
   entryTiers = null,
   bannerUrl = null,
+  events = [],
 }: ContestCardProps) => {
   const hasTiers = entryTiers && entryTiers.length > 0;
   const hasPayoutStructure = payoutStructure && Object.keys(payoutStructure).length > 0;
@@ -94,14 +122,15 @@ export const ContestCard = ({
     ? Math.max(...entryTiers.map(t => t.payout_structure["1"] || 0))
     : 0;
 
-  const showFillBar = !hasTiers && !hasOverflow && maxEntries > 0;
+  // Show entries + fill bar ONLY for plain contests (no tiers, no overflow)
+  const isPlainContest = !hasTiers && !hasOverflow;
+  const showFillBar = isPlainContest && maxEntries > 0;
   const fillPercent = maxEntries > 0 ? (currentEntries / maxEntries) * 100 : 0;
-  const entriesDisplay = hasOverflow
-    ? `${maxEntries}`
-    : `${currentEntries}/${maxEntries}`;
-  const contestType = hasOverflow
-    ? (maxEntries === 2 ? 'Head to Head' : `${maxEntries} Player Pool`)
-    : null;
+  const entriesDisplay = `${currentEntries}/${maxEntries}`;
+
+  // Contest type for tiered or overflow contests
+  const contestType = maxEntries === 2 ? 'Head to Head' : `${maxEntries} Player Pool`;
+
   const countdown = getCountdown(lockTimeRaw);
   const gradientIndex = hashString(regattaName) % CARD_GRADIENTS.length;
 
@@ -181,7 +210,7 @@ export const ContestCard = ({
           )}
         </div>
 
-        {/* Fill bar — only for non-overflow, non-tiered */}
+        {/* Fill bar — only for plain contests */}
         {showFillBar && (
           <div className="h-1.5 bg-slate-200 group-hover:h-2 transition-all duration-300">
             <div
@@ -205,24 +234,35 @@ export const ContestCard = ({
             </div>
           </div>
 
+          {/* Event pills */}
+          <EventPills events={events} />
+
           <div className="flex gap-2 mt-auto pt-4">
-            {/* First box: Contest type for overflow, entries for non-overflow */}
-            <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
-              {hasOverflow ? (
-                <>
-                  <div className="text-sm font-bold text-slate-900">{contestType}</div>
-                  <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Type</div>
-                </>
-              ) : (
-                <>
+            {isPlainContest ? (
+              /* Plain contest: Entries + Entry fee + Prizes */
+              <>
+                <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
                   <div className="text-base font-bold text-slate-900">{entriesDisplay}</div>
                   <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Entries</div>
-                </>
-              )}
-            </div>
-
-            {hasTiers ? (
+                </div>
+                <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
+                  <div className="text-base font-bold text-teal-600">{entryDisplay}</div>
+                  <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Entry</div>
+                </div>
+                <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
+                  <div className="text-base font-bold text-amber-600 flex items-center justify-center gap-1">
+                    {prizeDisplay} 🏅
+                  </div>
+                  <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Prizes</div>
+                </div>
+              </>
+            ) : hasTiers ? (
+              /* Tiered contest: Type + Tier fees + Prizes */
               <>
+                <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
+                  <div className="text-sm font-bold text-slate-900">{contestType}</div>
+                  <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Type</div>
+                </div>
                 <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
                   <div className={`font-bold text-teal-600 ${entryTiers.length > 3 ? 'text-xs' : 'text-sm'} leading-tight`}>
                     {tierFeeDisplay}
@@ -237,7 +277,12 @@ export const ContestCard = ({
                 </div>
               </>
             ) : (
+              /* Overflow, no tiers: Type + Single fee + Prizes */
               <>
+                <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
+                  <div className="text-sm font-bold text-slate-900">{contestType}</div>
+                  <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Type</div>
+                </div>
                 <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
                   <div className="text-base font-bold text-teal-600">{entryDisplay}</div>
                   <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Entry</div>
