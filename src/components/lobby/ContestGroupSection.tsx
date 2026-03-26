@@ -17,6 +17,7 @@ interface Contest {
   userEntered: boolean;
   entryTiers: any[] | null;
   bannerUrl: string | null;
+  events?: string[];
 }
 
 interface Props {
