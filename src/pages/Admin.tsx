@@ -936,12 +936,21 @@ const Admin = () => {
               </div>
             </div>
             <div className="flex items-start space-x-3">
-              <Checkbox id="allowOverflow" checked={createForm.allowOverflow} onCheckedChange={(checked) => setCreateForm(prev => ({ ...prev, allowOverflow: checked === true }))} />
+              <Checkbox id="allowOverflow" checked={createForm.allowOverflow} onCheckedChange={(checked) => setCreateForm(prev => ({ ...prev, allowOverflow: checked === true, voidUnfilledOnSettle: checked === true ? prev.voidUnfilledOnSettle : false }))} />
               <div className="grid gap-1.5 leading-none">
                 <Label htmlFor="allowOverflow" className="text-sm font-medium cursor-pointer">Enable Auto-Pooling</Label>
                 <p className="text-xs text-muted-foreground">Automatically create a new pool when this one fills up.</p>
               </div>
             </div>
+            {createForm.allowOverflow && (
+              <div className="flex items-start space-x-3 ml-6 mt-2">
+                <Checkbox id="voidUnfilled" checked={createForm.voidUnfilledOnSettle} onCheckedChange={(checked) => setCreateForm(prev => ({ ...prev, voidUnfilledOnSettle: checked === true }))} />
+                <div className="grid gap-1.5 leading-none">
+                  <Label htmlFor="voidUnfilled" className="text-sm font-medium cursor-pointer">Auto-void unfilled pools on settlement</Label>
+                  <p className="text-xs text-muted-foreground">Pools that don't completely fill will be voided and entry fees refunded when the contest is settled.</p>
+                </div>
+              </div>
+            )}
 
             {/* Multi-Tier Toggle */}
             <div className="flex items-start space-x-3 border-t pt-4">
