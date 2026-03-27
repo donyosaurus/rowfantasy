@@ -220,7 +220,11 @@ const Admin = () => {
     try {
       const { data, error } = await supabase.functions.invoke("contest-settlement", { body: { contestPoolId } });
       if (error) throw error;
-      toast.success(`Payouts settled! ${data?.winnersCount || 0} winner(s) paid`);
+      let msg = `Payouts settled! ${data?.winnersCount || 0} winner(s) paid.`;
+      if (data?.poolsAutoVoided > 0) {
+        msg += ` ${data.poolsAutoVoided} unfilled pool(s) auto-voided, ${data.entriesRefunded || 0} refunded.`;
+      }
+      toast.success(msg);
       loadDashboardData();
     } catch (error: any) { console.error("Error settling payouts:", error); toast.error(error.message || "Failed to settle payouts"); } finally { setSettlingPoolId(null); }
   };
