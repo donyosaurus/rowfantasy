@@ -698,6 +698,9 @@ const Admin = () => {
                                       <span>·</span>
                                       <Badge variant="outline" className="text-[10px] h-5">{pool.status}</Badge>
                                       {idx > 0 && <span className="text-muted-foreground/60">(overflow)</span>}
+                                      {pool.void_unfilled_on_settle && pool.current_entries < pool.max_entries && pool.status !== 'voided' && pool.status !== 'settled' && (
+                                        <Badge variant="outline" className="text-[10px] h-5 border-amber-400 text-amber-600">⚠ Auto-void</Badge>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
