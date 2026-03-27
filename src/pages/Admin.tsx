@@ -61,6 +61,7 @@ interface CreateContestForm {
   crews: NewCrew[];
   prizes: PrizeTier[];
   allowOverflow: boolean;
+  voidUnfilledOnSettle: boolean;
   multiTier: boolean;
   entryTiers: EntryTierForm[];
   bannerUrl: string;
