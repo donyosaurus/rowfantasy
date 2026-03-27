@@ -204,7 +204,11 @@ const Admin = () => {
       toast.success(`Scored ${scoringData?.poolsScored || 1} pool(s). Settling payouts...`);
       const { data: settleData, error: settleError } = await supabase.functions.invoke("contest-settlement", { body: { contestPoolId: selectedContest.id } });
       if (settleError) throw new Error(`Settlement failed: ${settleError.message}`);
-      toast.success(`Done! ${settleData?.winnersCount || 0} winner(s) paid out across all pools.`);
+      let settleMsg = `Done! ${settleData?.winnersCount || 0} winner(s) paid out.`;
+      if (settleData?.poolsAutoVoided > 0) {
+        settleMsg += ` ${settleData.poolsAutoVoided} unfilled pool(s) auto-voided, ${settleData.entriesRefunded || 0} entry fee(s) refunded.`;
+      }
+      toast.success(settleMsg);
       setResultsModalOpen(false);
       setSelectedContest(null);
       loadDashboardData();
