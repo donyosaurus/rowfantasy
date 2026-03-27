@@ -357,6 +357,7 @@ export type Database = {
           status: string
           tier_id: string
           tier_name: string | null
+          void_unfilled_on_settle: boolean
           winner_ids: string[] | null
         }
         Insert: {
@@ -376,6 +377,7 @@ export type Database = {
           status?: string
           tier_id: string
           tier_name?: string | null
+          void_unfilled_on_settle?: boolean
           winner_ids?: string[] | null
         }
         Update: {
@@ -395,6 +397,7 @@ export type Database = {
           status?: string
           tier_id?: string
           tier_name?: string | null
+          void_unfilled_on_settle?: boolean
           winner_ids?: string[] | null
         }
         Relationships: [
