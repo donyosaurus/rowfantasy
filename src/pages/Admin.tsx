@@ -220,11 +220,42 @@ const Admin = () => {
     try {
       const { data, error } = await supabase.functions.invoke("contest-settlement", { body: { contestPoolId } });
       if (error) throw error;
-      let msg = `Payouts settled! ${data?.winnersCount || 0} winner(s) paid.`;
-      if (data?.poolsAutoVoided > 0) {
-        msg += ` ${data.poolsAutoVoided} unfilled pool(s) auto-voided, ${data.entriesRefunded || 0} refunded.`;
+
+      const details = data?.details || [];
+      const settledCount = details.filter((d: any) => d.action === 'settled').length;
+      const voidedCount = details.filter((d: any) => d.action === 'auto_voided').length;
+      const refundedEntries = details
+        .filter((d: any) => d.action === 'auto_voided')
+        .reduce((sum: number, d: any) => sum + (d.entriesRefunded || 0), 0);
+
+      let msg = `${settledCount} pool(s) settled.`;
+      if (voidedCount > 0) {
+        msg += ` ${voidedCount} unfilled pool(s) auto-voided, ${refundedEntries} entry fee(s) refunded.`;
       }
       toast.success(msg);
+
+      // Log detailed per-tier breakdown to console for debugging
+      if (details.length > 0) {
+        const byTier: Record<string, any[]> = {};
+        for (const d of details) {
+          const tierKey = d.tierName || 'Default';
+          if (!byTier[tierKey]) byTier[tierKey] = [];
+          byTier[tierKey].push(d);
+        }
+        console.log("[Settlement Report]");
+        for (const [tier, pools] of Object.entries(byTier)) {
+          const fee = (pools as any[])[0]?.entryFeeCents;
+          console.log(`  ${tier}${fee ? ` ($${(fee / 100).toFixed(2)})` : ''}:`);
+          (pools as any[]).forEach((p: any, i: number) => {
+            if (p.action === 'settled') {
+              console.log(`    Pool ${i + 1}: Settled — ${p.winners || 0} winner(s)`);
+            } else {
+              console.log(`    Pool ${i + 1}: Auto-voided — ${p.entriesRefunded || 0} entry(s) refunded`);
+            }
+          });
+        }
+      }
+
       loadDashboardData();
     } catch (error: any) { console.error("Error settling payouts:", error); toast.error(error.message || "Failed to settle payouts"); } finally { setSettlingPoolId(null); }
   };
