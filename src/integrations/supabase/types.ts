@@ -230,71 +230,6 @@ export type Database = {
         }
         Relationships: []
       }
-      contest_instances: {
-        Row: {
-          completed_at: string | null
-          contest_template_id: string
-          created_at: string
-          current_entries: number
-          entry_fee_cents: number
-          id: string
-          lock_time: string
-          locked_at: string | null
-          max_entries: number
-          metadata: Json | null
-          min_entries: number
-          pool_number: string
-          prize_pool_cents: number
-          settled_at: string | null
-          status: string
-          tier_id: string
-        }
-        Insert: {
-          completed_at?: string | null
-          contest_template_id: string
-          created_at?: string
-          current_entries?: number
-          entry_fee_cents: number
-          id?: string
-          lock_time: string
-          locked_at?: string | null
-          max_entries: number
-          metadata?: Json | null
-          min_entries?: number
-          pool_number: string
-          prize_pool_cents?: number
-          settled_at?: string | null
-          status?: string
-          tier_id: string
-        }
-        Update: {
-          completed_at?: string | null
-          contest_template_id?: string
-          created_at?: string
-          current_entries?: number
-          entry_fee_cents?: number
-          id?: string
-          lock_time?: string
-          locked_at?: string | null
-          max_entries?: number
-          metadata?: Json | null
-          min_entries?: number
-          pool_number?: string
-          prize_pool_cents?: number
-          settled_at?: string | null
-          status?: string
-          tier_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "contest_instances_contest_template_id_fkey"
-            columns: ["contest_template_id"]
-            isOneToOne: false
-            referencedRelation: "contest_templates"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       contest_pool_crews: {
         Row: {
           contest_pool_id: string
@@ -416,7 +351,6 @@ export type Database = {
           crew_scores: Json | null
           entry_id: string
           id: string
-          instance_id: string | null
           is_tiebreak_resolved: boolean | null
           is_winner: boolean | null
           margin_bonus: number
@@ -432,7 +366,6 @@ export type Database = {
           crew_scores?: Json | null
           entry_id: string
           id?: string
-          instance_id?: string | null
           is_tiebreak_resolved?: boolean | null
           is_winner?: boolean | null
           margin_bonus?: number
@@ -448,7 +381,6 @@ export type Database = {
           crew_scores?: Json | null
           entry_id?: string
           id?: string
-          instance_id?: string | null
           is_tiebreak_resolved?: boolean | null
           is_winner?: boolean | null
           margin_bonus?: number
@@ -1576,6 +1508,7 @@ export type Database = {
         Returns: Json
       }
       admin_void_contest: { Args: { p_contest_pool_id: string }; Returns: Json }
+      auto_lock_expired_contests: { Args: never; Returns: number }
       calculate_pool_scores: {
         Args: { p_contest_pool_id: string; p_official_margin_seconds: number }
         Returns: Json
