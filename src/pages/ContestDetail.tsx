@@ -16,16 +16,11 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
-  ArrowLeft,
-  Check,
-  Clock,
   Loader2,
   Trophy,
-  Users,
   Zap,
   ChevronDown,
   Lock,
-  X,
   Wallet,
 } from "lucide-react";
 import { toast } from "sonner";

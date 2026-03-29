@@ -14,16 +14,11 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
-  ArrowLeft,
-  Clock,
   Loader2,
-  Check,
   Trophy,
-  Users,
   Zap,
   ChevronDown,
   Lock,
-  X,
   Wallet,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
