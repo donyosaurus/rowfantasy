@@ -514,7 +514,7 @@ const Profile = () => {
                                 </div>
                                 <div className="text-right">
                                   <p className={`font-heading font-bold text-lg ${isPositive ? 'text-success' : ''}`}>
-                                    {isPositive ? '+' : ''}${Math.abs(tx.amount).toFixed(2)}
+                                    {isPositive ? '+' : ''}${(tx.type === 'deposit' ? Math.abs(tx.amount) / 100 : Math.abs(tx.amount)).toFixed(2)}
                                   </p>
                                   <Badge 
                                     variant="outline"
