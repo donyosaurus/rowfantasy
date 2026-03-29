@@ -36,6 +36,34 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    // Rate limiting - 20 attempts per minute per user
+    const rateLimitOk = await checkRateLimit(supabaseAdmin, user.id, 'contest-enter', 20, 1);
+    if (!rateLimitOk) {
+      return new Response(
+        JSON.stringify({ error: 'Too many requests. Please wait a moment.' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Self-exclusion check
+    const { data: responsibleGaming } = await supabaseAdmin
+      .from('responsible_gaming')
+      .select('self_exclusion_until')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (responsibleGaming?.self_exclusion_until) {
+      const exclusionEnd = new Date(responsibleGaming.self_exclusion_until);
+      if (exclusionEnd > new Date()) {
+        return new Response(
+          JSON.stringify({
+            error: `Your account is self-excluded until ${exclusionEnd.toLocaleDateString()}. You cannot enter contests during this period.`
+          }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     // Geolocation check - block restricted states
     await checkLocationEligibility(req, user.id);
 

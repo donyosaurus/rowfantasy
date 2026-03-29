@@ -77,6 +77,25 @@ Deno.serve(async (req) => {
 
     const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
 
+    // Self-exclusion check
+    const { data: responsibleGaming } = await supabaseAdmin
+      .from('responsible_gaming')
+      .select('self_exclusion_until')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (responsibleGaming?.self_exclusion_until) {
+      const exclusionEnd = new Date(responsibleGaming.self_exclusion_until);
+      if (exclusionEnd > new Date()) {
+        return new Response(
+          JSON.stringify({
+            error: `Your account is self-excluded until ${exclusionEnd.toLocaleDateString()}. You cannot enter contests during this period.`
+          }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     // Get contest template
     const { data: template, error: templateError } = await supabaseAdmin
       .from("contest_templates")
