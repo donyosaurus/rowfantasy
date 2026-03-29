@@ -115,7 +115,7 @@ export default function Privacy() {
           <CardHeader>
             <CardTitle>Your Data Rights</CardTitle>
             <CardDescription>
-              Under CCPA/CPRA, you have the right to access, export, or delete your personal data.
+              You may request access to, export, or deletion of your personal data, subject to legal retention requirements.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
