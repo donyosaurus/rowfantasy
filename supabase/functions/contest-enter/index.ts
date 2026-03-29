@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { checkLocationEligibility } from '../shared/geo-eligibility.ts';
+import { checkRateLimit } from '../shared/auth-helpers.ts';
 import { getCorsHeaders } from '../shared/cors.ts';
 
 Deno.serve(async (req) => {
