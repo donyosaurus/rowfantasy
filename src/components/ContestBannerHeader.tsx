@@ -123,7 +123,7 @@ export const ContestBannerHeader = ({
       </div>
 
       {/* Dark overlay */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/20 z-[1]" />
+      <div className="absolute inset-0 z-[1]" />
 
       {/* Pill 1 — Back to Lobby (top-left) */}
       <button
