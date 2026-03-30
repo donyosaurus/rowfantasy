@@ -169,12 +169,12 @@ export const ContestCard = ({
     <Link to={`/regatta/${id}`} className="block group h-full">
       <div className="rounded-xl overflow-hidden bg-white shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-slate-200/80 flex flex-col h-full">
         {/* Banner Area */}
-        <div className="relative h-40 overflow-hidden">
+        <div className="relative h-40 overflow-hidden bg-[#0c2340]">
           {bannerUrl ? (
             <img
               src={bannerUrl}
               alt={regattaName}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
               onError={(e) => {
                 const target = e.currentTarget;
                 target.style.display = 'none';

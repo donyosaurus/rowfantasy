@@ -859,6 +859,7 @@ const Admin = () => {
                         <Upload className="h-8 w-8 text-muted-foreground mb-2" />
                         <span className="text-sm text-muted-foreground">Drop image here or click to upload</span>
                         <span className="text-xs text-muted-foreground mt-1">PNG, JPG up to 5MB</span>
+                        <span className="text-xs text-slate-500 mt-1">Recommended: 1200×400px (3:1 ratio). Keep logos and text centered.</span>
                       </>
                     )}
                     <input
@@ -888,7 +889,7 @@ const Admin = () => {
                   </label>
                 ) : (
                   <div className="mt-1 relative">
-                    <img src={createForm.bannerUrl} alt="Banner" className="w-full h-[120px] object-cover rounded-lg border" />
+                    <img src={createForm.bannerUrl} alt="Banner" className="w-full h-[120px] object-contain bg-[#0c2340] rounded-lg border" />
                     <button
                       type="button"
                       className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1 hover:bg-black/80"
@@ -902,9 +903,9 @@ const Admin = () => {
                 <div className="mt-3">
                   <p className="text-xs font-medium text-muted-foreground mb-2">Card Preview</p>
                   <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm max-w-xs">
-                    <div className="relative h-28 overflow-hidden">
+                    <div className="relative h-28 overflow-hidden bg-[#0c2340]">
                       {createForm.bannerUrl ? (
-                        <img src={createForm.bannerUrl} alt="Preview" className="w-full h-full object-cover" />
+                        <img src={createForm.bannerUrl} alt="Preview" className="w-full h-full object-contain" />
                       ) : (
                         <div
                           className="w-full h-full flex items-center justify-center"

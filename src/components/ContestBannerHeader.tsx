@@ -99,13 +99,14 @@ export const ContestBannerHeader = ({
       : { label: "Locked", cls: "bg-red-500/90" };
 
   return (
-    <div className="relative w-full h-48 md:h-64 lg:h-72 overflow-hidden">
+    <div className="relative w-full bg-[#0c2340]">
+      <div className="relative h-48 md:h-56 lg:h-64 xl:h-72 overflow-hidden">
       {/* Background */}
       {bannerUrl ? (
         <img
           src={bannerUrl}
           alt={regattaName}
-          className="absolute inset-0 w-full h-full object-cover"
+          className="w-full h-full object-contain"
           onError={(e) => {
             e.currentTarget.style.display = "none";
             const fallback = e.currentTarget.nextElementSibling as HTMLElement;
@@ -122,8 +123,8 @@ export const ContestBannerHeader = ({
         </span>
       </div>
 
-      {/* Dark overlay */}
-      <div className="absolute inset-0 z-[1]" />
+      {/* Dark overlay for bottom text readability only */}
+      <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
       {/* Pill 1 — Back to Lobby (top-left) */}
       <button
@@ -154,6 +155,7 @@ export const ContestBannerHeader = ({
         <p className="text-white/70 text-xs md:text-sm mt-0.5 line-clamp-1">
           {subtitle}
         </p>
+      </div>
       </div>
     </div>
   );
