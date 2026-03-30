@@ -156,6 +156,7 @@ export const ContestBannerHeader = ({
           {subtitle}
         </p>
       </div>
+      </div>
     </div>
   );
 };
