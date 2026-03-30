@@ -546,7 +546,8 @@ const Admin = () => {
           payouts,
           allowOverflow: createForm.allowOverflow,
           entryTiers: entryTiersPayload,
-          bannerUrl: createForm.bannerUrl.trim() || null,
+          cardBannerUrl: createForm.cardBannerUrl.trim() || null,
+          draftBannerUrl: createForm.draftBannerUrl.trim() || null,
           contestGroupId: (createForm.contestGroupId && createForm.contestGroupId !== "none") ? createForm.contestGroupId : null,
           voidUnfilledOnSettle: createForm.allowOverflow ? createForm.voidUnfilledOnSettle : false,
         }
