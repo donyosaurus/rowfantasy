@@ -58,22 +58,6 @@ interface Transaction {
   state_code: string | null;
 }
 
-interface Contest {
-  id: string;
-  contestTemplateId: string;
-  regattaName: string;
-  genderCategory: string;
-  tierId: string;
-  poolId: string;
-  entryFeeCents: number;
-  lockTime: string;
-  status: string;
-  rank: number | null;
-  totalPoints: number | null;
-  payoutCents: number | null;
-  createdAt: string;
-  poolStatus: string;
-}
 
 const Profile = () => {
   const { user } = useAuth();
