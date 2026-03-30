@@ -55,7 +55,8 @@ interface ContestPool {
     gender_category: string;
     min_picks: number;
     max_picks: number;
-    banner_url?: string | null;
+    card_banner_url?: string | null;
+    draft_banner_url?: string | null;
   };
   contest_pool_crews: PoolCrew[];
 }
