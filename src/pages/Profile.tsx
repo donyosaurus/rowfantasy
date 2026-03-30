@@ -84,8 +84,7 @@ const Profile = () => {
     if (!user) { navigate("/login"); return; }
     fetchProfileData();
     fetchTransactions();
-    fetchContests();
-  }, [user, navigate, txTypeFilter, txPage, contestPage]);
+  }, [user, navigate, txTypeFilter, txPage]);
 
   const fetchProfileData = async () => {
     try {
