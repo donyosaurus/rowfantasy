@@ -859,6 +859,7 @@ const Admin = () => {
                         <Upload className="h-8 w-8 text-muted-foreground mb-2" />
                         <span className="text-sm text-muted-foreground">Drop image here or click to upload</span>
                         <span className="text-xs text-muted-foreground mt-1">PNG, JPG up to 5MB</span>
+                        <span className="text-xs text-slate-500 mt-1">Recommended: 1200×400px (3:1 ratio). Keep logos and text centered.</span>
                       </>
                     )}
                     <input
