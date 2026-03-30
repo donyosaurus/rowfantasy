@@ -373,7 +373,7 @@ const RegattaDetail = () => {
         genderCategory={contestPool.contest_templates.gender_category}
         lockTime={contestPool.lock_time}
         status={contestPool.status}
-        bannerUrl={contestPool.contest_templates.banner_url}
+        bannerUrl={contestPool.contest_templates.draft_banner_url || contestPool.contest_templates.card_banner_url}
         maxEntries={contestPool.max_entries}
         entryFeeCents={contestPool.entry_fee_cents}
         entryTiers={entryTiers}

@@ -367,7 +367,7 @@ const ContestDetail = () => {
         genderCategory={template.gender_category}
         lockTime={contestPool.lock_time}
         status={contestPool.status}
-        bannerUrl={template.banner_url}
+        bannerUrl={template.draft_banner_url || template.card_banner_url}
         maxEntries={contestPool.max_entries}
         entryFeeCents={contestPool.entry_fee_cents}
         entryTiers={entryTiers}
