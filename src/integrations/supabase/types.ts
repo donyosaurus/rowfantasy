@@ -410,12 +410,13 @@ export type Database = {
       }
       contest_templates: {
         Row: {
-          banner_url: string | null
+          card_banner_url: string | null
           contest_group_id: string | null
           created_at: string
           crews: Json
           display_order_in_group: number | null
           divisions: Json
+          draft_banner_url: string | null
           entry_tiers: Json
           gender_category: string
           id: string
@@ -428,12 +429,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          banner_url?: string | null
+          card_banner_url?: string | null
           contest_group_id?: string | null
           created_at?: string
           crews?: Json
           display_order_in_group?: number | null
           divisions?: Json
+          draft_banner_url?: string | null
           entry_tiers?: Json
           gender_category: string
           id?: string
@@ -446,12 +448,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          banner_url?: string | null
+          card_banner_url?: string | null
           contest_group_id?: string | null
           created_at?: string
           crews?: Json
           display_order_in_group?: number | null
           divisions?: Json
+          draft_banner_url?: string | null
           entry_tiers?: Json
           gender_category?: string
           id?: string
