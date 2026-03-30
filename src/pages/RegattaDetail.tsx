@@ -103,7 +103,7 @@ const RegattaDetail = () => {
     const fetchPoolData = async () => {
       const { data, error: fetchError } = await supabase
         .from("contest_pools")
-        .select(`*, payout_structure, contest_template_id, tier_id, allow_overflow, contest_templates (id, regatta_name, gender_category, min_picks, max_picks, banner_url), contest_pool_crews (id, crew_id, crew_name, event_id, logo_url)`)
+        .select(`*, payout_structure, contest_template_id, tier_id, allow_overflow, contest_templates (id, regatta_name, gender_category, min_picks, max_picks, card_banner_url, draft_banner_url), contest_pool_crews (id, crew_id, crew_name, event_id, logo_url)`)
         .eq("id", id)
         .single();
       if (fetchError || !data) { setError("Contest not found"); setLoading(false); return; }
