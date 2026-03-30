@@ -106,7 +106,7 @@ export const ContestBannerHeader = ({
         <img
           src={bannerUrl}
           alt={regattaName}
-          className="w-full h-full object-contain"
+          className="w-full h-full object-cover"
           onError={(e) => {
             e.currentTarget.style.display = "none";
             const fallback = e.currentTarget.nextElementSibling as HTMLElement;
