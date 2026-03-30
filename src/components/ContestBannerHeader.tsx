@@ -99,7 +99,7 @@ export const ContestBannerHeader = ({
       : { label: "Locked", cls: "bg-red-500/90" };
 
   return (
-    <div className="relative w-full bg-[#0c2340]">
+    <div className="relative w-full">
       <div className="relative h-48 md:h-56 lg:h-64 xl:h-72 overflow-hidden">
       {/* Background */}
       {bannerUrl ? (
