@@ -113,18 +113,6 @@ const Profile = () => {
     }
   };
 
-  const fetchContests = async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke('profile-contests', {
-        body: { page: contestPage, limit: 20 }
-      });
-      if (error) throw error;
-      setContests(data.contests || []);
-      setContestTotal(data.total || 0);
-    } catch (error: any) {
-      console.error('Error fetching contests:', error);
-    }
-  };
 
   const handleUsernameChange = async () => {
     if (!newUsername || !profileData) return;
