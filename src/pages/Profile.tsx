@@ -352,165 +352,91 @@ const Profile = () => {
 
             {/* Main Content */}
             <div className="lg:col-span-2">
-              <Tabs defaultValue="contests" className="w-full">
-                <TabsList className="w-full grid grid-cols-2 rounded-xl bg-muted p-1 h-auto">
-                  <TabsTrigger value="contests" className="rounded-lg py-2.5 font-semibold data-[state=active]:bg-card data-[state=active]:shadow-sm">
-                    Contest History
-                  </TabsTrigger>
-                  <TabsTrigger value="transactions" className="rounded-lg py-2.5 font-semibold data-[state=active]:bg-card data-[state=active]:shadow-sm">
-                    Transactions
-                  </TabsTrigger>
-                </TabsList>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-heading font-bold">Transactions</h2>
+                <Select value={txTypeFilter} onValueChange={setTxTypeFilter}>
+                  <SelectTrigger className="w-[180px] rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="deposit">Deposits</SelectItem>
+                    <SelectItem value="withdrawal">Withdrawals</SelectItem>
+                    <SelectItem value="payout">Winnings</SelectItem>
+                    <SelectItem value="entry_fee">Entry Fees</SelectItem>
+                    <SelectItem value="refund">Refunds</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-3">
+                {transactions.length === 0 ? (
+                  <Card className="rounded-xl">
+                    <CardContent className="py-12 text-center">
+                      <p className="text-muted-foreground">No transactions yet</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  transactions.map((tx) => {
+                    const getTxDisplay = (type: string) => {
+                      switch (type) {
+                        case 'deposit': return { icon: ArrowDownCircle, label: 'Deposit' };
+                        case 'withdrawal': return { icon: ArrowUpCircle, label: 'Withdrawal' };
+                        case 'payout': return { icon: Trophy, label: 'Winnings' };
+                        case 'entry_fee': return { icon: CreditCard, label: 'Entry Fee' };
+                        case 'entry_fee_hold': return { icon: CreditCard, label: 'Entry Fee Hold' };
+                        case 'entry_fee_release': return { icon: RefreshCw, label: 'Entry Refund' };
+                        case 'refund': return { icon: RefreshCw, label: 'Refund' };
+                        case 'bonus': return { icon: Gift, label: 'Bonus' };
+                        default: return { icon: ArrowUpDown, label: type.replace(/_/g, ' ') };
+                      }
+                    };
+                    const txDisplay = getTxDisplay(tx.type);
+                    const TxIcon = txDisplay.icon;
+                    const isPositive = tx.amount > 0;
 
-                <TabsContent value="contests" className="mt-6">
-                  <div className="space-y-3">
-                    {contests.length === 0 ? (
-                      <Card className="rounded-xl">
-                        <CardContent className="py-12 text-center">
-                          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                            <Trophy className="h-8 w-8 text-muted-foreground" />
+                    return (
+                      <Card key={tx.id} className={`rounded-xl overflow-hidden card-hover border-l-4 ${getTxAccentColor(tx.type)}`}>
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className={`p-2 rounded-xl ${isPositive ? 'bg-success/10' : 'bg-muted'}`}>
+                                <TxIcon className={`h-4 w-4 ${isPositive ? 'text-success' : 'text-muted-foreground'}`} />
+                              </div>
+                              <div>
+                                <p className="font-semibold capitalize">{txDisplay.label}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {new Date(tx.created_at).toLocaleDateString()} {new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className={`font-heading font-bold text-lg ${isPositive ? 'text-success' : ''}`}>
+                                {isPositive ? '+' : ''}${(tx.type === 'deposit' ? Math.abs(tx.amount) / 100 : Math.abs(tx.amount)).toFixed(2)}
+                              </p>
+                              <Badge 
+                                variant="outline"
+                                className={`text-xs mt-1 ${
+                                  tx.status === 'completed' ? 'bg-success/10 text-success border-success/30' :
+                                  tx.status === 'pending' ? 'bg-gold/10 text-gold border-gold/30' : ''
+                                }`}
+                              >
+                                {tx.status}
+                              </Badge>
+                            </div>
                           </div>
-                          <p className="text-muted-foreground">No contests yet</p>
                         </CardContent>
                       </Card>
-                    ) : (
-                      contests.map((contest) => (
-                        <Card key={contest.id} className="rounded-xl card-hover overflow-hidden">
-                          <div className={`border-l-4 ${
-                            contest.payoutCents && contest.payoutCents > 0 ? 'border-l-success' :
-                            contest.rank ? 'border-l-muted-foreground' : 'border-l-accent'
-                          }`}>
-                            <CardContent className="p-5">
-                              <div className="flex items-start justify-between mb-2">
-                                <div>
-                                  <p className="font-heading font-bold">{contest.regattaName}</p>
-                                  <p className="text-sm text-muted-foreground">{contest.genderCategory} • Entry: ${(contest.entryFeeCents / 100).toFixed(2)}</p>
-                                </div>
-                                <div className="text-right">
-                                  {contest.rank ? (
-                                    <Badge className={contest.rank === 1 ? "bg-gold text-gold-foreground" : ""} variant={contest.rank === 1 ? "default" : "secondary"}>
-                                      #{contest.rank}
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="outline">Pending</Badge>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex items-center justify-between text-sm mt-3">
-                                <span className="text-muted-foreground">
-                                  {new Date(contest.createdAt).toLocaleDateString()}
-                                </span>
-                                <div className="flex items-center gap-3">
-                                  {contest.payoutCents && contest.payoutCents > 0 && (
-                                    <span className="font-bold text-success">+${(contest.payoutCents / 100).toFixed(2)}</span>
-                                  )}
-                                  {contest.totalPoints !== null && (
-                                    <span className="text-muted-foreground">{contest.totalPoints} pts</span>
-                                  )}
-                                </div>
-                              </div>
-                            </CardContent>
-                          </div>
-                        </Card>
-                      ))
-                    )}
-                  </div>
-                  {contestTotal > 20 && (
-                    <div className="flex items-center justify-center gap-2 mt-6">
-                      <Button variant="outline" size="sm" onClick={() => setContestPage(p => Math.max(1, p - 1))} disabled={contestPage === 1}>Previous</Button>
-                      <span className="text-sm text-muted-foreground">Page {contestPage} of {Math.ceil(contestTotal / 20)}</span>
-                      <Button variant="outline" size="sm" onClick={() => setContestPage(p => p + 1)} disabled={contestPage >= Math.ceil(contestTotal / 20)}>Next</Button>
-                    </div>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="transactions" className="mt-6">
-                  <div className="mb-4">
-                    <Select value={txTypeFilter} onValueChange={setTxTypeFilter}>
-                      <SelectTrigger className="w-[180px] rounded-xl">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Types</SelectItem>
-                        <SelectItem value="deposit">Deposits</SelectItem>
-                        <SelectItem value="withdrawal">Withdrawals</SelectItem>
-                        <SelectItem value="payout">Winnings</SelectItem>
-                        <SelectItem value="entry_fee">Entry Fees</SelectItem>
-                        <SelectItem value="refund">Refunds</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-3">
-                    {transactions.length === 0 ? (
-                      <Card className="rounded-xl">
-                        <CardContent className="py-12 text-center">
-                          <p className="text-muted-foreground">No transactions yet</p>
-                        </CardContent>
-                      </Card>
-                    ) : (
-                      transactions.map((tx) => {
-                        const getTxDisplay = (type: string) => {
-                          switch (type) {
-                            case 'deposit': return { icon: ArrowDownCircle, label: 'Deposit' };
-                            case 'withdrawal': return { icon: ArrowUpCircle, label: 'Withdrawal' };
-                            case 'payout': return { icon: Trophy, label: 'Winnings' };
-                            case 'entry_fee': return { icon: CreditCard, label: 'Entry Fee' };
-                            case 'entry_fee_hold': return { icon: CreditCard, label: 'Entry Fee Hold' };
-                            case 'entry_fee_release': return { icon: RefreshCw, label: 'Entry Refund' };
-                            case 'refund': return { icon: RefreshCw, label: 'Refund' };
-                            case 'bonus': return { icon: Gift, label: 'Bonus' };
-                            default: return { icon: ArrowUpDown, label: type.replace(/_/g, ' ') };
-                          }
-                        };
-                        const txDisplay = getTxDisplay(tx.type);
-                        const TxIcon = txDisplay.icon;
-                        const isPositive = tx.amount > 0;
-
-                        return (
-                          <Card key={tx.id} className={`rounded-xl overflow-hidden card-hover border-l-4 ${getTxAccentColor(tx.type)}`}>
-                            <CardContent className="p-4">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  <div className={`p-2 rounded-xl ${isPositive ? 'bg-success/10' : 'bg-muted'}`}>
-                                    <TxIcon className={`h-4 w-4 ${isPositive ? 'text-success' : 'text-muted-foreground'}`} />
-                                  </div>
-                                  <div>
-                                    <p className="font-semibold capitalize">{txDisplay.label}</p>
-                                    <p className="text-xs text-muted-foreground">
-                                      {new Date(tx.created_at).toLocaleDateString()} {new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </p>
-                                  </div>
-                                </div>
-                                <div className="text-right">
-                                  <p className={`font-heading font-bold text-lg ${isPositive ? 'text-success' : ''}`}>
-                                    {isPositive ? '+' : ''}${(tx.type === 'deposit' ? Math.abs(tx.amount) / 100 : Math.abs(tx.amount)).toFixed(2)}
-                                  </p>
-                                  <Badge 
-                                    variant="outline"
-                                    className={`text-xs mt-1 ${
-                                      tx.status === 'completed' ? 'bg-success/10 text-success border-success/30' :
-                                      tx.status === 'pending' ? 'bg-gold/10 text-gold border-gold/30' : ''
-                                    }`}
-                                  >
-                                    {tx.status}
-                                  </Badge>
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        );
-                      })
-                    )}
-                  </div>
-                  {txTotal > 25 && (
-                    <div className="flex items-center justify-center gap-2 mt-6">
-                      <Button variant="outline" size="sm" onClick={() => setTxPage(p => Math.max(1, p - 1))} disabled={txPage === 1}>Previous</Button>
-                      <span className="text-sm text-muted-foreground">Page {txPage} of {Math.ceil(txTotal / 25)}</span>
-                      <Button variant="outline" size="sm" onClick={() => setTxPage(p => p + 1)} disabled={txPage >= Math.ceil(txTotal / 25)}>Next</Button>
-                    </div>
-                  )}
-                </TabsContent>
-              </Tabs>
+                    );
+                  })
+                )}
+              </div>
+              {txTotal > 25 && (
+                <div className="flex items-center justify-center gap-2 mt-6">
+                  <Button variant="outline" size="sm" onClick={() => setTxPage(p => Math.max(1, p - 1))} disabled={txPage === 1}>Previous</Button>
+                  <span className="text-sm text-muted-foreground">Page {txPage} of {Math.ceil(txTotal / 25)}</span>
+                  <Button variant="outline" size="sm" onClick={() => setTxPage(p => p + 1)} disabled={txPage >= Math.ceil(txTotal / 25)}>Next</Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
