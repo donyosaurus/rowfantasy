@@ -18,23 +18,22 @@ export function CrewLogo({ logoUrl, crewName, size = 48, className, ...rest }: C
   const [imgError, setImgError] = useState(false);
 
   const showImage = logoUrl && !imgError;
-  const containerSize = Math.round(size * 1.18);
 
   return (
     <div
       className={cn(
-        "rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 bg-white text-foreground font-heading font-bold select-none",
+        "rounded-full overflow-hidden flex-shrink-0",
+        !showImage && "bg-white text-foreground font-heading font-bold select-none flex items-center justify-center",
         className
       )}
-      style={{ width: containerSize, height: containerSize, fontSize: size * 0.35 }}
+      style={{ width: size, height: size, fontSize: size * 0.35 }}
       {...rest}
     >
       {showImage ? (
         <img
           src={logoUrl}
           alt={crewName}
-          style={{ width: size, height: size }}
-          className="object-contain"
+          className="w-full h-full object-cover"
           onError={() => setImgError(true)}
           loading="lazy"
         />
