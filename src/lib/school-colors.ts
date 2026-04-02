@@ -69,6 +69,16 @@ export const SCHOOL_COLORS: Record<string, string> = {
 const DEFAULT_COLOR = "#1a2332";
 
 /**
+ * Returns true if a hex color is perceptually light (white text would be hard to read).
+ */
+export function isLightColor(hex: string): boolean {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 > 160;
+}
+
+/**
  * Returns the brand color hex for a crew name.
  * Matches if the crew name starts with or contains a known school key.
  */
