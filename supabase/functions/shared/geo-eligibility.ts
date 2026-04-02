@@ -13,7 +13,7 @@ export const BLOCKED_STATES = [
   // Restricted states  
   'AL', 'AZ', 'AR', 'CO', 'CT', 'DE', 'IN', 'IA', 'LA', 'ME', 
   'MD', 'MI', 'MS', 'MO', 'NH', 'NJ', 'NY', 'OH', 'PA', 'TN', 
-  'VT', 'VA', 'WV'
+  'VT', 'VA'
 ] as const;
 
 export interface GeoEligibilityResult {
