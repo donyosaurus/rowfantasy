@@ -407,7 +407,7 @@ const ContestDetail = () => {
                         <span className="opacity-60 text-xs">· {crewsByEvent[eventId].length} crews</span>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {crewsByEvent[eventId].map((crew, idx) => (
                         <CrewCard
                           key={crew.id}

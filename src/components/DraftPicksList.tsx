@@ -1,5 +1,6 @@
 import { CrewLogo } from "@/components/CrewLogo";
 import { getCrewColor } from "@/lib/school-colors";
+import { isCountry } from "@/lib/country-detection";
 import { X } from "lucide-react";
 
 interface DraftPick {
@@ -27,21 +28,28 @@ export function DraftPicksList({ picks, events, maxPicks, onRemove }: DraftPicks
         Your Picks ({picks.length}/{maxPicks})
       </p>
       <div className="space-y-2">
-        {/* Filled picks */}
         {picks.map((pick) => {
           const color = getCrewColor(pick.crewName);
+          const country = isCountry(pick.crewName);
           return (
             <div
               key={pick.crewId}
-              className="w-full rounded-lg p-3 flex items-center gap-3 border-l-4"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg border-l-4"
               style={{
                 borderLeftColor: color,
                 backgroundColor: `${color}14`,
               }}
             >
-              <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={40} />
+              <div className="w-8 h-8 rounded-full overflow-hidden bg-white shadow-sm flex-shrink-0">
+                <CrewLogo
+                  logoUrl={pick.logoUrl}
+                  crewName={pick.crewName}
+                  size={32}
+                  className={`rounded-full ${country ? "object-cover" : "object-contain p-0.5"}`}
+                />
+              </div>
               <div className="flex-1 min-w-0">
-                <p className="font-bold text-sm text-foreground truncate">{pick.crewName}</p>
+                <p className="font-semibold text-sm text-foreground truncate">{pick.crewName}</p>
                 <p className="text-xs text-muted-foreground">{pick.eventId}</p>
               </div>
               <button
@@ -54,16 +62,15 @@ export function DraftPicksList({ picks, events, maxPicks, onRemove }: DraftPicks
           );
         })}
 
-        {/* Empty placeholder slots */}
         {events
           .filter((eventId) => !pickedEventIds.has(eventId))
           .slice(0, maxPicks - picks.length)
           .map((eventId) => (
             <div
               key={`empty-${eventId}`}
-              className="w-full rounded-lg p-3 border-2 border-dashed border-border text-sm text-muted-foreground flex items-center gap-2"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg border-2 border-dashed border-border text-sm text-muted-foreground"
             >
-              <div className="w-6 h-6 rounded-full border-2 border-dashed border-border flex-shrink-0" />
+              <div className="w-8 h-8 rounded-full border-2 border-dashed border-border flex-shrink-0" />
               <span>Select a crew for {eventId}</span>
             </div>
           ))}
