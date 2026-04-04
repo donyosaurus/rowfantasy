@@ -41,10 +41,7 @@ export function CrewLogo({ logoUrl, crewName, size = 48, className, ...rest }: C
         height: size,
         fontSize: size * 0.35,
         ...(!isFlag && showImage
-          ? {
-              border: '1.5px solid rgba(255, 255, 255, 0.35)',
-              backgroundColor: 'rgba(255, 255, 255, 0.06)',
-            }
+          ? {}
           : {}),
       }}
       {...rest}
