@@ -18,6 +18,7 @@ import { ContestGroupsManager } from "@/components/admin/ContestGroupsManager";
 import { LogoPicker } from "@/components/LogoPicker";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import { getCircleFlagUrl } from "@/data/countryFlags";
 
 interface CrewResult {
   crew_id: string;
