@@ -40,14 +40,11 @@ export function DraftPicksList({ picks, events, maxPicks, onRemove }: DraftPicks
                 backgroundColor: `${color}14`,
               }}
             >
-              <div className="w-8 h-8 rounded-full overflow-hidden bg-white shadow-sm flex-shrink-0">
-                <CrewLogo
-                  logoUrl={pick.logoUrl}
-                  crewName={pick.crewName}
-                  size={32}
-                  className={`rounded-full ${country ? "object-cover" : "object-contain p-0.5"}`}
-                />
-              </div>
+              <CrewLogo
+                logoUrl={pick.logoUrl}
+                crewName={pick.crewName}
+                size={32}
+              />
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-sm text-foreground truncate">{pick.crewName}</p>
                 <p className="text-xs text-muted-foreground">{pick.eventId}</p>

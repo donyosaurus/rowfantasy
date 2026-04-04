@@ -23,24 +23,51 @@ export function CrewLogo({ logoUrl, crewName, size = 48, className, ...rest }: C
   const resolvedUrl = flagUrl || logoUrl;
   const showImage = resolvedUrl && !imgError;
 
+  const isFlag = !!flagUrl;
+  const innerSize = Math.round(size * 0.75);
+
   return (
     <div
       className={cn(
         "rounded-full overflow-hidden flex-shrink-0",
+        isFlag
+          ? "shadow-md ring-2 ring-white/30"
+          : "flex items-center justify-center",
         !showImage && "bg-white text-foreground font-heading font-bold select-none flex items-center justify-center",
         className
       )}
-      style={{ width: size, height: size, fontSize: size * 0.35 }}
+      style={{
+        width: size,
+        height: size,
+        fontSize: size * 0.35,
+        ...(!isFlag && showImage
+          ? {
+              border: '1.5px solid rgba(255, 255, 255, 0.35)',
+              backgroundColor: 'rgba(255, 255, 255, 0.06)',
+            }
+          : {}),
+      }}
       {...rest}
     >
       {showImage ? (
-        <img
-          src={resolvedUrl}
-          alt={crewName}
-          className="w-full h-full object-cover"
-          onError={() => setImgError(true)}
-          loading="lazy"
-        />
+        isFlag ? (
+          <img
+            src={resolvedUrl}
+            alt={crewName}
+            className="w-full h-full object-cover"
+            onError={() => setImgError(true)}
+            loading="lazy"
+          />
+        ) : (
+          <img
+            src={resolvedUrl}
+            alt={crewName}
+            style={{ width: innerSize, height: innerSize }}
+            className="object-contain"
+            onError={() => setImgError(true)}
+            loading="lazy"
+          />
+        )
       ) : (
         <span>{getInitials(crewName)}</span>
       )}

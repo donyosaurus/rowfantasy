@@ -45,14 +45,11 @@ export function CrewCard({
       onClick={() => isOpen && onToggle(crewId)}
     >
       {/* Logo circle */}
-      <div className="w-12 h-12 rounded-full overflow-hidden bg-white shadow-md flex-shrink-0">
-        <CrewLogo
-          logoUrl={logoUrl}
-          crewName={crewName}
-          size={48}
-          className={`rounded-full ${country ? "object-cover" : "object-contain p-0.5"}`}
-        />
-      </div>
+      <CrewLogo
+        logoUrl={logoUrl}
+        crewName={crewName}
+        size={48}
+      />
 
       {/* Text */}
       <div className="flex-1 min-w-0">
