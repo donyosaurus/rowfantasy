@@ -19,6 +19,7 @@ import { LogoPicker } from "@/components/LogoPicker";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { getCircleFlagUrl } from "@/data/countryFlags";
+import { getCollegeLogoUrl } from "@/data/collegeLogos";
 
 interface CrewResult {
   crew_id: string;
