@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getCircleFlagUrl } from "@/data/countryFlags";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -196,11 +197,13 @@ const MyEntries = () => {
       if (typeof pick === 'object' && pick !== null && 'crewId' in pick) {
         const pickObj = pick as PickNew;
         const crewInfo = crewMap.get(`${entry.pool_id}-${pickObj.crewId}`);
-        return { crewName: crewInfo?.crew_name || pickObj.crewId, margin: pickObj.predictedMargin, logoUrl: crewInfo?.logo_url };
+        const name = crewInfo?.crew_name || pickObj.crewId;
+        return { crewName: name, margin: pickObj.predictedMargin, logoUrl: getCircleFlagUrl(name) || crewInfo?.logo_url };
       }
       if (typeof pick === 'string') {
         const crewInfo = crewMap.get(`${entry.pool_id}-${pick}`);
-        return { crewName: crewInfo?.crew_name || pick, margin: null, logoUrl: crewInfo?.logo_url };
+        const name = crewInfo?.crew_name || pick;
+        return { crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || crewInfo?.logo_url };
       }
       return { crewName: 'Unknown', margin: null, logoUrl: null };
     });

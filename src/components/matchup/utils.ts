@@ -1,4 +1,5 @@
 import { formatCents } from "@/lib/formatCurrency";
+import { getCircleFlagUrl } from "@/data/countryFlags";
 import type { CrewInfo, ParsedPick, EntrantRow } from "./types";
 
 export function parsePicks(picks: unknown, crewMap: Map<string, CrewInfo>): ParsedPick[] {
@@ -21,11 +22,13 @@ export function parsePicks(picks: unknown, crewMap: Map<string, CrewInfo>): Pars
     if (typeof pick === "object" && pick !== null && "crewId" in pick) {
       const p = pick as { crewId: string; predictedMargin: number };
       const crew = crewMap.get(p.crewId);
-      return { crewName: crew?.crew_name || p.crewId, crewId: p.crewId, margin: p.predictedMargin, eventId: crew?.event_id || "", logoUrl: crew?.logo_url };
+      const name = crew?.crew_name || p.crewId;
+      return { crewName: name, crewId: p.crewId, margin: p.predictedMargin, eventId: crew?.event_id || "", logoUrl: getCircleFlagUrl(name) || crew?.logo_url };
     }
     if (typeof pick === "string") {
       const crew = crewMap.get(pick);
-      return { crewName: crew?.crew_name || pick, crewId: pick, margin: null, eventId: crew?.event_id || "", logoUrl: crew?.logo_url };
+      const name = crew?.crew_name || pick;
+      return { crewName: name, crewId: pick, margin: null, eventId: crew?.event_id || "", logoUrl: getCircleFlagUrl(name) || crew?.logo_url };
     }
     return { crewName: "Unknown", crewId: "", margin: null, eventId: "", logoUrl: null };
   });

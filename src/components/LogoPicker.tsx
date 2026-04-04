@@ -74,7 +74,7 @@ function collegeLogoUrl(id: number) {
 }
 
 function flagUrl(code: string) {
-  return `https://flagcdn.com/w80/${code}.png`;
+  return `https://hatscripts.github.io/circle-flags/flags/${code}.svg`;
 }
 
 export function LogoPicker({ logoUrl, crewName, onSelect }: LogoPickerProps) {

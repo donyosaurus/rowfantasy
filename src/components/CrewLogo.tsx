@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { getCircleFlagUrl } from "@/data/countryFlags";
 
 interface CrewLogoProps {
   logoUrl?: string | null;
@@ -17,7 +18,10 @@ function getInitials(name: string): string {
 export function CrewLogo({ logoUrl, crewName, size = 48, className, ...rest }: CrewLogoProps & React.HTMLAttributes<HTMLDivElement>) {
   const [imgError, setImgError] = useState(false);
 
-  const showImage = logoUrl && !imgError;
+  // Prefer circle-flag SVG for countries, fall back to provided logoUrl
+  const flagUrl = getCircleFlagUrl(crewName);
+  const resolvedUrl = flagUrl || logoUrl;
+  const showImage = resolvedUrl && !imgError;
 
   return (
     <div
@@ -31,7 +35,7 @@ export function CrewLogo({ logoUrl, crewName, size = 48, className, ...rest }: C
     >
       {showImage ? (
         <img
-          src={logoUrl}
+          src={resolvedUrl}
           alt={crewName}
           className="w-full h-full object-cover"
           onError={() => setImgError(true)}
