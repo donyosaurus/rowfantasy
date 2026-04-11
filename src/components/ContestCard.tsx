@@ -1,6 +1,7 @@
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { formatCents } from "@/lib/formatCurrency";
 import { Trophy } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 type GenderCategory = "Men's" | "Women's";
 
