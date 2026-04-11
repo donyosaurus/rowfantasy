@@ -310,6 +310,6 @@ export const ContestCard = ({
           </div>
         </div>
       </div>
-    </Link>
+    </div>
   );
 };
