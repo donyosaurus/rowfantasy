@@ -95,10 +95,6 @@ const RegattaDetail = () => {
   const [selectedTier, setSelectedTier] = useState<EntryTier | null>(null);
 
   useEffect(() => {
-    if (!authLoading && !user) navigate("/login");
-  }, [user, authLoading, navigate]);
-
-  useEffect(() => {
     if (!id) { setError("No contest ID provided"); setLoading(false); return; }
     const fetchPoolData = async () => {
       const { data, error: fetchError } = await supabase
@@ -272,7 +268,11 @@ const RegattaDetail = () => {
   }, [crewPicks, contestPool]);
 
   const handleSubmitEntry = async () => {
-    if (!id || !user || !contestPool) return;
+    if (!user) {
+      navigate("/login", { state: { from: `/regatta/${id}` } });
+      return;
+    }
+    if (!id || !contestPool) return;
     if (crewPicks.size < minPicks) { toast.error(`Please select at least ${minPicks} crews`); return; }
     for (const [crewId, margin] of crewPicks) {
       if (margin <= 0) {
@@ -334,7 +334,7 @@ const RegattaDetail = () => {
     }
   };
 
-  if (authLoading || loading) {
+  if (loading) {
     return (
       <div className="flex flex-col min-h-screen bg-background">
         <Header />
@@ -459,27 +459,39 @@ const RegattaDetail = () => {
                     onRemove={toggleCrewSelection}
                   />
 
-                  <div className="mt-4">
-                    <Button
-                      variant="hero"
-                      className="w-full rounded-xl font-semibold"
-                      disabled={!isContestOpen || crewPicks.size < minPicks || !allMarginsValid || (hasTiers && !selectedTier) || submitting}
-                      onClick={handleSubmitEntry}
-                    >
-                      {submitting ? (
-                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Entering...</>
-                      ) : hasTiers && !selectedTier ? (
-                        "Select a Tier"
-                      ) : (
-                        `Enter Contest — ${formatCents(activeEntryFee)}`
-                      )}
-                    </Button>
+                   <div className="mt-4">
+                    {!user ? (
+                      <Button
+                        variant="hero"
+                        className="w-full rounded-xl font-semibold"
+                        onClick={() => navigate("/login", { state: { from: `/regatta/${id}` } })}
+                      >
+                        Log In to Enter
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          variant="hero"
+                          className="w-full rounded-xl font-semibold"
+                          disabled={!isContestOpen || crewPicks.size < minPicks || !allMarginsValid || (hasTiers && !selectedTier) || submitting}
+                          onClick={handleSubmitEntry}
+                        >
+                          {submitting ? (
+                            <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Entering...</>
+                          ) : hasTiers && !selectedTier ? (
+                            "Select a Tier"
+                          ) : (
+                            `Enter Contest — ${formatCents(activeEntryFee)}`
+                          )}
+                        </Button>
 
-                    {walletBalanceCents !== null && (
-                      <div className={`flex items-center gap-1.5 mt-3 text-xs ${walletBalanceCents < activeEntryFee ? "text-destructive" : "text-muted-foreground"}`}>
-                        <Wallet className="h-3.5 w-3.5" />
-                        Balance: {formatCents(walletBalanceCents)}
-                      </div>
+                        {walletBalanceCents !== null && (
+                          <div className={`flex items-center gap-1.5 mt-3 text-xs ${walletBalanceCents < activeEntryFee ? "text-destructive" : "text-muted-foreground"}`}>
+                            <Wallet className="h-3.5 w-3.5" />
+                            Balance: {formatCents(walletBalanceCents)}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </CardContent>
@@ -593,20 +605,30 @@ const RegattaDetail = () => {
           )}
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium">{crewPicks.size} pick{crewPicks.size !== 1 ? "s" : ""} selected</span>
-            {walletBalanceCents !== null && (
+            {user && walletBalanceCents !== null && (
               <span className={`text-xs ${walletBalanceCents < activeEntryFee ? "text-destructive" : "text-muted-foreground"}`}>
                 Balance: {formatCents(walletBalanceCents)}
               </span>
             )}
           </div>
-          <Button
-            variant="hero"
-            className="w-full rounded-xl font-semibold"
-            disabled={!isContestOpen || crewPicks.size < minPicks || !allMarginsValid || (hasTiers && !selectedTier) || submitting}
-            onClick={handleSubmitEntry}
-          >
-            {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Entering...</> : hasTiers && !selectedTier ? "Select a Tier" : `Enter Contest — ${formatCents(activeEntryFee)}`}
-          </Button>
+          {!user ? (
+            <Button
+              variant="hero"
+              className="w-full rounded-xl font-semibold"
+              onClick={() => navigate("/login", { state: { from: `/regatta/${id}` } })}
+            >
+              Log In to Enter
+            </Button>
+          ) : (
+            <Button
+              variant="hero"
+              className="w-full rounded-xl font-semibold"
+              disabled={!isContestOpen || crewPicks.size < minPicks || !allMarginsValid || (hasTiers && !selectedTier) || submitting}
+              onClick={handleSubmitEntry}
+            >
+              {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Entering...</> : hasTiers && !selectedTier ? "Select a Tier" : `Enter Contest — ${formatCents(activeEntryFee)}`}
+            </Button>
+          )}
         </div>
       )}
 
