@@ -166,8 +166,19 @@ export const ContestCard = ({
         .join("  ·  ")
     : "";
 
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const handleClick = () => {
+    if (user) {
+      navigate(`/regatta/${id}`);
+    } else {
+      navigate("/login", { state: { from: `/regatta/${id}` } });
+    }
+  };
+
   return (
-    <Link to={`/regatta/${id}`} className="block group h-full">
+    <div onClick={handleClick} className="block group h-full cursor-pointer">
       <div className="rounded-xl overflow-hidden bg-white shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-slate-200/80 flex flex-col h-full">
         {/* Banner Area */}
         <div className="relative h-40 overflow-hidden">
