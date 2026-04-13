@@ -71,6 +71,29 @@ Deno.serve(async (req) => {
       throw updateError;
     }
 
+    // Restore funds from pending back to available
+    const amountCents = Math.abs(Math.round(transaction.amount * 100));
+    const serviceClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    );
+    const { error: walletError } = await serviceClient.rpc('update_wallet_balance', {
+      _wallet_id: transaction.wallet_id,
+      _available_delta: amountCents,
+      _pending_delta: -amountCents,
+    });
+
+    if (walletError) {
+      console.error('[wallet-withdraw-cancel] Failed to restore balance:', walletError);
+      await supabase.from('compliance_audit_logs').insert({
+        user_id: user.id,
+        event_type: 'withdrawal_cancel_balance_error',
+        description: 'Withdrawal cancelled but balance restoration failed — requires manual review',
+        severity: 'critical',
+        metadata: { transaction_id: request_id, amount_cents: amountCents, error: walletError.message },
+      });
+    }
+
     await supabase
       .from('compliance_audit_logs')
       .insert({
