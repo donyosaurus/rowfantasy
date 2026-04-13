@@ -1577,6 +1577,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_pool_entries: {
+        Args: { p_pool_id: string }
+        Returns: undefined
+      }
       initiate_withdrawal_atomic: {
         Args: {
           _amount_cents: number
