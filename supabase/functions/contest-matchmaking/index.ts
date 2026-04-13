@@ -102,6 +102,13 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Allow': 'POST, OPTIONS' },
+    });
+  }
+
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -470,11 +477,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Update pool entry count
-    await supabaseAdmin
-      .from("contest_pools")
-      .update({ current_entries: targetPool.current_entries + 1 })
-      .eq("id", targetPoolId);
+    // Update pool entry count atomically
+    await supabaseAdmin.rpc('increment_pool_entries', { p_pool_id: targetPoolId });
 
     // Compliance log
     await supabaseAdmin.from("compliance_audit_logs").insert({

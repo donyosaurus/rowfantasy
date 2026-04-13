@@ -3,27 +3,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { getPaymentProvider } from '../shared/payment-providers/factory.ts';
 import { isTimestampValid } from '../shared/crypto-utils.ts';
+import { checkRateLimit } from '../shared/auth-helpers.ts';
 import { getCorsHeaders } from '../shared/cors.ts';
-
-// SECURITY: Rate limiting per IP
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const limit = rateLimitMap.get(ip);
-  
-  if (!limit || now > limit.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + 60000 }); // 1 minute window
-    return true;
-  }
-  
-  if (limit.count >= 100) { // Max 100 requests per minute per IP
-    return false;
-  }
-  
-  limit.count++;
-  return true;
-}
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -32,10 +13,22 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Allow': 'POST, OPTIONS' },
+    });
+  }
+
   const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown';
 
-  // SECURITY: Rate limit check
-  if (!checkRateLimit(clientIp)) {
+  // SECURITY: Database-backed rate limit check
+  const supabaseForRateLimit = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  );
+  const rateLimitOk = await checkRateLimit(supabaseForRateLimit, clientIp, 'payments-webhook', 100, 1);
+  if (!rateLimitOk) {
     console.warn('[webhook] Rate limit exceeded:', clientIp);
     return new Response(JSON.stringify({ error: 'invalid' }), { status: 429, headers: corsHeaders });
   }
@@ -139,7 +132,7 @@ Deno.serve(async (req) => {
           .single();
           
         if (wallet) {
-          // Create deposit transaction
+          // Create deposit transaction (transactions table stores dollars)
           await supabase.from('transactions').insert({ 
             user_id: session.user_id, 
             wallet_id: wallet.id, 
@@ -153,7 +146,7 @@ Deno.serve(async (req) => {
             metadata: { provider: providerType, webhook_id: webhookId }
           });
           
-          // Update wallet balance atomically
+          // Update wallet balance atomically (update_wallet_balance expects cents)
           await supabase.rpc('update_wallet_balance', { 
             _wallet_id: wallet.id, 
             _available_delta: session.amount_cents, 
