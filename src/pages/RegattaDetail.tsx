@@ -311,15 +311,20 @@ const RegattaDetail = () => {
         },
       });
       if (error) throw error;
-      if (data?.wasOverflow) {
-        toast.info("Original pool was full — you've been placed in a new pool!", { duration: 5000 });
-      } else if (data?.entryId) {
+      if (data?.entryId) {
         toast.success("Entry submitted! You're in the contest.");
       } else {
         toast.error(data?.error || "Failed to submit entry.");
         return;
       }
-      navigate("/my-entries");
+      // Refresh wallet balance after successful entry
+      const { data: walletData } = await supabase
+        .from("wallets")
+        .select("available_balance")
+        .eq("user_id", user.id)
+        .single();
+      if (walletData) setWalletBalanceCents(Number(walletData.available_balance));
+      setTimeout(() => navigate("/my-entries"), 1500);
     } catch (err: any) {
       let errorMessage = "Failed to enter contest";
       if (err.context?.json) {
