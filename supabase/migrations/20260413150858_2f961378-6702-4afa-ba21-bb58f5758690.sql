@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.increment_pool_entries(uuid) TO service_role;

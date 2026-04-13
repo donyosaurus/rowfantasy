@@ -8,6 +8,13 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Allow': 'GET, POST, OPTIONS' },
+    });
+  }
+
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -30,9 +37,10 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const poolId = url.pathname.split('/').pop();
 
-    if (!poolId) {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!poolId || !uuidRegex.test(poolId)) {
       return new Response(
-        JSON.stringify({ error: 'Pool ID required' }),
+        JSON.stringify({ error: 'Invalid pool ID format' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
