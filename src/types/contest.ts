@@ -128,12 +128,12 @@ export interface ContestEntry {
 // Finish position scoring
 export const FINISH_POINTS: Record<number, number> = {
   1: 100,
-  2: 80,
-  3: 65,
-  4: 50,
-  5: 35,
-  6: 20,
-  7: 10, // 7th or worse
+  2: 75,
+  3: 60,
+  4: 45,
+  5: 30,
+  6: 15,
+  7: 10,
 };
 
 export function getFinishPoints(position: number): number {
