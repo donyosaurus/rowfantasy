@@ -40,6 +40,7 @@ const App = () => (
             <Route path="/lobby" element={<Lobby />} />
             <Route path="/contests" element={<Lobby />} />
             <Route path="/regatta/:id" element={<RegattaDetail />} />
+            <Route path="/contest/:id" element={<ContestDetail />} />
             <Route path="/contest/:id/:tierId" element={<ContestDetail />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/my-entries" element={<MyEntries />} />

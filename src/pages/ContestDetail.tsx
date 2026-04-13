@@ -61,7 +61,7 @@ interface ContestPool {
 }
 
 const FINISH_POINTS: Record<number, number> = {
-  1: 100, 2: 75, 3: 60, 4: 45, 5: 35, 6: 25, 7: 15,
+  1: 100, 2: 75, 3: 60, 4: 45, 5: 30, 6: 15, 7: 10,
 };
 const DEFAULT_POINTS = 10;
 

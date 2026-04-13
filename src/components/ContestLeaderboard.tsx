@@ -146,8 +146,8 @@ export const ContestLeaderboard = ({ instanceId, autoRefresh = false }: ContestL
                     <div className="text-sm text-muted-foreground">
                       {entry.total_points} points
                       {entry.margin_bonus > 0 && (
-                        <span className="ml-2 text-xs">
-                          (+{entry.margin_bonus.toFixed(1)} margin bonus)
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          (margin error: {entry.margin_bonus.toFixed(1)}s)
                         </span>
                       )}
                     </div>
