@@ -43,7 +43,6 @@ Deno.serve(async (req) => {
     });
 
     const body = withdrawSchema.parse(await req.json());
-    const amountDollars = body.amount_cents / 100;
 
     // Use service client for atomic operations
     const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
@@ -62,8 +61,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check per-transaction limit ($200)
-    if (amountDollars > 200) {
+    // Check per-transaction limit ($200 = 20000 cents)
+    if (body.amount_cents > 20000) {
       return new Response(
         JSON.stringify({ error: 'Per-transaction withdrawal limit is $200' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -71,7 +70,7 @@ Deno.serve(async (req) => {
     }
 
     // Check available balance
-    if (Number(wallet.available_balance) < amountDollars) {
+    if (Number(wallet.available_balance) < body.amount_cents) {
       return new Response(
         JSON.stringify({ error: ERROR_MESSAGES.INSUFFICIENT_FUNDS }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -128,7 +127,7 @@ Deno.serve(async (req) => {
 
     const todayTotal = (todayWithdrawals || []).reduce((sum: number, tx: any) => sum + Math.abs(Number(tx.amount)), 0);
 
-    if (todayTotal + amountDollars > 500) {
+    if ((todayTotal * 100) + body.amount_cents > 50000) {
       return new Response(
         JSON.stringify({ error: ERROR_MESSAGES.DAILY_LIMIT }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -159,7 +158,7 @@ Deno.serve(async (req) => {
         user_id: userId,
         wallet_id: wallet.id,
         type: 'withdrawal',
-        amount: -amountDollars,
+        amount: -(body.amount_cents / 100),
         status: 'pending',
         description: 'Withdrawal request',
       })
@@ -168,11 +167,11 @@ Deno.serve(async (req) => {
 
     if (txError) throw txError;
 
-    // Move funds to pending
+    // Move funds to pending (update_wallet_balance expects cents)
     await supabaseAdmin.rpc('update_wallet_balance', {
       _wallet_id: wallet.id,
-      _available_delta: -amountDollars,
-      _pending_delta: amountDollars,
+      _available_delta: -body.amount_cents,
+      _pending_delta: body.amount_cents,
     });
 
     // Log compliance event
@@ -184,14 +183,15 @@ Deno.serve(async (req) => {
       metadata: {
         amount_cents: body.amount_cents,
         transaction_id: transaction.id,
-        today_total: todayTotal + amountDollars,
+        today_total_cents: body.amount_cents,
       },
     });
 
     return new Response(
       JSON.stringify({
         requestId: transaction.id,
-        amount: amountDollars,
+        amount: body.amount_cents / 100,
+        amountCents: body.amount_cents,
         status: 'pending',
         message: 'Withdrawal request submitted successfully',
       }),

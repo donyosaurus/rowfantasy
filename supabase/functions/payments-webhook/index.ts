@@ -156,9 +156,9 @@ Deno.serve(async (req) => {
           // Update wallet balance atomically
           await supabase.rpc('update_wallet_balance', { 
             _wallet_id: wallet.id, 
-            _available_delta: session.amount_cents / 100, 
+            _available_delta: session.amount_cents, 
             _pending_delta: 0,
-            _lifetime_deposits_delta: session.amount_cents / 100 
+            _lifetime_deposits_delta: session.amount_cents 
           });
 
           // Log to compliance
