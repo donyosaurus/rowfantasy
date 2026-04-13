@@ -31,10 +31,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    const url = new URL(req.url);
-    const page = parseInt(url.searchParams.get('page') || '1');
-    const limit = parseInt(url.searchParams.get('limit') || '25');
-    const type = url.searchParams.get('type');
+    let page = 1;
+    let limit = 25;
+    let type: string | null = null;
+    try {
+      const body = await req.json();
+      page = body.page || 1;
+      limit = body.limit || 25;
+      type = body.type || null;
+    } catch {
+      // If no body, use defaults
+    }
     const offset = (page - 1) * limit;
 
     let query = supabase
