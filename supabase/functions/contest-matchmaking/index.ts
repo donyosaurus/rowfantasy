@@ -4,6 +4,97 @@ import { authenticateUser, checkRateLimit } from "../shared/auth-helpers.ts";
 import { mapErrorToClient, logSecureError } from "../shared/error-handler.ts";
 import { getCorsHeaders } from '../shared/cors.ts';
 
+// ---------------------------------------------------------------------------
+// H2H Self-Match Prevention Helper
+// ---------------------------------------------------------------------------
+async function resolveH2HSelfMatch(
+  supabaseAdmin: any,
+  targetPoolId: string,
+  targetPool: any,
+  userId: string,
+  tierName: string | null,
+  corsHeaders: Record<string, string>,
+): Promise<{ targetPoolId: string; targetPool: any; error?: Response }> {
+  // Only applies to H2H (max 2) with overflow
+  if (targetPool.max_entries !== 2 || !targetPool.allow_overflow) {
+    return { targetPoolId, targetPool };
+  }
+
+  // Check if user already has an active entry in this pool
+  const { data: existingEntry } = await supabaseAdmin
+    .from("contest_entries")
+    .select("id")
+    .eq("pool_id", targetPoolId)
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .limit(1)
+    .single();
+
+  if (!existingEntry) {
+    return { targetPoolId, targetPool };
+  }
+
+  // User is already in this pool — find another open pool they are NOT in
+  let siblingQuery = supabaseAdmin
+    .from("contest_pools")
+    .select("id, current_entries, max_entries")
+    .eq("contest_template_id", targetPool.contest_template_id)
+    .eq("tier_id", targetPool.tier_id)
+    .eq("status", "open")
+    .lt("current_entries", 2)
+    .order("created_at", { ascending: true });
+
+  if (tierName) {
+    siblingQuery = siblingQuery.eq("tier_name", tierName);
+  }
+
+  const { data: siblingPools } = await siblingQuery;
+
+  for (const sp of (siblingPools || [])) {
+    const { data: userInSibling } = await supabaseAdmin
+      .from("contest_entries")
+      .select("id")
+      .eq("pool_id", sp.id)
+      .eq("user_id", userId)
+      .eq("status", "active")
+      .limit(1)
+      .single();
+
+    if (!userInSibling) {
+      const { data: freshPool } = await supabaseAdmin
+        .from("contest_pools")
+        .select("*")
+        .eq("id", sp.id)
+        .single();
+      console.log("[matchmaking] H2H self-match prevention: redirected to pool:", sp.id);
+      return { targetPoolId: sp.id, targetPool: freshPool };
+    }
+  }
+
+  // All sibling pools contain this user — clone a fresh one
+  const { data: newPoolId, error: cloneError } = await supabaseAdmin.rpc("clone_contest_pool", {
+    p_original_pool_id: targetPoolId,
+  });
+  if (cloneError || !newPoolId) {
+    console.error("[matchmaking] H2H clone error:", cloneError);
+    return {
+      targetPoolId,
+      targetPool,
+      error: new Response(JSON.stringify({ error: "Unable to allocate contest pool." }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }),
+    };
+  }
+  const { data: newPool } = await supabaseAdmin
+    .from("contest_pools")
+    .select("*")
+    .eq("id", newPoolId)
+    .single();
+  console.log("[matchmaking] H2H self-match prevention: cloned new pool:", newPoolId);
+  return { targetPoolId: newPoolId, targetPool: newPool };
+}
+
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
@@ -52,13 +143,11 @@ Deno.serve(async (req) => {
       tierName: z.string().max(100).optional().nullable(),
     });
 
-
     const body = entrySchema.parse(await req.json());
 
     const eventIdList = body.picks.map((p) => p.event_id);
     const uniqueEvents = new Set(eventIdList);
 
-    // Duplicate event check - only one crew per event
     if (uniqueEvents.size !== eventIdList.length) {
       return new Response(JSON.stringify({ error: "You can only select one crew per event." }), {
         status: 400,
@@ -110,41 +199,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check for duplicate entry — for tiered contests, check per tier_name
-    // For non-tiered, check per template
-    if (body.tierName) {
-      // Tiered: allow one entry per tier
-      const { data: existingEntry } = await auth.supabase
-        .from("contest_entries")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("contest_template_id", body.contestTemplateId)
-        .eq("tier_name", body.tierName)
-        .eq("status", "active")
-        .maybeSingle();
-
-      if (existingEntry) {
-        return new Response(JSON.stringify({ error: `You have already entered the ${body.tierName} tier.` }), {
-          status: 409,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-    } else {
-      const { data: existingEntry } = await auth.supabase
-        .from("contest_entries")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("contest_template_id", body.contestTemplateId)
-        .eq("status", "active")
-        .maybeSingle();
-
-      if (existingEntry) {
-        return new Response(JSON.stringify({ error: "You have already entered this contest." }), {
-          status: 409,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-    }
+    // --- Duplicate entry check REMOVED: multi-entry is now allowed ---
 
     // -----------------------------------------------------------------------
     // WALLET: check and deduct entry fee BEFORE creating entry
@@ -177,15 +232,13 @@ Deno.serve(async (req) => {
     }
 
     // -----------------------------------------------------------------------
-    // POOL: find the correct pool for this tier (by tier_name or fallback to tierId)
-    // For tiered contests, find pool matching template + tier_name
-    // For non-tiered, find pool matching the provided tierId (pool id)
+    // POOL SELECTION
     // -----------------------------------------------------------------------
     let targetPoolId: string;
     let targetPool: any;
 
     if (body.tierName) {
-      // Tiered contest: find an open pool matching template + tier_name
+      // ---- TIERED CONTEST ----
       const { data: tierPools } = await supabaseAdmin
         .from("contest_pools")
         .select("*")
@@ -201,7 +254,6 @@ Deno.serve(async (req) => {
         targetPool = available;
         console.log("[matchmaking] Found tier pool:", targetPoolId, "tier:", body.tierName);
       } else {
-        // All pools for this tier are full — try overflow
         const { data: anyTierPool } = await supabaseAdmin
           .from("contest_pools")
           .select("*")
@@ -225,7 +277,6 @@ Deno.serve(async (req) => {
           });
         }
 
-        // Clone the tier pool for overflow
         const { data: newPoolId, error: cloneError } = await supabaseAdmin.rpc("clone_contest_pool", {
           p_original_pool_id: anyTierPool.id,
         });
@@ -243,8 +294,17 @@ Deno.serve(async (req) => {
         targetPool = newPool;
         console.log("[matchmaking] Cloned overflow tier pool:", newPoolId, "tier:", body.tierName);
       }
+
+      // H2H self-match prevention for tiered contests
+      const h2hResult = await resolveH2HSelfMatch(
+        supabaseAdmin, targetPoolId, targetPool, userId, body.tierName, corsHeaders
+      );
+      if (h2hResult.error) return h2hResult.error;
+      targetPoolId = h2hResult.targetPoolId;
+      targetPool = h2hResult.targetPool;
+
     } else {
-      // Non-tiered: use the provided tierId as pool id (existing behavior)
+      // ---- NON-TIERED CONTEST ----
       const contestPoolId = body.tierId;
 
       const { data: contestPool, error: poolError } = await supabaseAdmin
@@ -273,16 +333,35 @@ Deno.serve(async (req) => {
           .eq("status", "open")
           .order("created_at", { ascending: true });
 
-        const available = (overflowPools || []).find(
-          (p: any) => p.id !== contestPoolId && p.current_entries < p.max_entries,
-        );
+        // H2H-aware overflow search
+        let available: any = null;
+        if (contestPool.max_entries === 2) {
+          for (const p of (overflowPools || [])) {
+            if (p.id === contestPoolId || p.current_entries >= p.max_entries) continue;
+            const { data: userInPool } = await supabaseAdmin
+              .from("contest_entries")
+              .select("id")
+              .eq("pool_id", p.id)
+              .eq("user_id", userId)
+              .eq("status", "active")
+              .limit(1)
+              .single();
+            if (!userInPool) {
+              available = p;
+              break;
+            }
+          }
+        } else {
+          available = (overflowPools || []).find(
+            (p: any) => p.id !== contestPoolId && p.current_entries < p.max_entries,
+          );
+        }
 
         if (available) {
           targetPoolId = available.id;
           targetPool = available;
           console.log("[matchmaking] Using overflow pool:", targetPoolId);
         } else {
-          // Clone the original pool for a new overflow slot
           const { data: newPoolId, error: cloneError } = await supabaseAdmin.rpc("clone_contest_pool", {
             p_original_pool_id: contestPoolId,
           });
@@ -296,20 +375,27 @@ Deno.serve(async (req) => {
           }
 
           const { data: newPool } = await supabaseAdmin.from("contest_pools").select("*").eq("id", newPoolId).single();
-
           targetPoolId = newPoolId;
           targetPool = newPool;
           console.log("[matchmaking] Cloned new overflow pool:", newPoolId);
         }
       }
+
+      // H2H self-match prevention for non-tiered contests
+      const h2hResult = await resolveH2HSelfMatch(
+        supabaseAdmin, targetPoolId, targetPool, userId, null, corsHeaders
+      );
+      if (h2hResult.error) return h2hResult.error;
+      targetPoolId = h2hResult.targetPoolId;
+      targetPool = h2hResult.targetPool;
     }
 
     // -----------------------------------------------------------------------
-    // DEDUCT wallet BEFORE creating entry (atomic-ish — if entry fails, refund below)
+    // DEDUCT wallet BEFORE creating entry
     // -----------------------------------------------------------------------
     const { error: deductError } = await supabaseAdmin.rpc("update_wallet_balance", {
       _wallet_id: wallet.id,
-      _available_delta: -body.entryFeeCents, // negative = deduct (cents)
+      _available_delta: -body.entryFeeCents,
       _pending_delta: 0,
       _lifetime_winnings_delta: 0,
     });
@@ -322,7 +408,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Record the fee transaction in transactions table
+    // Record the fee transaction
     const { error: txnError } = await supabaseAdmin.from("transactions").insert({
       user_id: userId,
       wallet_id: wallet.id,
@@ -339,7 +425,7 @@ Deno.serve(async (req) => {
       console.error("[matchmaking] Transaction insert failed:", txnError.message);
     }
 
-    // Record in ledger_entries for double-entry bookkeeping
+    // Record in ledger_entries
     const { error: ledgerError } = await supabaseAdmin.from("ledger_entries").insert({
       user_id: userId,
       amount: -entryFeeCents,
@@ -353,7 +439,7 @@ Deno.serve(async (req) => {
     }
 
     // -----------------------------------------------------------------------
-    // CREATE ENTRY — pool_id now correctly points to contest_pools.id
+    // CREATE ENTRY
     // -----------------------------------------------------------------------
     const { data: entry, error: entryError } = await supabaseAdmin
       .from("contest_entries")
@@ -371,11 +457,10 @@ Deno.serve(async (req) => {
       .single();
 
     if (entryError) {
-      // Refund wallet if entry creation failed
       console.error("[matchmaking] Entry insert failed:", entryError.message, "— refunding wallet");
       await supabaseAdmin.rpc("update_wallet_balance", {
         _wallet_id: wallet.id,
-        _available_delta: body.entryFeeCents, // refund
+        _available_delta: body.entryFeeCents,
         _pending_delta: 0,
         _lifetime_winnings_delta: 0,
       });
