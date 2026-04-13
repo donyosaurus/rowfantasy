@@ -232,9 +232,8 @@ async function processSinglePool(
   if (isH2H && allScores.length === 2) {
     const a = allScores[0];
     const b = allScores[1];
-    const marginA = a.margin_bonus ?? 0;
-    const marginB = b.margin_bonus ?? 0;
-    const isTie = a.total_points === b.total_points && Math.abs(marginA - marginB) < 0.01;
+    // Trust the ranks assigned by the scoring engine — a true tie means both scored rank 1
+    const isTie = a.rank === b.rank && a.rank === 1;
 
     if (isTie) {
       console.log('[settle] H2H tie detected — refunding entry fees');
