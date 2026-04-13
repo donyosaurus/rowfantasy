@@ -236,7 +236,6 @@ Deno.serve(async (req) => {
 
     // Log to compliance
     await supabaseAdmin.from('compliance_audit_logs').insert({
-      user_id: user.id,
       admin_id: user.id,
       event_type: 'race_results_imported',
       severity: 'info',
