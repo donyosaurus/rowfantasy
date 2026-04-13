@@ -6,7 +6,7 @@ import { getCorsHeaders } from '../shared/cors.ts';
 const ResultItemSchema = z.object({
   crew_id: z.string().min(1),
   finish_order: z.number().int().positive(),
-  finish_time: z.string().min(1),
+  finish_time: z.string().nullable().optional(),
 });
 
 const RequestSchema = z.object({
