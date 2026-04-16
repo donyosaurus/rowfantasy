@@ -170,13 +170,21 @@ export function MatchupDialog({
               <Skeleton key={i} className="h-20 w-full rounded-xl" />
             ))}
           </div>
-        ) : entrants.length <= 1 ? (
+        ) : entrants.length <= 1 && currentEntries < maxEntries ? (
           <div className="py-14 text-center px-6">
             <div className="w-14 h-14 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-3">
               <Users className="h-7 w-7 text-accent" />
             </div>
             <p className="text-muted-foreground font-heading font-medium">Waiting for opponents…</p>
             <p className="text-sm text-muted-foreground font-body mt-1">Other players haven't joined yet.</p>
+          </div>
+        ) : entrants.length <= 1 && currentEntries >= maxEntries ? (
+          <div className="py-14 text-center px-6">
+            <div className="w-14 h-14 rounded-full bg-gold/10 flex items-center justify-center mx-auto mb-3">
+              <Users className="h-7 w-7 text-gold" />
+            </div>
+            <p className="text-foreground font-heading font-medium">Opponent matched!</p>
+            <p className="text-sm text-muted-foreground font-body mt-1">Their picks will be revealed when the contest locks.</p>
           </div>
         ) : isH2H ? (
           <HeadToHeadLayout
