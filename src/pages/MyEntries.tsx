@@ -12,9 +12,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trophy, Calendar, DollarSign, TrendingUp, Users, Eye } from "lucide-react";
+import { Trophy, Calendar, DollarSign, TrendingUp, Users, Eye, Plus, X } from "lucide-react";
 import myEntriesBg from "@/assets/my-entries-bg.jpg";
 import { CrewLogo } from "@/components/CrewLogo";
+import { toast } from "sonner";
+import { formatCents } from "@/lib/formatCurrency";
 
 interface PickNew {
   crewId: string;
@@ -27,6 +29,7 @@ interface Entry {
   status: string;
   entry_fee_cents: number;
   pool_id: string;
+  contest_template_id: string;
   picks: PickNew[] | string[] | unknown;
   payout_cents?: number;
   rank?: number;
@@ -43,6 +46,7 @@ interface Entry {
     payout_structure: Record<string, number> | null;
     tier_id: string;
     entry_fee_cents: number;
+    contest_template_id: string;
   };
   contest_scores?: Array<{
     rank: number;
@@ -68,6 +72,9 @@ const MyEntries = () => {
   const [loading, setLoading] = useState(true);
   const [matchupPoolId, setMatchupPoolId] = useState<string | null>(null);
   const [matchupEntry, setMatchupEntry] = useState<Entry | null>(null);
+  const [resubmitEntry, setResubmitEntry] = useState<Entry | null>(null);
+  const [resubmitting, setResubmitting] = useState(false);
+  const [walletBalanceCents, setWalletBalanceCents] = useState<number | null>(null);
   const [stats, setStats] = useState({
     totalEntries: 0,
     activeEntries: 0,
@@ -111,9 +118,9 @@ const MyEntries = () => {
       const { data, error } = await supabase.
       from('contest_entries').
       select(`
-          id, created_at, status, entry_fee_cents, pool_id, picks, payout_cents, rank, tier_name,
+          id, created_at, status, entry_fee_cents, pool_id, contest_template_id, picks, payout_cents, rank, tier_name,
           contest_templates!inner (regatta_name, lock_time),
-          contest_pools!inner (status, prize_pool_cents, max_entries, current_entries, payout_structure, tier_id, entry_fee_cents),
+          contest_pools!inner (status, prize_pool_cents, max_entries, current_entries, payout_structure, tier_id, entry_fee_cents, contest_template_id),
           contest_scores (rank, total_points, margin_bonus, is_winner, payout_cents)
         `).
       eq('user_id', user.id).
