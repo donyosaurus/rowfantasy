@@ -61,6 +61,7 @@ interface CrewInfo {
   crew_id: string;
   crew_name: string;
   contest_pool_id: string;
+  event_id?: string;
   logo_url?: string | null;
 }
 
