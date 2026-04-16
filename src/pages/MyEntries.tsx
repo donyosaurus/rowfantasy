@@ -554,6 +554,91 @@ const MyEntries = () => {
           payoutStructure={matchupEntry.contest_pools?.payout_structure || null}
         />
       )}
+
+      {/* Resubmit Entry Modal */}
+      {resubmitEntry && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: "rgba(0,0,0,0.45)" }}
+          onClick={() => !resubmitting && setResubmitEntry(null)}
+        >
+          <div
+            className="bg-card w-full max-w-[380px] p-6 shadow-xl relative"
+            style={{ borderRadius: 16 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => !resubmitting && setResubmitEntry(null)}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <h3 className="text-lg font-heading font-bold text-foreground pr-6">
+              {resubmitEntry.contest_templates.regatta_name}
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              New entry · {formatCents(resubmitEntry.contest_pools?.entry_fee_cents ?? resubmitEntry.entry_fee_cents)}
+            </p>
+
+            <div className="mt-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Your Picks</p>
+              <div className="flex flex-wrap gap-2">
+                {getParsedPicks(resubmitEntry).map((pick, idx) => (
+                  <Badge
+                    key={idx}
+                    variant="secondary"
+                    className="text-sm rounded-lg bg-primary/5 border border-primary/10 flex items-center gap-1.5"
+                  >
+                    <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={20} />
+                    {pick.crewName}
+                    {pick.margin !== null && (
+                      <span className="ml-1 text-accent font-semibold">(+{pick.margin.toFixed(1)}s)</span>
+                    )}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+
+            <Button
+              onClick={handleResubmit}
+              disabled={resubmitting}
+              className="w-full mt-5 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold h-12"
+              style={{ borderRadius: 12 }}
+            >
+              {resubmitting
+                ? "Submitting..."
+                : `Resubmit same picks — ${formatCents(resubmitEntry.contest_pools?.entry_fee_cents ?? resubmitEntry.entry_fee_cents)}`}
+            </Button>
+
+            <Button
+              variant="outline"
+              disabled={resubmitting}
+              onClick={() => {
+                const id = resubmitEntry.pool_id;
+                setResubmitEntry(null);
+                navigate(`/regatta/${id}`);
+              }}
+              className="w-full mt-2 h-12"
+              style={{ borderRadius: 12 }}
+            >
+              Change my picks
+            </Button>
+
+            <p className="text-xs text-muted-foreground text-center mt-4">
+              Locks {new Date(resubmitEntry.contest_templates.lock_time).toLocaleString([], {
+                month: "numeric",
+                day: "numeric",
+                year: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+              })}
+              {walletBalanceCents !== null && ` · Wallet balance: ${formatCents(walletBalanceCents)}`}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
