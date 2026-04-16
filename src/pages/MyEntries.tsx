@@ -12,9 +12,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trophy, Calendar, DollarSign, TrendingUp, Users, Eye } from "lucide-react";
+import { Trophy, Calendar, DollarSign, TrendingUp, Users, Eye, Plus, X } from "lucide-react";
 import myEntriesBg from "@/assets/my-entries-bg.jpg";
 import { CrewLogo } from "@/components/CrewLogo";
+import { toast } from "sonner";
+import { formatCents } from "@/lib/formatCurrency";
 
 interface PickNew {
   crewId: string;
@@ -27,6 +29,7 @@ interface Entry {
   status: string;
   entry_fee_cents: number;
   pool_id: string;
+  contest_template_id: string;
   picks: PickNew[] | string[] | unknown;
   payout_cents?: number;
   rank?: number;
@@ -43,6 +46,7 @@ interface Entry {
     payout_structure: Record<string, number> | null;
     tier_id: string;
     entry_fee_cents: number;
+    contest_template_id: string;
   };
   contest_scores?: Array<{
     rank: number;
@@ -57,6 +61,7 @@ interface CrewInfo {
   crew_id: string;
   crew_name: string;
   contest_pool_id: string;
+  event_id?: string;
   logo_url?: string | null;
 }
 
@@ -68,6 +73,9 @@ const MyEntries = () => {
   const [loading, setLoading] = useState(true);
   const [matchupPoolId, setMatchupPoolId] = useState<string | null>(null);
   const [matchupEntry, setMatchupEntry] = useState<Entry | null>(null);
+  const [resubmitEntry, setResubmitEntry] = useState<Entry | null>(null);
+  const [resubmitting, setResubmitting] = useState(false);
+  const [walletBalanceCents, setWalletBalanceCents] = useState<number | null>(null);
   const [stats, setStats] = useState({
     totalEntries: 0,
     activeEntries: 0,
@@ -111,9 +119,9 @@ const MyEntries = () => {
       const { data, error } = await supabase.
       from('contest_entries').
       select(`
-          id, created_at, status, entry_fee_cents, pool_id, picks, payout_cents, rank, tier_name,
+          id, created_at, status, entry_fee_cents, pool_id, contest_template_id, picks, payout_cents, rank, tier_name,
           contest_templates!inner (regatta_name, lock_time),
-          contest_pools!inner (status, prize_pool_cents, max_entries, current_entries, payout_structure, tier_id, entry_fee_cents),
+          contest_pools!inner (status, prize_pool_cents, max_entries, current_entries, payout_structure, tier_id, entry_fee_cents, contest_template_id),
           contest_scores (rank, total_points, margin_bonus, is_winner, payout_cents)
         `).
       eq('user_id', user.id).
@@ -132,7 +140,7 @@ const MyEntries = () => {
       if (poolIds.length > 0) {
         const { data: crewsData, error: crewsError } = await supabase.
         from('contest_pool_crews').
-        select('crew_id, crew_name, contest_pool_id, logo_url').
+        select('crew_id, crew_name, contest_pool_id, event_id, logo_url').
         in('contest_pool_id', poolIds);
 
         if (!crewsError && crewsData) {
@@ -157,10 +165,107 @@ const MyEntries = () => {
         totalWinnings: totalWinnings / 100,
         winRate: completed.length > 0 ? wins.length / completed.length * 100 : 0
       });
+
+      // Fetch wallet balance for resubmit modal
+      const { data: walletData } = await supabase
+        .from('wallets')
+        .select('available_balance')
+        .eq('user_id', user.id)
+        .single();
+      if (walletData) setWalletBalanceCents(Number(walletData.available_balance));
     } catch (error) {
       console.error('Error loading entries:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openResubmit = (entry: Entry) => {
+    if (entry.contest_pools?.status !== 'open') {
+      toast.error('This contest has locked and is no longer accepting entries.');
+      return;
+    }
+    if (new Date(entry.contest_templates.lock_time) <= new Date()) {
+      toast.error('This contest has locked and is no longer accepting entries.');
+      return;
+    }
+    setResubmitEntry(entry);
+  };
+
+  const handleResubmit = async () => {
+    if (!resubmitEntry || !user) return;
+    const entry = resubmitEntry;
+    const fee = entry.contest_pools?.entry_fee_cents ?? entry.entry_fee_cents;
+
+    if (entry.contest_pools?.status !== 'open' || new Date(entry.contest_templates.lock_time) <= new Date()) {
+      toast.error('This contest has locked and is no longer accepting entries.');
+      setResubmitEntry(null);
+      return;
+    }
+    if (walletBalanceCents !== null && walletBalanceCents < fee) {
+      toast.error(`Insufficient balance. You need ${formatCents(fee)} but have ${formatCents(walletBalanceCents)}.`);
+      return;
+    }
+
+    // Normalize picks into the shape contest-matchmaking expects
+    let rawPicks: unknown = entry.picks;
+    if (typeof rawPicks === 'string') {
+      try { rawPicks = JSON.parse(rawPicks); } catch { rawPicks = []; }
+    }
+    let picksArray: any[] = [];
+    if (Array.isArray(rawPicks)) picksArray = rawPicks;
+    else if (rawPicks && typeof rawPicks === 'object' && Array.isArray((rawPicks as any).crews)) {
+      picksArray = (rawPicks as any).crews;
+    }
+    const picks = picksArray.map((p: any) => {
+      if (typeof p === 'string') return { crewId: p, event_id: '', predictedMargin: 0 };
+      return {
+        crewId: String(p.crewId || p.crew_id || p.id || ''),
+        event_id: p.event_id || p.eventId || '',
+        predictedMargin: Number(p.predictedMargin ?? p.predicted_margin ?? 0),
+      };
+    });
+
+    // Backfill missing event_ids from crewMap
+    for (const pick of picks) {
+      if (!pick.event_id) {
+        const info = crewMap.get(`${entry.pool_id}-${pick.crewId}`) as any;
+        if (info?.event_id) pick.event_id = info.event_id;
+      }
+    }
+
+    setResubmitting(true);
+    try {
+      const templateId = entry.contest_pools?.contest_template_id || entry.contest_template_id;
+      const { data, error } = await supabase.functions.invoke('contest-matchmaking', {
+        body: {
+          contestTemplateId: templateId,
+          tierId: entry.pool_id,
+          picks,
+          entryFeeCents: fee,
+          tierName: entry.tier_name ?? null,
+          stateCode: null,
+        },
+      });
+      if (error) throw error;
+      if (data?.entryId) {
+        toast.success("Entry submitted! You're in the contest.");
+        setResubmitEntry(null);
+        await loadEntries();
+      } else {
+        toast.error(data?.error || 'Failed to submit entry.');
+      }
+    } catch (err: any) {
+      let errorMessage = 'Failed to submit entry';
+      if (err?.context?.json) {
+        try {
+          const ctx = typeof err.context.json === 'string' ? JSON.parse(err.context.json) : err.context.json;
+          errorMessage = ctx.error || ctx.message || errorMessage;
+        } catch { errorMessage = err.message || errorMessage; }
+      } else if (err?.message) errorMessage = err.message;
+      toast.error(errorMessage);
+    } finally {
+      setResubmitting(false);
     }
   };
 
@@ -316,6 +421,16 @@ const MyEntries = () => {
               )}
               {parsedPicks.length === 0 && <span className="text-sm text-muted-foreground">No picks recorded</span>}
             </div>
+            {entry.contest_pools?.status === 'open' && (
+              <button
+                type="button"
+                onClick={() => openResubmit(entry)}
+                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:opacity-80 transition-opacity"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Submit Another Entry
+              </button>
+            )}
           </div>
 
           {/* View Matchup button */}
@@ -438,6 +553,91 @@ const MyEntries = () => {
           currentEntries={matchupEntry.contest_pools?.current_entries || 0}
           payoutStructure={matchupEntry.contest_pools?.payout_structure || null}
         />
+      )}
+
+      {/* Resubmit Entry Modal */}
+      {resubmitEntry && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: "rgba(0,0,0,0.45)" }}
+          onClick={() => !resubmitting && setResubmitEntry(null)}
+        >
+          <div
+            className="bg-card w-full max-w-[380px] p-6 shadow-xl relative"
+            style={{ borderRadius: 16 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => !resubmitting && setResubmitEntry(null)}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <h3 className="text-lg font-heading font-bold text-foreground pr-6">
+              {resubmitEntry.contest_templates.regatta_name}
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              New entry · {formatCents(resubmitEntry.contest_pools?.entry_fee_cents ?? resubmitEntry.entry_fee_cents)}
+            </p>
+
+            <div className="mt-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Your Picks</p>
+              <div className="flex flex-wrap gap-2">
+                {getParsedPicks(resubmitEntry).map((pick, idx) => (
+                  <Badge
+                    key={idx}
+                    variant="secondary"
+                    className="text-sm rounded-lg bg-primary/5 border border-primary/10 flex items-center gap-1.5"
+                  >
+                    <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={20} />
+                    {pick.crewName}
+                    {pick.margin !== null && (
+                      <span className="ml-1 text-accent font-semibold">(+{pick.margin.toFixed(1)}s)</span>
+                    )}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+
+            <Button
+              onClick={handleResubmit}
+              disabled={resubmitting}
+              className="w-full mt-5 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold h-12"
+              style={{ borderRadius: 12 }}
+            >
+              {resubmitting
+                ? "Submitting..."
+                : `Resubmit same picks — ${formatCents(resubmitEntry.contest_pools?.entry_fee_cents ?? resubmitEntry.entry_fee_cents)}`}
+            </Button>
+
+            <Button
+              variant="outline"
+              disabled={resubmitting}
+              onClick={() => {
+                const id = resubmitEntry.pool_id;
+                setResubmitEntry(null);
+                navigate(`/regatta/${id}`);
+              }}
+              className="w-full mt-2 h-12"
+              style={{ borderRadius: 12 }}
+            >
+              Change my picks
+            </Button>
+
+            <p className="text-xs text-muted-foreground text-center mt-4">
+              Locks {new Date(resubmitEntry.contest_templates.lock_time).toLocaleString([], {
+                month: "numeric",
+                day: "numeric",
+                year: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+              })}
+              {walletBalanceCents !== null && ` · Wallet balance: ${formatCents(walletBalanceCents)}`}
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );
