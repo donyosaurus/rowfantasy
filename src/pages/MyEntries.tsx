@@ -421,6 +421,16 @@ const MyEntries = () => {
               )}
               {parsedPicks.length === 0 && <span className="text-sm text-muted-foreground">No picks recorded</span>}
             </div>
+            {entry.contest_pools?.status === 'open' && (
+              <button
+                type="button"
+                onClick={() => openResubmit(entry)}
+                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:opacity-80 transition-opacity"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Submit Another Entry
+              </button>
+            )}
           </div>
 
           {/* View Matchup button */}
