@@ -91,24 +91,28 @@ const MyEntries = () => {
 
     loadEntries();
 
-    const channel = supabase.
-    channel('my-entries-updates').
-    on(
-      'postgres_changes',
-      {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'contest_entries',
-        filter: `user_id=eq.${user.id}`
-      },
-      () => {
-        loadEntries();
-      }
-    ).
-    subscribe();
+    const userChannel = supabase
+      .channel('my-entries-user-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'contest_entries',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          loadEntries();
+        }
+      )
+      .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(userChannel);
+      if (poolChannelRef.current) {
+        supabase.removeChannel(poolChannelRef.current);
+        poolChannelRef.current = null;
+      }
     };
   }, [user, navigate]);
 

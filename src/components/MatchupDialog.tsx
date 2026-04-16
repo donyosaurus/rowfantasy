@@ -32,7 +32,8 @@ export function MatchupDialog({
 
   const isLocked = new Date(lockTime) <= new Date();
   const isCompleted = ["settled", "completed", "scoring_completed", "results_entered", "voided"].includes(poolStatus);
-  const isH2H = entrants.length === 2;
+  const isH2H = maxEntries === 2;
+  const displayedEntries = Math.max(currentEntries ?? 0, entrants.length);
 
   useEffect(() => {
     if (!open) return;
@@ -152,7 +153,7 @@ export function MatchupDialog({
             <div className="flex items-center gap-4 text-sm mt-2 flex-wrap">
               <span className="flex items-center gap-1.5 text-primary-foreground/70">
                 <Users className="h-3.5 w-3.5" />
-                {currentEntries}/{maxEntries} entries
+                {displayedEntries}/{maxEntries} entries
               </span>
               {payoutStructure && (
                 <span className="text-gold font-heading font-medium text-xs">
@@ -170,7 +171,7 @@ export function MatchupDialog({
               <Skeleton key={i} className="h-20 w-full rounded-xl" />
             ))}
           </div>
-        ) : entrants.length <= 1 && currentEntries < maxEntries ? (
+        ) : entrants.length === 0 ? (
           <div className="py-14 text-center px-6">
             <div className="w-14 h-14 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-3">
               <Users className="h-7 w-7 text-accent" />
@@ -178,15 +179,25 @@ export function MatchupDialog({
             <p className="text-muted-foreground font-heading font-medium">Waiting for opponents…</p>
             <p className="text-sm text-muted-foreground font-body mt-1">Other players haven't joined yet.</p>
           </div>
-        ) : entrants.length <= 1 && currentEntries >= maxEntries ? (
-          <div className="py-14 text-center px-6">
-            <div className="w-14 h-14 rounded-full bg-gold/10 flex items-center justify-center mx-auto mb-3">
-              <Users className="h-7 w-7 text-gold" />
+        ) : entrants.length === 1 ? (
+          isH2H ? (
+            <div className="py-14 text-center px-6">
+              <div className="w-14 h-14 rounded-full bg-gold/10 flex items-center justify-center mx-auto mb-3">
+                <Users className="h-7 w-7 text-gold" />
+              </div>
+              <p className="text-foreground font-heading font-medium">Opponent matched!</p>
+              <p className="text-sm text-muted-foreground font-body mt-1">Their picks will be revealed when the contest locks.</p>
             </div>
-            <p className="text-foreground font-heading font-medium">Opponent matched!</p>
-            <p className="text-sm text-muted-foreground font-body mt-1">Their picks will be revealed when the contest locks.</p>
-          </div>
-        ) : isH2H ? (
+          ) : (
+            <div className="py-14 text-center px-6">
+              <div className="w-14 h-14 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-3">
+                <Users className="h-7 w-7 text-accent" />
+              </div>
+              <p className="text-muted-foreground font-heading font-medium">Waiting for opponents…</p>
+              <p className="text-sm text-muted-foreground font-body mt-1">Other players haven't joined yet.</p>
+            </div>
+          )
+        ) : entrants.length === 2 ? (
           <HeadToHeadLayout
             entrants={entrants}
             currentUserId={currentUserId}
