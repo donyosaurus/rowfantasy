@@ -44,11 +44,7 @@ export function MatchupDialog({
   const fetchData = async () => {
     try {
       const [entriesRes, crewsRes, scoresRes] = await Promise.all([
-        supabase
-          .from("contest_entries")
-          .select("id, user_id, picks, total_points, margin_error, rank, payout_cents, status, created_at, tier_name")
-          .eq("pool_id", poolId)
-          .in("status", ["active", "scored", "settled", "voided"]),
+        supabase.rpc("get_pool_entrants", { p_pool_id: poolId }),
         supabase
           .from("contest_pool_crews")
           .select("crew_id, crew_name, event_id, logo_url")
