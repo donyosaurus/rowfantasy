@@ -1562,6 +1562,21 @@ export type Database = {
             }
             Returns: Json
           }
+      get_pool_entrants: {
+        Args: { p_pool_id: string }
+        Returns: {
+          created_at: string
+          id: string
+          margin_error: number
+          payout_cents: number
+          picks: Json
+          rank: number
+          status: string
+          tier_name: string
+          total_points: number
+          user_id: string
+        }[]
+      }
       get_user_balance: { Args: { target_user_id: string }; Returns: number }
       get_usernames: {
         Args: { user_ids: string[] }
