@@ -64,20 +64,6 @@ export const SCHOOL_COLORS: Record<string, string> = {
   "UNC": "#7BAFD4",
   "Kansas State": "#512888",
   "Tennessee": "#FF8200",
-  Spain: "#C60B1E",
-  "South Africa": "#007749",
-  Italy: "#008C45",
-  USA: "#002868",
-  "United States": "#002868",
-  "Great Britain": "#00247D",
-  Germany: "#000000",
-  France: "#002395",
-  Australia: "#00843D",
-  Canada: "#FF0000",
-  Netherlands: "#FF4F00",
-  "New Zealand": "#000000",
-  Japan: "#BC002D",
-  China: "#DE2910",
 };
 
 const DEFAULT_COLOR = "#1a2332";

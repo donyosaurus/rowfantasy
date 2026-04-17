@@ -1,7 +1,6 @@
 import { CrewLogo } from "@/components/CrewLogo";
 import { Input } from "@/components/ui/input";
-import { getCrewColor, isLightColor } from "@/lib/school-colors";
-import { isCountry } from "@/lib/country-detection";
+import { getCrewPalette, getStripeBackground } from "@/lib/crew-theme";
 
 interface CrewCardProps {
   crewId: string;
@@ -20,30 +19,34 @@ export function CrewCard({
   crewId, crewName, eventId, logoUrl, isSelected, marginVal,
   isOpen, onToggle, onMarginChange, animDelay = 0,
 }: CrewCardProps) {
-  const color = getCrewColor(crewName);
-  const light = isLightColor(color);
-  const textColor = light ? "text-slate-900" : "text-white";
-  const subtextColor = light ? "text-slate-600" : "text-white/70";
-  const country = isCountry(crewName);
+  const palette = getCrewPalette(crewName);
+  const stripeBg = getStripeBackground(palette);
 
   return (
     <div
       className={`
-        flex items-center gap-4 px-4 py-3 rounded-xl transition-all border-2
+        relative flex items-center gap-4 pl-5 pr-4 py-3 rounded-xl transition-all border-2 overflow-hidden
+        bg-[#0f1a2e]
         ${!isOpen ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}
         ${isSelected
           ? "border-teal-400 shadow-lg shadow-teal-400/20 scale-[1.01]"
-          : "border-transparent hover:border-white/20 hover:scale-[1.005]"
+          : "border-transparent hover:border-white/10 hover:scale-[1.005]"
         }
       `}
       style={{
-        background: `linear-gradient(135deg, ${color} 0%, ${color}${country ? "dd" : "cc"} 100%)`,
         animation: `fadeUp 0.4s ease forwards`,
         animationDelay: `${animDelay}ms`,
         opacity: 0,
       }}
       onClick={() => isOpen && onToggle(crewId)}
     >
+      {/* Left-edge flag accent stripe */}
+      <div
+        className="absolute left-0 top-0 bottom-0 w-1.5"
+        style={{ background: stripeBg }}
+        aria-hidden="true"
+      />
+
       {/* Logo circle */}
       <CrewLogo
         logoUrl={logoUrl}
@@ -53,8 +56,8 @@ export function CrewCard({
 
       {/* Text */}
       <div className="flex-1 min-w-0">
-        <p className={`text-base font-bold truncate ${textColor}`}>{crewName}</p>
-        <p className={`text-xs font-semibold uppercase tracking-wider ${subtextColor}`}>{eventId}</p>
+        <p className="text-base font-bold truncate text-white">{crewName}</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-white/60">{eventId}</p>
       </div>
 
       {/* Selected checkmark */}
@@ -69,14 +72,13 @@ export function CrewCard({
       {/* Margin input when selected */}
       {isSelected && isOpen && (
         <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/20 border border-white/20">
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/10 border border-white/15">
             <Input
               type="number"
               min="0.01"
               step="0.1"
               placeholder="Margin"
-              className="h-6 w-16 text-xs border-0 bg-transparent p-0 focus-visible:ring-0 placeholder:text-white/40"
-              style={{ color: light ? "#1e293b" : "white" }}
+              className="h-6 w-16 text-xs border-0 bg-transparent p-0 focus-visible:ring-0 placeholder:text-white/40 text-white"
               value={marginVal || ""}
               onClick={(e) => e.stopPropagation()}
               onChange={(e) => {
@@ -84,7 +86,7 @@ export function CrewCard({
                 onMarginChange(crewId, parseFloat(e.target.value) || 0);
               }}
             />
-            <span className={`text-[10px] whitespace-nowrap ${subtextColor}`}>sec</span>
+            <span className="text-[10px] whitespace-nowrap text-white/60">sec</span>
           </div>
         </div>
       )}
