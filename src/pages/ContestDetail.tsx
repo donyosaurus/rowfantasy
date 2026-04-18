@@ -175,6 +175,7 @@ const ContestDetail = () => {
   const minPicks = Math.min(contestPool?.contest_templates?.min_picks ?? 2, numEvents);
   const maxPicks = Math.min(contestPool?.contest_templates?.max_picks ?? 4, numEvents);
   const isOpen = contestPool?.status === "open" && new Date(contestPool.lock_time) > new Date();
+  const isFull = !!contestPool && contestPool.current_entries >= contestPool.max_entries && !contestPool.allow_overflow;
 
   const entryTiers = contestPool?.entry_tiers as EntryTier[] | null;
   const hasTiers = !!(entryTiers && entryTiers.length > 1);
@@ -277,6 +278,10 @@ const ContestDetail = () => {
 
   const handleSubmit = async () => {
     if (!contestPool || !user) return;
+    if (isFull) {
+      toast.error("This contest is full.");
+      return;
+    }
     if (crewPicks.size < minPicks) { toast.error(`Select at least ${minPicks} crews from different events.`); return; }
     const uniqueEvents = new Set(draftPicksList.map((p) => p.eventId));
     if (uniqueEvents.size < 2) { toast.error("Pick crews from at least 2 different events."); return; }
@@ -456,21 +461,32 @@ const ContestDetail = () => {
 
                   <div className="mt-4">
                     {isOpen && (
-                      <Button
-                        onClick={handleSubmit}
-                        variant="hero"
-                        size="lg"
-                        className="w-full font-semibold"
-                        disabled={isSubmitting || crewPicks.size < minPicks || !allMarginsValid || (hasTiers && !selectedTier)}
-                      >
-                        {isSubmitting ? (
-                          <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing…</>
-                        ) : hasTiers && !selectedTier ? (
-                          "Select a Tier"
-                        ) : (
-                          <>Enter Contest — {formatCents(activeEntryFee)}</>
-                        )}
-                      </Button>
+                      isFull ? (
+                        <Button
+                          variant="outline"
+                          size="lg"
+                          className="w-full font-semibold"
+                          disabled
+                        >
+                          Contest Full
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={handleSubmit}
+                          variant="hero"
+                          size="lg"
+                          className="w-full font-semibold"
+                          disabled={isSubmitting || crewPicks.size < minPicks || !allMarginsValid || (hasTiers && !selectedTier)}
+                        >
+                          {isSubmitting ? (
+                            <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing…</>
+                          ) : hasTiers && !selectedTier ? (
+                            "Select a Tier"
+                          ) : (
+                            <>Enter Contest — {formatCents(activeEntryFee)}</>
+                          )}
+                        </Button>
+                      )
                     )}
 
                     {walletBalanceCents !== null && (
@@ -610,24 +626,32 @@ const ContestDetail = () => {
                   {crewPicks.size} pick{crewPicks.size !== 1 ? "s" : ""} selected
                 </p>
                 <p className="text-xs text-muted-foreground truncate">
-                  {crewPicks.size < minPicks
-                    ? `Need ${minPicks - crewPicks.size} more`
-                    : !allMarginsValid
-                      ? "Enter margins for all crews"
-                      : hasTiers && !selectedTier
-                        ? "Select an entry tier"
-                        : `Entry: ${formatCents(activeEntryFee)}`}
+                  {isFull
+                    ? "This contest is full"
+                    : crewPicks.size < minPicks
+                      ? `Need ${minPicks - crewPicks.size} more`
+                      : !allMarginsValid
+                        ? "Enter margins for all crews"
+                        : hasTiers && !selectedTier
+                          ? "Select an entry tier"
+                          : `Entry: ${formatCents(activeEntryFee)}`}
                 </p>
               </div>
-              <Button
-                size="sm"
-                variant="hero"
-                onClick={handleSubmit}
-                disabled={isSubmitting || crewPicks.size < minPicks || !allMarginsValid || (hasTiers && !selectedTier)}
-                className="flex-shrink-0"
-              >
-                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enter"}
-              </Button>
+              {isFull ? (
+                <Button size="sm" variant="outline" disabled className="flex-shrink-0">
+                  Contest Full
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="hero"
+                  onClick={handleSubmit}
+                  disabled={isSubmitting || crewPicks.size < minPicks || !allMarginsValid || (hasTiers && !selectedTier)}
+                  className="flex-shrink-0"
+                >
+                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enter"}
+                </Button>
+              )}
             </div>
           </div>
         </div>
