@@ -25,12 +25,12 @@ export function CrewCard({
   return (
     <div
       className={`
-        relative flex items-center gap-4 pl-5 pr-4 py-3 rounded-xl transition-all border-2 overflow-hidden
+        relative flex items-center gap-4 pl-5 pr-4 py-3 rounded-xl transition-all ring-2 overflow-hidden
         bg-white
         ${!isOpen ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}
         ${isSelected
-          ? "border-teal-400 shadow-lg shadow-teal-400/20 scale-[1.01]"
-          : "border-transparent hover:border-slate-200 hover:bg-slate-50 hover:scale-[1.005]"
+          ? "ring-teal-400 shadow-lg shadow-teal-400/20 scale-[1.01]"
+          : "ring-transparent hover:ring-slate-200 hover:bg-slate-50 hover:scale-[1.005]"
         }
       `}
       style={{
