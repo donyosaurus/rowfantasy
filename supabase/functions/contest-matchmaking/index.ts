@@ -369,6 +369,13 @@ Deno.serve(async (req) => {
           targetPool = available;
           console.log("[matchmaking] Using overflow pool:", targetPoolId);
         } else {
+          if (!contestPool.allow_overflow) {
+            console.log("[matchmaking] Pool full and overflow disabled — rejecting entry:", contestPoolId);
+            return new Response(JSON.stringify({ error: "This contest is full." }), {
+              status: 409,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
           const { data: newPoolId, error: cloneError } = await supabaseAdmin.rpc("clone_contest_pool", {
             p_original_pool_id: contestPoolId,
           });
