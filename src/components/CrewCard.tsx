@@ -42,8 +42,13 @@ export function CrewCard({
     >
       {/* Left-edge flag accent stripe */}
       <div
-        className="absolute left-0 top-0 bottom-0 w-1.5"
+        className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-[10px]"
         style={{ background: stripeBg }}
+        aria-hidden="true"
+      />
+      {/* White separator between stripe and card body */}
+      <div
+        className="absolute left-1.5 top-0 bottom-0 w-0.5 bg-white"
         aria-hidden="true"
       />
 
