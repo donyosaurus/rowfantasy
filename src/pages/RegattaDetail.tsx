@@ -401,8 +401,8 @@ const RegattaDetail = () => {
             {/* ── LEFT: Crew Selection ── */}
             <div className="flex-1 min-w-0 space-y-5">
                <div>
-                <h2 className="font-heading text-xl lg:text-2xl font-bold mb-1 text-white">Select Your Crews</h2>
-                <p className="text-sm text-slate-400">
+                <h2 className="font-heading text-xl lg:text-2xl font-bold mb-1 text-foreground">Select Your Crews</h2>
+                <p className="text-sm text-muted-foreground">
                   Draft a crew from each event. Your entry will be matched against other players.
                 </p>
               </div>
@@ -413,7 +413,7 @@ const RegattaDetail = () => {
                 divisions.map((divisionId) => (
                   <div key={divisionId}>
                     <div className="flex items-center gap-2 mb-3">
-                      <div className="flex items-center gap-2 rounded-full bg-white/10 text-white/80 px-3 py-1 border border-white/10">
+                      <div className="flex items-center gap-2 rounded-full bg-foreground/5 text-foreground px-3 py-1 border border-foreground/10">
                         <span className="font-semibold text-xs">{divisionId}</span>
                         <span className="opacity-60 text-xs">· {crewsByDivision[divisionId].length} crews</span>
                       </div>
