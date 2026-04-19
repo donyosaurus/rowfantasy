@@ -57,7 +57,7 @@ export function CrewCard({
       {/* Text */}
       <div className="flex-1 min-w-0">
         <p className="text-base font-bold truncate text-slate-900">{crewName}</p>
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{eventId}</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">{eventId}</p>
       </div>
 
       {/* Selected checkmark */}
