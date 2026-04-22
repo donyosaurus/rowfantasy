@@ -44,7 +44,7 @@ interface NewCrew {
 }
 
 interface PrizeTier {
-  rank: number;
+  places: number;
   amount: string;
 }
 
@@ -122,13 +122,13 @@ const Admin = () => {
     maxEntries: "",
     lockTime: "",
     crews: [],
-    prizes: [{ rank: 1, amount: "" }],
+    prizes: [{ places: 1, amount: "" }],
     allowOverflow: false,
     voidUnfilledOnSettle: false,
     multiTier: false,
     entryTiers: [
-      { name: "Bronze", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
-      { name: "Silver", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
+      { name: "Bronze", entryFee: "", prizes: [{ places: 1, amount: "" }] },
+      { name: "Silver", entryFee: "", prizes: [{ places: 1, amount: "" }] },
     ],
     cardBannerUrl: "",
     draftBannerUrl: "",
@@ -365,11 +365,11 @@ const Admin = () => {
   const resetCreateForm = () => {
     setCreateForm({
       regattaName: "", genderCategory: "Men's", entryFee: "", maxEntries: "", lockTime: "",
-      crews: [], prizes: [{ rank: 1, amount: "" }], allowOverflow: false, voidUnfilledOnSettle: false,
+      crews: [], prizes: [{ places: 1, amount: "" }], allowOverflow: false, voidUnfilledOnSettle: false,
       multiTier: false,
       entryTiers: [
-        { name: "Bronze", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
-        { name: "Silver", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
+        { name: "Bronze", entryFee: "", prizes: [{ places: 1, amount: "" }] },
+        { name: "Silver", entryFee: "", prizes: [{ places: 1, amount: "" }] },
       ],
       cardBannerUrl: "",
       draftBannerUrl: "",
@@ -389,15 +389,36 @@ const Admin = () => {
     setCreateForm(prev => ({ ...prev, crews: prev.crews.filter(c => c.crew_id !== crewId) }));
   };
 
+  const ordinal = (n: number) => {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  };
+
+  const getPrizeRankRange = (
+    prizes: Array<{ places: number; amount: string }>,
+    idx: number
+  ) => {
+    let from = 1;
+    for (let i = 0; i < idx; i++) from += Math.max(1, prizes[i].places || 1);
+    const places = Math.max(1, prizes[idx].places || 1);
+    const to = from + places - 1;
+    return { from, to, places, label: from === to ? ordinal(from) : `${ordinal(from)}–${ordinal(to)}` };
+  };
+
   const addPrizeTier = () => {
-    const nextRank = createForm.prizes.length + 1;
-    setCreateForm(prev => ({ ...prev, prizes: [...prev.prizes, { rank: nextRank, amount: "" }] }));
+    setCreateForm(prev => ({ ...prev, prizes: [...prev.prizes, { places: 1, amount: "" }] }));
   };
-  const removePrizeTier = (rank: number) => {
-    setCreateForm(prev => ({ ...prev, prizes: prev.prizes.filter(p => p.rank !== rank).map((p, i) => ({ ...p, rank: i + 1 })) }));
+  const removePrizeTier = (idx: number) => {
+    setCreateForm(prev => ({ ...prev, prizes: prev.prizes.filter((_, i) => i !== idx) }));
   };
-  const updatePrizeAmount = (rank: number, amount: string) => {
-    setCreateForm(prev => ({ ...prev, prizes: prev.prizes.map(p => p.rank === rank ? { ...p, amount } : p) }));
+  const updatePrizeAmount = (idx: number, amount: string) => {
+    setCreateForm(prev => ({ ...prev, prizes: prev.prizes.map((p, i) => i === idx ? { ...p, amount } : p) }));
+  };
+  const updatePrizePlaces = (idx: number, placesStr: string) => {
+    const n = parseInt(placesStr);
+    const places = isNaN(n) || n < 1 ? 1 : n;
+    setCreateForm(prev => ({ ...prev, prizes: prev.prizes.map((p, i) => i === idx ? { ...p, places } : p) }));
   };
 
   // Entry Tier helpers
@@ -407,7 +428,7 @@ const Admin = () => {
     const nextName = names[createForm.entryTiers.length] || `Tier ${createForm.entryTiers.length + 1}`;
     setCreateForm(prev => ({
       ...prev,
-      entryTiers: [...prev.entryTiers, { name: nextName, entryFee: "", prizes: [{ rank: 1, amount: "" }] }],
+      entryTiers: [...prev.entryTiers, { name: nextName, entryFee: "", prizes: [{ places: 1, amount: "" }] }],
     }));
   };
 
@@ -430,46 +451,52 @@ const Admin = () => {
     setCreateForm(prev => ({
       ...prev,
       entryTiers: prev.entryTiers.map((t, i) => i === tierIdx
-        ? { ...t, prizes: [...t.prizes, { rank: t.prizes.length + 1, amount: "" }] }
-        : t),
+        ? { ...t, prizes: [...t.prizes, { places: 1, amount: "" }] } : t),
     }));
   };
-
-  const removeTierPrize = (tierIdx: number, prizeRank: number) => {
+  const removeTierPrize = (tierIdx: number, prizeIdx: number) => {
     setCreateForm(prev => ({
       ...prev,
       entryTiers: prev.entryTiers.map((t, i) => i === tierIdx
-        ? { ...t, prizes: t.prizes.filter(p => p.rank !== prizeRank).map((p, j) => ({ ...p, rank: j + 1 })) }
-        : t),
+        ? { ...t, prizes: t.prizes.filter((_, j) => j !== prizeIdx) } : t),
     }));
   };
-
-  const updateTierPrizeAmount = (tierIdx: number, rank: number, amount: string) => {
+  const updateTierPrizeAmount = (tierIdx: number, prizeIdx: number, amount: string) => {
     setCreateForm(prev => ({
       ...prev,
       entryTiers: prev.entryTiers.map((t, i) => i === tierIdx
-        ? { ...t, prizes: t.prizes.map(p => p.rank === rank ? { ...p, amount } : p) }
-        : t),
+        ? { ...t, prizes: t.prizes.map((p, j) => j === prizeIdx ? { ...p, amount } : p) } : t),
+    }));
+  };
+  const updateTierPrizePlaces = (tierIdx: number, prizeIdx: number, placesStr: string) => {
+    const n = parseInt(placesStr);
+    const places = isNaN(n) || n < 1 ? 1 : n;
+    setCreateForm(prev => ({
+      ...prev,
+      entryTiers: prev.entryTiers.map((t, i) => i === tierIdx
+        ? { ...t, prizes: t.prizes.map((p, j) => j === prizeIdx ? { ...p, places } : p) } : t),
     }));
   };
 
   const calculateProfitMetrics = () => {
+    const sumRowTotal = (rows: Array<{ places: number; amount: string }>) =>
+      rows.reduce((sum, p) => {
+        const amt = parseFloat(p.amount) || 0;
+        const places = Math.max(1, p.places || 1);
+        return sum + amt * places;
+      }, 0);
+
     if (createForm.multiTier) {
       const maxEntries = parseInt(createForm.maxEntries) || 0;
-      // Revenue assumes max_entries players at EACH tier
-      const totalFeePerRound = createForm.entryTiers.reduce(
-        (sum, t) => sum + (parseFloat(t.entryFee) || 0), 0
-      );
+      const totalFeePerRound = createForm.entryTiers.reduce((s, t) => s + (parseFloat(t.entryFee) || 0), 0);
       const maxRevenue = totalFeePerRound * maxEntries;
-      // Payout is the sum of all prizes across all tiers
-      const totalPayout = createForm.entryTiers.reduce((sum, t) =>
-        sum + t.prizes.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0), 0);
+      const totalPayout = createForm.entryTiers.reduce((s, t) => s + sumRowTotal(t.prizes), 0);
       return { maxRevenue, totalPayout, projectedProfit: maxRevenue - totalPayout };
     }
     const entryFeeDollars = parseFloat(createForm.entryFee) || 0;
     const maxEntries = parseInt(createForm.maxEntries) || 0;
     const maxRevenue = entryFeeDollars * maxEntries;
-    const totalPayout = createForm.prizes.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    const totalPayout = sumRowTotal(createForm.prizes);
     return { maxRevenue, totalPayout, projectedProfit: maxRevenue - totalPayout };
   };
 
