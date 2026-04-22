@@ -114,13 +114,16 @@ export const ContestCard = ({
 }: ContestCardProps) => {
   const hasTiers = entryTiers && entryTiers.length > 0;
   const hasPayoutStructure = payoutStructure && Object.keys(payoutStructure).length > 0;
-  const firstPlacePrize = hasPayoutStructure ? payoutStructure["1"] : 0;
   const totalPrizes = hasPayoutStructure
     ? Object.values(payoutStructure).reduce((sum, val) => sum + val, 0)
     : prizePoolCents;
 
-  const maxTierFirstPrize = hasTiers
-    ? Math.max(...entryTiers.map(t => t.payout_structure["1"] || 0))
+  const maxTierTotalPayout = hasTiers
+    ? Math.max(
+        ...entryTiers.map(t =>
+          Object.values(t.payout_structure || {}).reduce((sum: number, v: number) => sum + (v || 0), 0)
+        )
+      )
     : 0;
 
   // Show entries + fill bar ONLY for plain contests (no tiers, no overflow)
@@ -136,10 +139,8 @@ export const ContestCard = ({
   const gradientIndex = hashString(regattaName) % CARD_GRADIENTS.length;
 
   const prizeDisplay = hasTiers
-    ? `Up to ${formatCents(maxTierFirstPrize)}`
-    : hasPayoutStructure
-      ? formatCents(firstPlacePrize)
-      : formatCents(totalPrizes);
+    ? `Up to ${formatCents(maxTierTotalPayout)}`
+    : formatCents(totalPrizes);
 
   const entryDisplay = entryFeeCents > 0 ? formatCents(entryFeeCents) : "Free";
 
