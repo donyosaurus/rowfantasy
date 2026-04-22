@@ -19,12 +19,10 @@ export const PhoneMockup = ({ src, alt, className }: PhoneMockupProps) => {
           <img
             src={src}
             alt={alt}
-            className="absolute left-0 w-full select-none pointer-events-none"
+            className="absolute inset-0 w-full h-full select-none pointer-events-none"
             style={{
-              top: "-13%",
-              height: "124%",
-              objectFit: "cover",
-              objectPosition: "top center",
+              objectFit: "contain",
+              objectPosition: "center",
             }}
             draggable={false}
           />
