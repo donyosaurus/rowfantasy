@@ -1164,16 +1164,37 @@ const Admin = () => {
                     </div>
                     <div>
                       <Label className="text-xs">Prizes</Label>
-                      <div className="space-y-1.5 mt-1">
-                        {tier.prizes.map((prize) => (
-                          <div key={prize.rank} className="flex items-center gap-2">
-                            <span className="text-xs w-12 text-muted-foreground">{prize.rank === 1 ? "1st" : `${prize.rank}th`}</span>
-                            <Input type="number" min="0" step="0.01" placeholder="19.00" className="h-8 text-sm" value={prize.amount} onChange={(e) => updateTierPrizeAmount(idx, prize.rank, e.target.value)} />
-                            {prize.rank > 1 && <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => removeTierPrize(idx, prize.rank)}><X className="h-3 w-3" /></Button>}
-                          </div>
-                        ))}
+                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium mt-1">
+                        <div className="w-16">Place(s)</div>
+                        <div className="w-14"># places</div>
+                        <div className="flex-1">Amount each</div>
+                        <div className="w-6" />
                       </div>
-                      <Button variant="ghost" size="sm" className="text-xs mt-1" onClick={() => addTierPrize(idx)}><Plus className="h-3 w-3 mr-1" />Add Place</Button>
+                      <div className="space-y-1.5 mt-1">
+                        {tier.prizes.map((prize, prizeIdx) => {
+                          const { label } = getPrizeRankRange(tier.prizes, prizeIdx);
+                          return (
+                            <div key={prizeIdx} className="flex items-center gap-2">
+                              <span className="text-xs w-16 text-muted-foreground">{label}</span>
+                              <Input type="number" min="1" step="1" value={prize.places}
+                                onChange={(e) => updateTierPrizePlaces(idx, prizeIdx, e.target.value)}
+                                className="h-8 text-sm w-14" />
+                              <Input type="number" min="0" step="0.01" placeholder="19.00"
+                                className="h-8 text-sm flex-1" value={prize.amount}
+                                onChange={(e) => updateTierPrizeAmount(idx, prizeIdx, e.target.value)} />
+                              {prizeIdx > 0 ? (
+                                <Button size="sm" variant="ghost" className="h-8 w-6 p-0"
+                                  onClick={() => removeTierPrize(idx, prizeIdx)}>
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              ) : <div className="w-6" />}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <Button variant="ghost" size="sm" className="text-xs mt-1" onClick={() => addTierPrize(idx)}>
+                        <Plus className="h-3 w-3 mr-1" />Add Place
+                      </Button>
                     </div>
                   </div>
                 ))}
