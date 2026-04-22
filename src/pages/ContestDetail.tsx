@@ -71,6 +71,20 @@ function ordinal(n: number): string {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
+function groupContiguousEqualPayouts(rows: Array<{ rank: number; cents: number }>) {
+  if (rows.length === 0) return [] as Array<{ fromRank: number; toRank: number; cents: number }>;
+  const sorted = [...rows].sort((a, b) => a.rank - b.rank);
+  const groups: Array<{ fromRank: number; toRank: number; cents: number }> = [];
+  let cur = { fromRank: sorted[0].rank, toRank: sorted[0].rank, cents: sorted[0].cents };
+  for (let i = 1; i < sorted.length; i++) {
+    const row = sorted[i];
+    if (row.cents === cur.cents && row.rank === cur.toRank + 1) cur.toRank = row.rank;
+    else { groups.push(cur); cur = { fromRank: row.rank, toRank: row.rank, cents: row.cents }; }
+  }
+  groups.push(cur);
+  return groups;
+}
+
 const TIER_ACCENT: Record<string, string> = {
   Bronze: "border-l-amber-600 bg-amber-500/5",
   Silver: "border-l-slate-400 bg-slate-300/5",
@@ -187,6 +201,8 @@ const ContestDetail = () => {
       .map(([rank, cents]) => ({ rank: Number(rank), cents }))
       .sort((a, b) => a.rank - b.rank);
   }, [contestPool]);
+
+  const groupedPayoutRows = useMemo(() => groupContiguousEqualPayouts(payoutRows), [payoutRows]);
 
   // Header stats — tiered-aware
   const headerStats = useMemo(() => {
@@ -519,6 +535,7 @@ const ContestDetail = () => {
                               const tierPayoutRows = Object.entries(tier.payout_structure)
                                 .map(([rank, cents]) => ({ rank: Number(rank), cents }))
                                 .sort((a, b) => a.rank - b.rank);
+                              const tierGrouped = groupContiguousEqualPayouts(tierPayoutRows);
                               const accentClass = TIER_ACCENT[tier.name] || "border-l-accent bg-accent/5";
                               return (
                                 <div key={tier.name} className={`border-l-4 rounded-r-lg pl-3 py-2 ${accentClass}`}>
@@ -526,25 +543,37 @@ const ContestDetail = () => {
                                     {tier.name} <span className="text-muted-foreground font-normal">({formatCents(tier.entry_fee_cents)} entry)</span>
                                   </p>
                                   <div className="space-y-0.5">
-                                    {tierPayoutRows.map((row) => (
-                                      <div key={row.rank} className="flex justify-between text-sm">
-                                        <span className={row.rank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}>{ordinal(row.rank)}</span>
-                                        <span className={row.rank === 1 ? "font-bold text-gold" : "font-medium"}>{formatCents(row.cents)}</span>
-                                      </div>
-                                    ))}
+                                    {tierGrouped.map((g) => {
+                                      const isRange = g.fromRank !== g.toRank;
+                                      const label = isRange ? `${ordinal(g.fromRank)}–${ordinal(g.toRank)}` : ordinal(g.fromRank);
+                                      return (
+                                        <div key={g.fromRank} className="flex justify-between text-sm">
+                                          <span className={g.fromRank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}>{label}</span>
+                                          <span className={g.fromRank === 1 ? "font-bold text-gold" : "font-medium"}>
+                                            {formatCents(g.cents)}{isRange ? " each" : ""}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 </div>
                               );
                             })}
                           </div>
-                        ) : payoutRows.length > 0 ? (
+                        ) : groupedPayoutRows.length > 0 ? (
                           <div className="space-y-1.5">
-                            {payoutRows.map(({ rank, cents }) => (
-                              <div key={rank} className="flex justify-between text-sm">
-                                <span className={rank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}>{ordinal(rank)}</span>
-                                <span className={rank === 1 ? "font-bold text-gold" : "font-medium"}>{formatCents(cents)}</span>
-                              </div>
-                            ))}
+                            {groupedPayoutRows.map((g) => {
+                              const isRange = g.fromRank !== g.toRank;
+                              const label = isRange ? `${ordinal(g.fromRank)}–${ordinal(g.toRank)}` : ordinal(g.fromRank);
+                              return (
+                                <div key={g.fromRank} className="flex justify-between text-sm">
+                                  <span className={g.fromRank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}>{label}</span>
+                                  <span className={g.fromRank === 1 ? "font-bold text-gold" : "font-medium"}>
+                                    {formatCents(g.cents)}{isRange ? " each" : ""}
+                                  </span>
+                                </div>
+                              );
+                            })}
                             <div className="flex items-center justify-between mt-2 pt-2 border-t text-xs text-muted-foreground">
                               <span>Total</span>
                               <span className="font-semibold text-foreground">{formatCents(totalPrize)}</span>

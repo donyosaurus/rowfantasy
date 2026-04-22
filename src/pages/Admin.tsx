@@ -44,7 +44,7 @@ interface NewCrew {
 }
 
 interface PrizeTier {
-  rank: number;
+  places: number;
   amount: string;
 }
 
@@ -122,13 +122,13 @@ const Admin = () => {
     maxEntries: "",
     lockTime: "",
     crews: [],
-    prizes: [{ rank: 1, amount: "" }],
+    prizes: [{ places: 1, amount: "" }],
     allowOverflow: false,
     voidUnfilledOnSettle: false,
     multiTier: false,
     entryTiers: [
-      { name: "Bronze", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
-      { name: "Silver", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
+      { name: "Bronze", entryFee: "", prizes: [{ places: 1, amount: "" }] },
+      { name: "Silver", entryFee: "", prizes: [{ places: 1, amount: "" }] },
     ],
     cardBannerUrl: "",
     draftBannerUrl: "",
@@ -365,11 +365,11 @@ const Admin = () => {
   const resetCreateForm = () => {
     setCreateForm({
       regattaName: "", genderCategory: "Men's", entryFee: "", maxEntries: "", lockTime: "",
-      crews: [], prizes: [{ rank: 1, amount: "" }], allowOverflow: false, voidUnfilledOnSettle: false,
+      crews: [], prizes: [{ places: 1, amount: "" }], allowOverflow: false, voidUnfilledOnSettle: false,
       multiTier: false,
       entryTiers: [
-        { name: "Bronze", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
-        { name: "Silver", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
+        { name: "Bronze", entryFee: "", prizes: [{ places: 1, amount: "" }] },
+        { name: "Silver", entryFee: "", prizes: [{ places: 1, amount: "" }] },
       ],
       cardBannerUrl: "",
       draftBannerUrl: "",
@@ -389,15 +389,36 @@ const Admin = () => {
     setCreateForm(prev => ({ ...prev, crews: prev.crews.filter(c => c.crew_id !== crewId) }));
   };
 
+  const ordinal = (n: number) => {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  };
+
+  const getPrizeRankRange = (
+    prizes: Array<{ places: number; amount: string }>,
+    idx: number
+  ) => {
+    let from = 1;
+    for (let i = 0; i < idx; i++) from += Math.max(1, prizes[i].places || 1);
+    const places = Math.max(1, prizes[idx].places || 1);
+    const to = from + places - 1;
+    return { from, to, places, label: from === to ? ordinal(from) : `${ordinal(from)}–${ordinal(to)}` };
+  };
+
   const addPrizeTier = () => {
-    const nextRank = createForm.prizes.length + 1;
-    setCreateForm(prev => ({ ...prev, prizes: [...prev.prizes, { rank: nextRank, amount: "" }] }));
+    setCreateForm(prev => ({ ...prev, prizes: [...prev.prizes, { places: 1, amount: "" }] }));
   };
-  const removePrizeTier = (rank: number) => {
-    setCreateForm(prev => ({ ...prev, prizes: prev.prizes.filter(p => p.rank !== rank).map((p, i) => ({ ...p, rank: i + 1 })) }));
+  const removePrizeTier = (idx: number) => {
+    setCreateForm(prev => ({ ...prev, prizes: prev.prizes.filter((_, i) => i !== idx) }));
   };
-  const updatePrizeAmount = (rank: number, amount: string) => {
-    setCreateForm(prev => ({ ...prev, prizes: prev.prizes.map(p => p.rank === rank ? { ...p, amount } : p) }));
+  const updatePrizeAmount = (idx: number, amount: string) => {
+    setCreateForm(prev => ({ ...prev, prizes: prev.prizes.map((p, i) => i === idx ? { ...p, amount } : p) }));
+  };
+  const updatePrizePlaces = (idx: number, placesStr: string) => {
+    const n = parseInt(placesStr);
+    const places = isNaN(n) || n < 1 ? 1 : n;
+    setCreateForm(prev => ({ ...prev, prizes: prev.prizes.map((p, i) => i === idx ? { ...p, places } : p) }));
   };
 
   // Entry Tier helpers
@@ -407,7 +428,7 @@ const Admin = () => {
     const nextName = names[createForm.entryTiers.length] || `Tier ${createForm.entryTiers.length + 1}`;
     setCreateForm(prev => ({
       ...prev,
-      entryTiers: [...prev.entryTiers, { name: nextName, entryFee: "", prizes: [{ rank: 1, amount: "" }] }],
+      entryTiers: [...prev.entryTiers, { name: nextName, entryFee: "", prizes: [{ places: 1, amount: "" }] }],
     }));
   };
 
@@ -430,46 +451,52 @@ const Admin = () => {
     setCreateForm(prev => ({
       ...prev,
       entryTiers: prev.entryTiers.map((t, i) => i === tierIdx
-        ? { ...t, prizes: [...t.prizes, { rank: t.prizes.length + 1, amount: "" }] }
-        : t),
+        ? { ...t, prizes: [...t.prizes, { places: 1, amount: "" }] } : t),
     }));
   };
-
-  const removeTierPrize = (tierIdx: number, prizeRank: number) => {
+  const removeTierPrize = (tierIdx: number, prizeIdx: number) => {
     setCreateForm(prev => ({
       ...prev,
       entryTiers: prev.entryTiers.map((t, i) => i === tierIdx
-        ? { ...t, prizes: t.prizes.filter(p => p.rank !== prizeRank).map((p, j) => ({ ...p, rank: j + 1 })) }
-        : t),
+        ? { ...t, prizes: t.prizes.filter((_, j) => j !== prizeIdx) } : t),
     }));
   };
-
-  const updateTierPrizeAmount = (tierIdx: number, rank: number, amount: string) => {
+  const updateTierPrizeAmount = (tierIdx: number, prizeIdx: number, amount: string) => {
     setCreateForm(prev => ({
       ...prev,
       entryTiers: prev.entryTiers.map((t, i) => i === tierIdx
-        ? { ...t, prizes: t.prizes.map(p => p.rank === rank ? { ...p, amount } : p) }
-        : t),
+        ? { ...t, prizes: t.prizes.map((p, j) => j === prizeIdx ? { ...p, amount } : p) } : t),
+    }));
+  };
+  const updateTierPrizePlaces = (tierIdx: number, prizeIdx: number, placesStr: string) => {
+    const n = parseInt(placesStr);
+    const places = isNaN(n) || n < 1 ? 1 : n;
+    setCreateForm(prev => ({
+      ...prev,
+      entryTiers: prev.entryTiers.map((t, i) => i === tierIdx
+        ? { ...t, prizes: t.prizes.map((p, j) => j === prizeIdx ? { ...p, places } : p) } : t),
     }));
   };
 
   const calculateProfitMetrics = () => {
+    const sumRowTotal = (rows: Array<{ places: number; amount: string }>) =>
+      rows.reduce((sum, p) => {
+        const amt = parseFloat(p.amount) || 0;
+        const places = Math.max(1, p.places || 1);
+        return sum + amt * places;
+      }, 0);
+
     if (createForm.multiTier) {
       const maxEntries = parseInt(createForm.maxEntries) || 0;
-      // Revenue assumes max_entries players at EACH tier
-      const totalFeePerRound = createForm.entryTiers.reduce(
-        (sum, t) => sum + (parseFloat(t.entryFee) || 0), 0
-      );
+      const totalFeePerRound = createForm.entryTiers.reduce((s, t) => s + (parseFloat(t.entryFee) || 0), 0);
       const maxRevenue = totalFeePerRound * maxEntries;
-      // Payout is the sum of all prizes across all tiers
-      const totalPayout = createForm.entryTiers.reduce((sum, t) =>
-        sum + t.prizes.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0), 0);
+      const totalPayout = createForm.entryTiers.reduce((s, t) => s + sumRowTotal(t.prizes), 0);
       return { maxRevenue, totalPayout, projectedProfit: maxRevenue - totalPayout };
     }
     const entryFeeDollars = parseFloat(createForm.entryFee) || 0;
     const maxEntries = parseInt(createForm.maxEntries) || 0;
     const maxRevenue = entryFeeDollars * maxEntries;
-    const totalPayout = createForm.prizes.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    const totalPayout = sumRowTotal(createForm.prizes);
     return { maxRevenue, totalPayout, projectedProfit: maxRevenue - totalPayout };
   };
 
@@ -494,16 +521,22 @@ const Admin = () => {
         if (!tier.name.trim()) { toast.error(`Tier ${i + 1} needs a name`); return; }
         const fee = parseFloat(tier.entryFee);
         if (isNaN(fee) || fee <= 0) { toast.error(`Tier "${tier.name}" needs a valid entry fee`); return; }
-        const firstPrize = tier.prizes.find(p => p.rank === 1);
-        if (!firstPrize?.amount || parseFloat(firstPrize.amount) <= 0) { toast.error(`Tier "${tier.name}" needs a 1st place prize`); return; }
+        const firstPrize = tier.prizes[0];
+        if (!firstPrize?.amount || parseFloat(firstPrize.amount) <= 0) {
+          toast.error(`Tier "${tier.name}" needs a 1st place prize`); return;
+        }
       }
 
-      // Build entry_tiers payload
+      // Build entry_tiers payload — expand ranges
       entryTiersPayload = createForm.entryTiers.map(t => {
         const ps: Record<string, number> = {};
+        let r = 1;
         for (const p of t.prizes) {
           const amt = parseFloat(p.amount);
-          if (!isNaN(amt) && amt > 0) ps[p.rank.toString()] = Math.round(amt * 100);
+          const places = Math.max(1, p.places || 1);
+          if (isNaN(amt) || amt <= 0) { r += places; continue; }
+          const amtCents = Math.round(amt * 100);
+          for (let i = 0; i < places; i++) { ps[String(r)] = amtCents; r++; }
         }
         return {
           name: t.name.trim(),
@@ -524,13 +557,29 @@ const Admin = () => {
       if (isNaN(entryFeeDollars) || entryFeeDollars < 0) { toast.error("Entry fee must be valid"); return; }
       entryFeeCents = Math.round(entryFeeDollars * 100);
 
-      const firstPlacePrize = createForm.prizes.find(p => p.rank === 1);
-      if (!firstPlacePrize?.amount || parseFloat(firstPlacePrize.amount) <= 0) { toast.error("1st place prize is required"); return; }
+      const firstPlacePrize = createForm.prizes[0];
+      if (!firstPlacePrize?.amount || parseFloat(firstPlacePrize.amount) <= 0) {
+        toast.error("1st place prize is required"); return;
+      }
 
+      let rank = 1;
       for (const prize of createForm.prizes) {
         const amt = parseFloat(prize.amount);
-        if (!isNaN(amt) && amt > 0) payouts[prize.rank.toString()] = Math.round(amt * 100);
+        const places = Math.max(1, prize.places || 1);
+        if (isNaN(amt) || amt <= 0) { rank += places; continue; }
+        const amtCents = Math.round(amt * 100);
+        for (let i = 0; i < places; i++) { payouts[String(rank)] = amtCents; rank++; }
       }
+    }
+
+    const maxRanks = createForm.multiTier
+      ? Math.max(...(entryTiersPayload || []).map(t => Object.keys(t.payout_structure).length))
+      : Object.keys(payouts).length;
+    if (maxEntries > 0 && maxRanks > maxEntries) {
+      const ok = confirm(
+        `Your payout structure covers ${maxRanks} places but max entries is ${maxEntries}. Ranks beyond ${maxEntries} will never be paid out. Continue anyway?`
+      );
+      if (!ok) return;
     }
 
     setCreatingContest(true);
@@ -1046,17 +1095,44 @@ const Admin = () => {
             {!createForm.multiTier && (
               <div className="border-t pt-4">
                 <Label className="text-base font-semibold">Prize Structure</Label>
-                <p className="text-sm text-muted-foreground mb-3">Define fixed payouts for each finishing position</p>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Define payouts for each finishing position. Use "# of places" to pay the same amount to a range (e.g., 2nd–10th each get $10).
+                </p>
                 <div className="space-y-2 mb-4">
-                  {createForm.prizes.map((prize) => (
-                    <div key={prize.rank} className="flex items-center gap-3">
-                      <div className="w-20 text-sm font-medium">{prize.rank === 1 ? "🥇 1st" : prize.rank === 2 ? "🥈 2nd" : prize.rank === 3 ? "🥉 3rd" : `${prize.rank}th`}</div>
-                      <div className="flex-1"><Input type="number" min="0" step="0.01" placeholder="50.00" value={prize.amount} onChange={(e) => updatePrizeAmount(prize.rank, e.target.value)} /></div>
-                      {prize.rank > 1 && <Button size="sm" variant="ghost" onClick={() => removePrizeTier(prize.rank)}><X className="h-4 w-4" /></Button>}
-                    </div>
-                  ))}
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground font-medium">
+                    <div className="w-28">Place(s)</div>
+                    <div className="w-24"># of places</div>
+                    <div className="flex-1">Amount each ($)</div>
+                    <div className="w-8" />
+                  </div>
+                  {createForm.prizes.map((prize, idx) => {
+                    const { label, from } = getPrizeRankRange(createForm.prizes, idx);
+                    const medal = from === 1 && prize.places === 1 ? "🥇 "
+                                : from === 2 && prize.places === 1 ? "🥈 "
+                                : from === 3 && prize.places === 1 ? "🥉 " : "";
+                    return (
+                      <div key={idx} className="flex items-center gap-3">
+                        <div className="w-28 text-sm font-medium">{medal}{label}</div>
+                        <div className="w-24">
+                          <Input type="number" min="1" step="1" value={prize.places}
+                            onChange={(e) => updatePrizePlaces(idx, e.target.value)} className="h-9 text-sm" />
+                        </div>
+                        <div className="flex-1">
+                          <Input type="number" min="0" step="0.01" placeholder="50.00"
+                            value={prize.amount} onChange={(e) => updatePrizeAmount(idx, e.target.value)} />
+                        </div>
+                        {idx > 0 ? (
+                          <Button size="sm" variant="ghost" onClick={() => removePrizeTier(idx)}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        ) : <div className="w-8" />}
+                      </div>
+                    );
+                  })}
                 </div>
-                <Button variant="outline" size="sm" onClick={addPrizeTier} className="mb-4"><Plus className="mr-2 h-4 w-4" />Add Prize Tier</Button>
+                <Button variant="outline" size="sm" onClick={addPrizeTier} className="mb-4">
+                  <Plus className="mr-2 h-4 w-4" />Add Prize Tier
+                </Button>
               </div>
             )}
 
@@ -1088,16 +1164,37 @@ const Admin = () => {
                     </div>
                     <div>
                       <Label className="text-xs">Prizes</Label>
-                      <div className="space-y-1.5 mt-1">
-                        {tier.prizes.map((prize) => (
-                          <div key={prize.rank} className="flex items-center gap-2">
-                            <span className="text-xs w-12 text-muted-foreground">{prize.rank === 1 ? "1st" : `${prize.rank}th`}</span>
-                            <Input type="number" min="0" step="0.01" placeholder="19.00" className="h-8 text-sm" value={prize.amount} onChange={(e) => updateTierPrizeAmount(idx, prize.rank, e.target.value)} />
-                            {prize.rank > 1 && <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => removeTierPrize(idx, prize.rank)}><X className="h-3 w-3" /></Button>}
-                          </div>
-                        ))}
+                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium mt-1">
+                        <div className="w-16">Place(s)</div>
+                        <div className="w-14"># places</div>
+                        <div className="flex-1">Amount each</div>
+                        <div className="w-6" />
                       </div>
-                      <Button variant="ghost" size="sm" className="text-xs mt-1" onClick={() => addTierPrize(idx)}><Plus className="h-3 w-3 mr-1" />Add Place</Button>
+                      <div className="space-y-1.5 mt-1">
+                        {tier.prizes.map((prize, prizeIdx) => {
+                          const { label } = getPrizeRankRange(tier.prizes, prizeIdx);
+                          return (
+                            <div key={prizeIdx} className="flex items-center gap-2">
+                              <span className="text-xs w-16 text-muted-foreground">{label}</span>
+                              <Input type="number" min="1" step="1" value={prize.places}
+                                onChange={(e) => updateTierPrizePlaces(idx, prizeIdx, e.target.value)}
+                                className="h-8 text-sm w-14" />
+                              <Input type="number" min="0" step="0.01" placeholder="19.00"
+                                className="h-8 text-sm flex-1" value={prize.amount}
+                                onChange={(e) => updateTierPrizeAmount(idx, prizeIdx, e.target.value)} />
+                              {prizeIdx > 0 ? (
+                                <Button size="sm" variant="ghost" className="h-8 w-6 p-0"
+                                  onClick={() => removeTierPrize(idx, prizeIdx)}>
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              ) : <div className="w-6" />}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <Button variant="ghost" size="sm" className="text-xs mt-1" onClick={() => addTierPrize(idx)}>
+                        <Plus className="h-3 w-3 mr-1" />Add Place
+                      </Button>
                     </div>
                   </div>
                 ))}
