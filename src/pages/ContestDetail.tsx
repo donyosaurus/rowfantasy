@@ -63,7 +63,7 @@ interface ContestPool {
 const FINISH_POINTS: Record<number, number> = {
   1: 100, 2: 75, 3: 60, 4: 45, 5: 30, 6: 15, 7: 10,
 };
-const DEFAULT_POINTS = 10;
+const DEFAULT_POINTS = 0;
 
 function ordinal(n: number): string {
   const s = ["th", "st", "nd", "rd"];
@@ -544,17 +544,24 @@ const ContestDetail = () => {
                                   </p>
                                   <div className="space-y-0.5">
                                     {tierGrouped.map((g) => {
-                                      const isRange = g.fromRank !== g.toRank;
-                                      const label = isRange ? `${ordinal(g.fromRank)}–${ordinal(g.toRank)}` : ordinal(g.fromRank);
-                                      return (
-                                        <div key={g.fromRank} className="flex justify-between text-sm">
-                                          <span className={g.fromRank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}>{label}</span>
-                                          <span className={g.fromRank === 1 ? "font-bold text-gold" : "font-medium"}>
-                                            {formatCents(g.cents)}{isRange ? " each" : ""}
-                                          </span>
-                                        </div>
-                                      );
-                                    })}
+                                       const isRange = g.fromRank !== g.toRank;
+                                       const label = isRange ? `${ordinal(g.fromRank)}–${ordinal(g.toRank)}` : ordinal(g.fromRank);
+                                       const isSingle = !isRange;
+                                       const medal = isSingle && g.fromRank === 1 ? "🥇"
+                                                   : isSingle && g.fromRank === 2 ? "🥈"
+                                                   : isSingle && g.fromRank === 3 ? "🥉" : null;
+                                       return (
+                                         <div key={g.fromRank} className="flex justify-between items-center text-sm">
+                                           <span className={`flex items-center gap-2 ${g.fromRank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}`}>
+                                             {medal && <span className="text-base leading-none">{medal}</span>}
+                                             <span>{label}</span>
+                                           </span>
+                                           <span className={g.fromRank === 1 ? "font-bold text-gold" : "font-medium"}>
+                                             {formatCents(g.cents)}{isRange ? " each" : ""}
+                                           </span>
+                                         </div>
+                                       );
+                                     })}
                                   </div>
                                 </div>
                               );
@@ -565,9 +572,16 @@ const ContestDetail = () => {
                             {groupedPayoutRows.map((g) => {
                               const isRange = g.fromRank !== g.toRank;
                               const label = isRange ? `${ordinal(g.fromRank)}–${ordinal(g.toRank)}` : ordinal(g.fromRank);
+                              const isSingle = !isRange;
+                              const medal = isSingle && g.fromRank === 1 ? "🥇"
+                                          : isSingle && g.fromRank === 2 ? "🥈"
+                                          : isSingle && g.fromRank === 3 ? "🥉" : null;
                               return (
-                                <div key={g.fromRank} className="flex justify-between text-sm">
-                                  <span className={g.fromRank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}>{label}</span>
+                                <div key={g.fromRank} className="flex justify-between items-center text-sm">
+                                  <span className={`flex items-center gap-2 ${g.fromRank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}`}>
+                                    {medal && <span className="text-base leading-none">{medal}</span>}
+                                    <span>{label}</span>
+                                  </span>
                                   <span className={g.fromRank === 1 ? "font-bold text-gold" : "font-medium"}>
                                     {formatCents(g.cents)}{isRange ? " each" : ""}
                                   </span>

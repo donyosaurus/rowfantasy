@@ -64,7 +64,7 @@ interface ContestPool {
 const FINISH_POINTS: Record<number, number> = {
   1: 100, 2: 75, 3: 60, 4: 45, 5: 30, 6: 15, 7: 10,
 };
-const DEFAULT_POINTS = 10;
+const DEFAULT_POINTS = 0;
 
 function ordinal(n: number): string {
   const s = ["th", "st", "nd", "rd"];
@@ -525,12 +525,18 @@ const RegattaDetail = () => {
                                 <div key={tier.name} className={`border-l-4 rounded-r-lg pl-3 py-2 ${accentClass}`}>
                                   <p className="text-xs font-semibold text-foreground mb-1">{tier.name} <span className="text-muted-foreground font-normal">({formatCents(tier.entry_fee_cents)} entry)</span></p>
                                   <div className="space-y-0.5">
-                                    {tierPayoutRows.map((row) => (
-                                      <div key={row.rank} className="flex justify-between text-sm">
-                                        <span className={row.rank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}>{ordinal(row.rank)}</span>
-                                        <span className={row.rank === 1 ? "font-bold text-gold" : "font-medium"}>{formatCents(row.cents)}</span>
-                                      </div>
-                                    ))}
+                                    {tierPayoutRows.map((row) => {
+                                      const medal = row.rank === 1 ? "🥇" : row.rank === 2 ? "🥈" : row.rank === 3 ? "🥉" : null;
+                                      return (
+                                        <div key={row.rank} className="flex justify-between items-center text-sm">
+                                          <span className={`flex items-center gap-2 ${row.rank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}`}>
+                                            {medal && <span className="text-base leading-none">{medal}</span>}
+                                            <span>{ordinal(row.rank)}</span>
+                                          </span>
+                                          <span className={row.rank === 1 ? "font-bold text-gold" : "font-medium"}>{formatCents(row.cents)}</span>
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 </div>
                               );
@@ -538,12 +544,18 @@ const RegattaDetail = () => {
                           </div>
                         ) : payoutRows.length > 0 ? (
                           <div className="space-y-1.5">
-                            {payoutRows.map(({ rank, cents }) => (
-                              <div key={rank} className="flex justify-between text-sm">
-                                <span className={rank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}>{ordinal(rank)}</span>
-                                <span className={rank === 1 ? "font-bold text-gold" : "font-medium"}>{formatCents(cents)}</span>
-                              </div>
-                            ))}
+                            {payoutRows.map(({ rank, cents }) => {
+                              const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
+                              return (
+                                <div key={rank} className="flex justify-between items-center text-sm">
+                                  <span className={`flex items-center gap-2 ${rank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}`}>
+                                    {medal && <span className="text-base leading-none">{medal}</span>}
+                                    <span>{ordinal(rank)}</span>
+                                  </span>
+                                  <span className={rank === 1 ? "font-bold text-gold" : "font-medium"}>{formatCents(cents)}</span>
+                                </div>
+                              );
+                            })}
                             <div className="flex justify-between text-sm border-t pt-1.5 mt-1.5"><span className="font-medium">Total</span><span className="font-bold">{formatCents(totalPrize)}</span></div>
                           </div>
                         ) : (

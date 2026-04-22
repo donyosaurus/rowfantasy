@@ -137,5 +137,5 @@ export const FINISH_POINTS: Record<number, number> = {
 };
 
 export function getFinishPoints(position: number): number {
-  return FINISH_POINTS[position] || 10;
+  return FINISH_POINTS[position] ?? 0;
 }
