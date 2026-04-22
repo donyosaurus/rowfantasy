@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Header } from "@/components/Header";
+import { HeroPhoneShowcase } from "@/components/HeroPhoneShowcase";
 import { Footer } from "@/components/Footer";
 import { StateAvailabilityMap } from "@/components/StateAvailabilityMap";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -281,6 +282,10 @@ const Index = () => {
                 </div>
               </div>
 
+              {/* Right Content - Phone Mockups */}
+              <div className="relative">
+                <HeroPhoneShowcase />
+              </div>
             </div>
           </div>
         </section>
