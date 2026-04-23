@@ -29,6 +29,7 @@ export function MatchupDialog({
   const [entrants, setEntrants] = useState<EntrantRow[]>([]);
   const [crewMap, setCrewMap] = useState<Map<string, CrewInfo>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const isLocked = new Date(lockTime) <= new Date();
   const isCompleted = ["settled", "completed", "scoring_completed", "results_entered", "voided"].includes(poolStatus);
@@ -38,6 +39,9 @@ export function MatchupDialog({
   useEffect(() => {
     if (!open) return;
     setLoading(true);
+    setEntrants([]);
+    setCrewMap(new Map());
+    setFetchError(null);
     fetchData();
   }, [open, poolId]);
 
@@ -54,6 +58,14 @@ export function MatchupDialog({
           .select("entry_id, total_points, margin_bonus, rank, payout_cents, is_winner, crew_scores")
           .eq("pool_id", poolId),
       ]);
+
+      if (entriesRes.error) {
+        console.error("[MatchupDialog] get_pool_entrants error:", entriesRes.error);
+        setFetchError(entriesRes.error.message || "Failed to load matchup entries.");
+      }
+      if (crewsRes.error) console.error("[MatchupDialog] crews query error:", crewsRes.error);
+      if (scoresRes.error) console.error("[MatchupDialog] scores query error:", scoresRes.error);
+      console.log("[MatchupDialog] poolId:", poolId, "entrants returned:", (entriesRes.data || []).length);
 
       const newCrewMap = new Map<string, CrewInfo>();
       (crewsRes.data || []).forEach((c: CrewInfo) => newCrewMap.set(c.crew_id, c));
@@ -166,6 +178,14 @@ export function MatchupDialog({
             {[1, 2, 3].map((i) => (
               <Skeleton key={i} className="h-20 w-full rounded-xl" />
             ))}
+          </div>
+        ) : fetchError ? (
+          <div className="py-14 text-center px-6">
+            <div className="w-14 h-14 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-3">
+              <Users className="h-7 w-7 text-destructive" />
+            </div>
+            <p className="text-foreground font-heading font-medium">Couldn't load matchup</p>
+            <p className="text-sm text-muted-foreground font-body mt-1">{fetchError}</p>
           </div>
         ) : entrants.length >= 2 ? (
           isH2H ? (
