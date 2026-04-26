@@ -264,8 +264,9 @@ const Signup = () => {
                       )}
                       {req.label}
                     </li>
-                  ))}
-                </ul>
+                    ))}
+                  </ul>
+                )}
               </div>
 
               <div className="space-y-2">
