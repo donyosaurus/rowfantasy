@@ -21,6 +21,7 @@ const Signup = () => {
   const [email, setEmail] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordFocused, setPasswordFocused] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
@@ -238,15 +239,18 @@ const Signup = () => {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  onFocus={() => setPasswordFocused(true)}
+                  onBlur={() => setPasswordFocused(false)}
                   required
                   minLength={8}
                 />
-                <ul className="space-y-1 pt-1">
-                  {[
-                    { label: "At least 8 characters", met: password.length >= 8 },
-                    { label: "One uppercase letter", met: /[A-Z]/.test(password) },
-                    { label: "One number", met: /[0-9]/.test(password) },
-                  ].map((req) => (
+                {(passwordFocused || password.length > 0) && (
+                  <ul className="space-y-1 pt-1">
+                    {[
+                      { label: "At least 8 characters", met: password.length >= 8 },
+                      { label: "One uppercase letter", met: /[A-Z]/.test(password) },
+                      { label: "One number", met: /[0-9]/.test(password) },
+                    ].map((req) => (
                     <li
                       key={req.label}
                       className={`flex items-center gap-2 text-xs transition-colors ${
@@ -260,8 +264,9 @@ const Signup = () => {
                       )}
                       {req.label}
                     </li>
-                  ))}
-                </ul>
+                    ))}
+                  </ul>
+                )}
               </div>
 
               <div className="space-y-2">
