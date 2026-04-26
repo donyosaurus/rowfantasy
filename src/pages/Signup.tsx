@@ -229,7 +229,11 @@ const Signup = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  minLength={8}
                 />
+                <p className="text-xs text-muted-foreground">
+                  At least 8 characters. Avoid common or previously breached passwords.
+                </p>
               </div>
 
               <div className="space-y-2">
