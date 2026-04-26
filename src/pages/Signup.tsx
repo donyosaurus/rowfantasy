@@ -239,15 +239,18 @@ const Signup = () => {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  onFocus={() => setPasswordFocused(true)}
+                  onBlur={() => setPasswordFocused(false)}
                   required
                   minLength={8}
                 />
-                <ul className="space-y-1 pt-1">
-                  {[
-                    { label: "At least 8 characters", met: password.length >= 8 },
-                    { label: "One uppercase letter", met: /[A-Z]/.test(password) },
-                    { label: "One number", met: /[0-9]/.test(password) },
-                  ].map((req) => (
+                {(passwordFocused || password.length > 0) && (
+                  <ul className="space-y-1 pt-1">
+                    {[
+                      { label: "At least 8 characters", met: password.length >= 8 },
+                      { label: "One uppercase letter", met: /[A-Z]/.test(password) },
+                      { label: "One number", met: /[0-9]/.test(password) },
+                    ].map((req) => (
                     <li
                       key={req.label}
                       className={`flex items-center gap-2 text-xs transition-colors ${
