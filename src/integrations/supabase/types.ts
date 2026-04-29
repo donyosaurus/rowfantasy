@@ -1605,8 +1605,10 @@ export type Database = {
         }
         Returns: {
           allowed: boolean
+          available_balance_cents: number
           reason: string
-          today_total: number
+          today_total_cents: number
+          transaction_id: string
         }[]
       }
       move_to_dlq: {
