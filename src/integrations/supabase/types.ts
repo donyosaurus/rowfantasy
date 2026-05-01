@@ -1665,9 +1665,17 @@ export type Database = {
           read_ct: number
         }[]
       }
-      settle_pool_payouts: {
-        Args: { p_contest_pool_id: string }
-        Returns: Json
+      settle_contest_pool_atomic: {
+        Args: { _admin_user_id: string; _pool_id: string }
+        Returns: {
+          allowed: boolean
+          is_tie_refund: boolean
+          pool_id: string
+          reason: string
+          total_payout_cents: number
+          was_already_settled: boolean
+          winners_count: number
+        }[]
       }
       update_wallet_balance: {
         Args: {
