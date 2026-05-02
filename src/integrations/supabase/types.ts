@@ -1547,7 +1547,7 @@ export type Database = {
           user_id: string
         }[]
       }
-      get_user_balance: { Args: { target_user_id: string }; Returns: number }
+      get_user_balance: { Args: never; Returns: number }
       get_usernames: {
         Args: { user_ids: string[] }
         Returns: {
