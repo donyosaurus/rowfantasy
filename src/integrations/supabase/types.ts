@@ -1113,6 +1113,8 @@ export type Database = {
         Row: {
           created_at: string
           deposit_limit_monthly_cents: number | null
+          pending_deposit_limit_monthly_cents: number | null
+          pending_limit_effective_at: string | null
           self_exclusion_until: string | null
           updated_at: string
           user_id: string
@@ -1120,6 +1122,8 @@ export type Database = {
         Insert: {
           created_at?: string
           deposit_limit_monthly_cents?: number | null
+          pending_deposit_limit_monthly_cents?: number | null
+          pending_limit_effective_at?: string | null
           self_exclusion_until?: string | null
           updated_at?: string
           user_id: string
@@ -1127,6 +1131,8 @@ export type Database = {
         Update: {
           created_at?: string
           deposit_limit_monthly_cents?: number | null
+          pending_deposit_limit_monthly_cents?: number | null
+          pending_limit_effective_at?: string | null
           self_exclusion_until?: string | null
           updated_at?: string
           user_id?: string
@@ -1483,6 +1489,10 @@ export type Database = {
           p_results: Json
         }
         Returns: Json
+      }
+      apply_pending_responsible_gaming_limit: {
+        Args: { _user_id: string }
+        Returns: undefined
       }
       auto_lock_expired_contests: { Args: never; Returns: number }
       check_deposit_limit: {
