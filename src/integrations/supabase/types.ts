@@ -1491,7 +1491,7 @@ export type Database = {
         Returns: Json
       }
       apply_pending_responsible_gaming_limit: {
-        Args: { _user_id: string }
+        Args: { p_user_id: string }
         Returns: undefined
       }
       auto_lock_expired_contests: { Args: never; Returns: number }
