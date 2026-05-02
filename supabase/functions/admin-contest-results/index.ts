@@ -64,6 +64,7 @@ Deno.serve(async (req) => {
     const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc('admin_update_race_results', {
       p_contest_pool_id: contestPoolId,
       p_results: results,
+      _admin_user_id: user.id,
     });
 
     if (rpcError) {

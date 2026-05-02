@@ -116,6 +116,7 @@ Deno.serve(async (req) => {
       p_draft_banner_url: body.draftBannerUrl ?? null,
       p_contest_group_id: body.contestGroupId ?? null,
       p_void_unfilled_on_settle: body.voidUnfilledOnSettle ?? false,
+      _admin_user_id: user.id,
     };
 
     const { data, error } = await supabaseAdmin.rpc('admin_create_contest', rpcParams);
