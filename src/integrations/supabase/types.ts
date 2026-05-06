@@ -1002,6 +1002,8 @@ export type Database = {
           contest_count: number
           created_at: string
           date_of_birth: string | null
+          deleted_at: string | null
+          deleted_reason: string | null
           deposit_limit_monthly: number | null
           email: string
           full_name: string | null
@@ -1029,6 +1031,8 @@ export type Database = {
           contest_count?: number
           created_at?: string
           date_of_birth?: string | null
+          deleted_at?: string | null
+          deleted_reason?: string | null
           deposit_limit_monthly?: number | null
           email: string
           full_name?: string | null
@@ -1056,6 +1060,8 @@ export type Database = {
           contest_count?: number
           created_at?: string
           date_of_birth?: string | null
+          deleted_at?: string | null
+          deleted_reason?: string | null
           deposit_limit_monthly?: number | null
           email?: string
           full_name?: string | null
@@ -1811,6 +1817,14 @@ export type Database = {
           was_already_settled: boolean
           winners_count: number
         }[]
+      }
+      soft_delete_user_account: {
+        Args: {
+          _admin_user_id: string
+          _reason: string
+          _target_user_id: string
+        }
+        Returns: Json
       }
       update_wallet_balance: {
         Args: {
