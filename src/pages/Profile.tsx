@@ -534,7 +534,7 @@ const Profile = () => {
           if (!open) setDepositError(null);
         }}
       >
-        <DialogContent className="rounded-2xl">
+        <DialogContent className="rounded-2xl max-w-[380px] sm:max-w-[450px]">
           <AppErrorBoundary onReset={() => { setDepositDialogOpen(false); setDepositError(null); }}>
             <DialogHeader>
               <DialogTitle className="font-heading">Deposit Funds</DialogTitle>
@@ -577,7 +577,7 @@ const Profile = () => {
           if (!open) setWithdrawError(null);
         }}
       >
-        <DialogContent className="rounded-2xl">
+        <DialogContent className="rounded-2xl max-w-[380px] sm:max-w-[450px]">
           <AppErrorBoundary onReset={() => { setWithdrawDialogOpen(false); setWithdrawError(null); }}>
             <DialogHeader>
               <DialogTitle className="font-heading">Withdraw Funds</DialogTitle>
