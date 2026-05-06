@@ -345,10 +345,22 @@ const Profile = () => {
                     </div>
                   )}
                   <div className="space-y-2">
-                    <Button variant="hero" className="w-full rounded-xl" onClick={() => setDepositDialogOpen(true)} disabled={!profileData.profile.isActive}>
+                    <Button
+                      variant="hero"
+                      className="w-full rounded-xl"
+                      onClick={() => setDepositDialogOpen(true)}
+                      disabled={!profileData.profile.isActive}
+                      aria-label="Deposit funds to your wallet"
+                    >
                       Deposit Funds
                     </Button>
-                    <Button variant="outline" className="w-full rounded-xl border-2" onClick={() => setWithdrawDialogOpen(true)} disabled={!canWithdraw()}>
+                    <Button
+                      variant="outline"
+                      className="w-full rounded-xl border-2"
+                      onClick={() => setWithdrawDialogOpen(true)}
+                      disabled={!canWithdraw()}
+                      aria-label="Withdraw funds from your wallet"
+                    >
                       Withdraw
                     </Button>
                     {!canWithdraw() && profileData.wallet.availableBalance < 5 && (
