@@ -306,6 +306,12 @@ const ContestDetail = () => {
       }
     }
     if (hasTiers && !selectedTier) { toast.error("Please select an entry tier"); return; }
+    // (Wave 1 #6) Fail-closed: if the centralized balance read errored,
+    // refuse to submit rather than letting null bypass the funds check.
+    if (wallet.status === 'error') {
+      toast.error('Balance temporarily unavailable. Please retry before entering.');
+      return;
+    }
     if (walletBalanceCents !== null && walletBalanceCents < activeEntryFee) {
       toast.error(`Insufficient balance. Need ${formatCents(activeEntryFee)}, have ${formatCents(walletBalanceCents)}.`);
       return;
