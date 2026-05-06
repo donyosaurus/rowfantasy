@@ -345,10 +345,22 @@ const Profile = () => {
                     </div>
                   )}
                   <div className="space-y-2">
-                    <Button variant="hero" className="w-full rounded-xl" onClick={() => setDepositDialogOpen(true)} disabled={!profileData.profile.isActive}>
+                    <Button
+                      variant="hero"
+                      className="w-full rounded-xl"
+                      onClick={() => setDepositDialogOpen(true)}
+                      disabled={!profileData.profile.isActive}
+                      aria-label="Deposit funds to your wallet"
+                    >
                       Deposit Funds
                     </Button>
-                    <Button variant="outline" className="w-full rounded-xl border-2" onClick={() => setWithdrawDialogOpen(true)} disabled={!canWithdraw()}>
+                    <Button
+                      variant="outline"
+                      className="w-full rounded-xl border-2"
+                      onClick={() => setWithdrawDialogOpen(true)}
+                      disabled={!canWithdraw()}
+                      aria-label="Withdraw funds from your wallet"
+                    >
                       Withdraw
                     </Button>
                     {!canWithdraw() && profileData.wallet.availableBalance < 5 && (
@@ -470,7 +482,7 @@ const Profile = () => {
 
       {/* Username Dialog */}
       <Dialog open={usernameDialogOpen} onOpenChange={setUsernameDialogOpen}>
-        <DialogContent className="rounded-2xl">
+        <DialogContent className="rounded-2xl max-w-[380px] sm:max-w-[450px]">
           <DialogHeader>
             <DialogTitle className="font-heading">Change Username</DialogTitle>
             <DialogDescription>
@@ -479,14 +491,34 @@ const Profile = () => {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">New Username</label>
-              <Input value={newUsername} onChange={(e) => setNewUsername(e.target.value.toLowerCase())} placeholder="Enter new username" disabled={isSubmitting || !canChangeUsername()} className="rounded-xl" />
-              <p className="text-xs text-muted-foreground">3-20 characters, lowercase letters, numbers, and underscores only</p>
+              <label htmlFor="new-username-input" className="text-sm font-medium">New Username</label>
+              <Input
+                id="new-username-input"
+                value={newUsername}
+                onChange={(e) => setNewUsername(e.target.value.toLowerCase())}
+                placeholder="Enter new username"
+                disabled={isSubmitting || !canChangeUsername()}
+                pattern="[a-z0-9_]{3,20}"
+                title="3-20 lowercase letters, numbers, and underscores only"
+                maxLength={20}
+                aria-describedby="new-username-help new-username-error"
+                className="rounded-xl"
+              />
+              <p id="new-username-help" className="text-xs text-muted-foreground">3-20 characters, lowercase letters, numbers, and underscores only</p>
+              {newUsername.length > 0 && !/^[a-z0-9_]{3,20}$/.test(newUsername) && (
+                <p id="new-username-error" role="alert" className="text-xs text-destructive">
+                  Username must be 3-20 lowercase letters, numbers, or underscores.
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setUsernameDialogOpen(false)} disabled={isSubmitting} className="rounded-xl">Cancel</Button>
-            <Button onClick={handleUsernameChange} disabled={isSubmitting || !newUsername || !canChangeUsername()} className="rounded-xl">
+            <Button
+              onClick={handleUsernameChange}
+              disabled={isSubmitting || !newUsername || !canChangeUsername() || !/^[a-z0-9_]{3,20}$/.test(newUsername)}
+              className="rounded-xl"
+            >
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update Username"}
             </Button>
           </DialogFooter>
@@ -502,7 +534,7 @@ const Profile = () => {
           if (!open) setDepositError(null);
         }}
       >
-        <DialogContent className="rounded-2xl">
+        <DialogContent className="rounded-2xl max-w-[380px] sm:max-w-[450px]">
           <AppErrorBoundary onReset={() => { setDepositDialogOpen(false); setDepositError(null); }}>
             <DialogHeader>
               <DialogTitle className="font-heading">Deposit Funds</DialogTitle>
@@ -545,7 +577,7 @@ const Profile = () => {
           if (!open) setWithdrawError(null);
         }}
       >
-        <DialogContent className="rounded-2xl">
+        <DialogContent className="rounded-2xl max-w-[380px] sm:max-w-[450px]">
           <AppErrorBoundary onReset={() => { setWithdrawDialogOpen(false); setWithdrawError(null); }}>
             <DialogHeader>
               <DialogTitle className="font-heading">Withdraw Funds</DialogTitle>
