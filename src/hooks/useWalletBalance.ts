@@ -41,7 +41,7 @@ export function useWalletBalance(autoload: boolean = true): UseWalletBalanceRetu
       return;
     }
 
-    const row: any = Array.isArray(data) ? data[0] : data;
+    const row: any = data == null ? null : Array.isArray(data) ? data[0] : data;
     if (!row) {
       setState({ status: 'error', error: 'No wallet found' });
       return;
