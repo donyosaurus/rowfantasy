@@ -1,3 +1,4 @@
+// All money values must route through src/lib/formatCurrency.ts. Direct division by 100 in JSX is a bug.
 import { formatCents } from "@/lib/formatCurrency";
 
 export interface EntryTier {
@@ -28,8 +29,7 @@ export function TierSelector({ tiers, selectedTier, onSelectTier, walletBalanceC
         {tiers.map((tier) => {
           const isSelected = selectedTier?.name === tier.name;
           const insufficientBalance = walletBalanceCents !== null && walletBalanceCents < tier.entry_fee_cents;
-          const dollars = tier.entry_fee_cents / 100;
-          const displayFee = Number.isInteger(dollars) ? `$${dollars}` : `$${dollars.toFixed(2)}`;
+          const displayFee = formatCents(tier.entry_fee_cents);
 
           return (
             <button
