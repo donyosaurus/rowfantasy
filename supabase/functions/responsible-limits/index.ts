@@ -1,12 +1,30 @@
 // Responsible Gaming Limits - Allow users to set deposit limits and self-exclusion
+// Depends on Wave 1 #5: DB-trigger audit path on responsible_gaming captures
+// row-level state changes. This JS-level audit is defense-in-depth and logs
+// the *request* (with idempotency_key) rather than the row diff.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { getCorsHeaders } from '../shared/cors.ts';
+import { logSecureError, ERROR_MESSAGES } from '../shared/error-handler.ts';
+
 const limitSchema = z.object({
-  depositLimit: z.number().int().positive().optional(), // Monthly limit in cents
-  exclusionDays: z.number().int().positive().optional(), // Days to self-exclude
+  depositLimit: z.number().int().positive().optional(),
+  exclusionDays: z.number().int().positive().optional(),
+  idempotency_key: z.string().uuid().optional(),
 });
+
+const RPC_TIMEOUT_MS = 10_000;
+
+function withTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`timeout:${label}`)), ms);
+    Promise.resolve(p).then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -24,7 +42,7 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
+
     const supabase = createClient(
       supabaseUrl,
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
@@ -39,10 +57,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    let body;
+    let body: z.infer<typeof limitSchema>;
     try {
       body = limitSchema.parse(await req.json());
-    } catch (error) {
+    } catch (_error) {
       return new Response(
         JSON.stringify({ error: 'Invalid input' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -50,8 +68,8 @@ Deno.serve(async (req) => {
     }
 
     const { depositLimit, exclusionDays } = body;
+    const idempotencyKey = body.idempotency_key ?? crypto.randomUUID();
 
-    // Build upsert data
     const upsertData: {
       user_id: string;
       deposit_limit_monthly_cents?: number;
@@ -79,47 +97,80 @@ Deno.serve(async (req) => {
       description = `Self-exclusion enabled for ${exclusionDays} days until ${exclusionUntil.toLocaleDateString()}`;
     }
 
-    // Use service role for upsert
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Upsert into responsible_gaming table
-    const { error: upsertError } = await adminClient
-      .from('responsible_gaming')
-      .upsert(upsertData, { onConflict: 'user_id' });
+    // Upsert with timeout. The DB trigger (Wave 1 #5) captures the row change
+    // for the immutable compliance trail.
+    let upsertResult;
+    try {
+      upsertResult = await withTimeout(
+        adminClient
+          .from('responsible_gaming')
+          .upsert(upsertData, { onConflict: 'user_id' }),
+        RPC_TIMEOUT_MS,
+        'upsert',
+      );
+    } catch (err: any) {
+      if (String(err?.message ?? '').startsWith('timeout:')) {
+        logSecureError('responsible-limits', err, { step: 'upsert', user_id: user.id, idempotency_key: idempotencyKey });
+        return new Response(
+          JSON.stringify({ error: 'Request timed out, please retry' }),
+          { status: 504, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      throw err;
+    }
 
-    if (upsertError) {
-      console.error('[responsible-limits] Upsert error:', upsertError);
+    if (upsertResult.error) {
+      logSecureError('responsible-limits', upsertResult.error, { step: 'upsert', user_id: user.id, idempotency_key: idempotencyKey });
       return new Response(
-        JSON.stringify({ error: 'Failed to update limits' }),
+        JSON.stringify({ error: ERROR_MESSAGES.GENERIC ?? 'Failed to update limits' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Log to compliance audit
+    // Defense-in-depth audit log of the *request*. Failure must NOT roll back
+    // the upsert — the DB trigger already captured the row state change.
+    let auditWarning: string | undefined;
     if (eventType) {
-      await adminClient.from('compliance_audit_logs').insert({
-        user_id: user.id,
-        event_type: eventType,
-        description: description,
-        severity: 'info',
-        metadata: body
-      });
+      try {
+        const auditResult = await withTimeout(
+          adminClient.from('compliance_audit_logs').insert({
+            user_id: user.id,
+            event_type: eventType,
+            description,
+            severity: 'info',
+            metadata: { ...body, idempotency_key: idempotencyKey, source: 'responsible-limits.request' },
+          }),
+          RPC_TIMEOUT_MS,
+          'audit',
+        );
+        if (auditResult.error) throw auditResult.error;
+      } catch (auditErr: any) {
+        auditWarning = 'request_audit_log_failed';
+        logSecureError('responsible-limits', auditErr, {
+          step: 'audit_request',
+          user_id: user.id,
+          idempotency_key: idempotencyKey,
+          event_type: eventType,
+        });
+      }
     }
 
-    console.log('[responsible-limits] Updated:', { userId: user.id, depositLimit, exclusionDays });
-
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: true,
+        idempotency_key: idempotencyKey,
         depositLimit: depositLimit ? `$${(depositLimit / 100).toFixed(2)}/month` : null,
         selfExclusionUntil: upsertData.self_exclusion_until || null,
+        ...(auditWarning ? { warning: auditWarning } : {}),
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('[responsible-limits] Error:', error);
+    const requestId = logSecureError('responsible-limits', error, { step: 'unhandled' });
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: 'Internal server error', request_id: requestId }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
