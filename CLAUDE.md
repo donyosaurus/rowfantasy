@@ -44,3 +44,23 @@ gaming regulators (5+ year retention).
 - If a regulator/court order ever truly requires hard deletion, document the
   legal basis in `compliance_audit_logs` first and only then perform the
   operation under direct DBA supervision.
+
+## Dependency posture (Wave 8 #2)
+
+All direct entries in `package.json` `dependencies` and `devDependencies` are
+**pinned to exact versions** (no `^` or `~` prefixes). This guarantees
+reproducible installs across local, CI, and production builds and prevents
+silent transitive minor/patch bumps from breaking the app.
+
+Rules:
+- Never reintroduce `^` or `~` ranges on direct deps. Use the exact version
+  string the lockfile resolves to (e.g. `"react": "18.3.1"`).
+- Bumps go through controlled review (manual or via Renovate/Dependabot once
+  configured). Treat every bump as a real diff: read the changelog, run the
+  build, smoke-test money flows.
+- The `overrides` / `resolutions` blocks pin transitive vulnerabilities
+  (see `audits/wave8-accepted-router-exposure.md`). Do not loosen them.
+- Verification one-liner (run after any `package.json` edit):
+  ```bash
+  node -e "const p=require('./package.json'); const all={...p.dependencies,...p.devDependencies}; const drift=Object.entries(all).filter(([k,v])=>/^[\^~]/.test(v)); if(drift.length){console.error('floating:',drift); process.exit(1)} else console.log('ok: all pinned')"
+  ```
