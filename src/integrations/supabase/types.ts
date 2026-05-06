@@ -1482,6 +1482,14 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_list_wallet_balances: {
+        Args: { _admin_user_id: string }
+        Returns: {
+          available_balance_cents: number
+          pending_balance_cents: number
+          user_id: string
+        }[]
+      }
       admin_override_responsible_gaming: {
         Args: {
           _action: string
@@ -1590,6 +1598,13 @@ export type Database = {
         }[]
       }
       get_user_balance: { Args: never; Returns: number }
+      get_user_wallet_balances: {
+        Args: never
+        Returns: {
+          available_balance_cents: number
+          pending_balance_cents: number
+        }[]
+      }
       get_usernames: {
         Args: { user_ids: string[] }
         Returns: {

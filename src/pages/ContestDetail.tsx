@@ -1,5 +1,6 @@
 // All money values must route through src/lib/formatCurrency.ts. Direct division by 100 in JSX is a bug.
 import { useState, useEffect, useMemo } from "react";
+import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { DraftPageBackground } from "@/components/DraftPageBackground";
@@ -101,7 +102,12 @@ const ContestDetail = () => {
   const [allTemplatePools, setAllTemplatePools] = useState<any[]>([]);
   const [poolLoading, setPoolLoading] = useState(true);
   const [poolError, setPoolError] = useState<string | null>(null);
-  const [walletBalanceCents, setWalletBalanceCents] = useState<number | null>(null);
+  // Wave 1 #6: balance now flows through fail-closed centralized RPC.
+  // walletBalanceCents stays nullable so existing render logic (which hides the
+  // balance row + skips the insufficient-funds compare on null) continues to
+  // behave correctly on loading/error — never silently rendering "$0.00".
+  const wallet = useWalletBalance();
+  const walletBalanceCents: number | null = wallet.status === 'ready' ? wallet.availableCents : null;
   const [crewPicks, setCrewPicks] = useState<Map<string, number>>(new Map());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [scoringOpen, setScoringOpen] = useState(false);
@@ -163,18 +169,8 @@ const ContestDetail = () => {
     fetchPool();
   }, [id]);
 
-  useEffect(() => {
-    if (!user) return;
-    const fetchWallet = async () => {
-      const { data } = await supabase
-        .from("wallets")
-        .select("available_balance")
-        .eq("user_id", user.id)
-        .single();
-      if (data) setWalletBalanceCents(Number(data.available_balance));
-    };
-    fetchWallet();
-  }, [user]);
+  // (Wave 1 #6) Direct .from('wallets') read removed — useWalletBalance hook
+  // above handles the load through get_user_wallet_balances() RPC.
 
   const crewsByEvent = useMemo(() => {
     if (!contestPool) return {} as Record<string, PoolCrew[]>;
@@ -310,6 +306,12 @@ const ContestDetail = () => {
       }
     }
     if (hasTiers && !selectedTier) { toast.error("Please select an entry tier"); return; }
+    // (Wave 1 #6) Fail-closed: if the centralized balance read errored,
+    // refuse to submit rather than letting null bypass the funds check.
+    if (wallet.status === 'error') {
+      toast.error('Balance temporarily unavailable. Please retry before entering.');
+      return;
+    }
     if (walletBalanceCents !== null && walletBalanceCents < activeEntryFee) {
       toast.error(`Insufficient balance. Need ${formatCents(activeEntryFee)}, have ${formatCents(walletBalanceCents)}.`);
       return;
@@ -337,12 +339,8 @@ const ContestDetail = () => {
       if (!data?.entryId) { toast.error(data?.error || "Failed to submit entry."); return; }
 
       toast.success("Entry submitted! You're in the contest.");
-      const { data: walletData } = await supabase
-        .from("wallets")
-        .select("available_balance")
-        .eq("user_id", user.id)
-        .single();
-      if (walletData) setWalletBalanceCents(Number(walletData.available_balance));
+      // (Wave 1 #6) Refresh balance via centralized fail-closed RPC.
+      await wallet.refetch();
       setTimeout(() => navigate("/my-entries"), 1500);
     } catch (err: any) {
       toast.error(err.message || "An unexpected error occurred.");
