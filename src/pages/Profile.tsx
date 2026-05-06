@@ -494,34 +494,42 @@ const Profile = () => {
       </Dialog>
 
       {/* Deposit Dialog */}
-      <Dialog open={depositDialogOpen} onOpenChange={setDepositDialogOpen}>
+      <Dialog
+        open={depositDialogOpen}
+        onOpenChange={(open) => {
+          if (isSubmitting) return;
+          setDepositDialogOpen(open);
+          if (!open) setDepositError(null);
+        }}
+      >
         <DialogContent className="rounded-2xl">
-          <AppErrorBoundary onReset={() => setDepositDialogOpen(false)}>
+          <AppErrorBoundary onReset={() => { setDepositDialogOpen(false); setDepositError(null); }}>
             <DialogHeader>
               <DialogTitle className="font-heading">Deposit Funds</DialogTitle>
               <DialogDescription>Add funds to your wallet. Minimum $5, maximum $500 per transaction.</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
+              <DialogError message={depositError} />
               <div className="grid grid-cols-3 gap-2">
                 {[10, 25, 50, 100, 200, 500].map((amount) => (
-                  <Button key={amount} variant={depositAmount === String(amount) ? "default" : "outline"} onClick={() => setDepositAmount(String(amount))} disabled={isSubmitting} className="rounded-xl">
+                  <Button key={amount} variant={depositAmount === String(amount) ? "default" : "outline"} onClick={() => { setDepositAmount(String(amount)); setDepositError(null); }} disabled={isSubmitting} className="rounded-xl">
                     ${amount}
                   </Button>
                 ))}
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Or enter custom amount (USD)</label>
-                <Input type="number" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} placeholder="0.00" min="5" max="500" step="1" disabled={isSubmitting} className="rounded-xl" />
+                <Input type="number" value={depositAmount} onChange={(e) => { setDepositAmount(e.target.value); setDepositError(null); }} placeholder="0.00" min="5" max="500" step="1" disabled={isSubmitting} className="rounded-xl" />
               </div>
               {profileData.profile.depositLimitMonthly && (
                 <p className="text-xs text-muted-foreground">Monthly deposit limit: ${profileData.profile.depositLimitMonthly.toFixed(2)}</p>
               )}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setDepositDialogOpen(false)} disabled={isSubmitting} className="rounded-xl">Cancel</Button>
+              <Button variant="outline" onClick={() => { setDepositDialogOpen(false); setDepositError(null); }} disabled={isSubmitting} className="rounded-xl">Cancel</Button>
               <Button onClick={handleDeposit} disabled={isSubmitting || !depositAmount} className="rounded-xl">
                 {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Deposit ${depositAmount || '0'}
+                {depositError ? `Retry $${depositAmount || '0'}` : `Deposit $${depositAmount || '0'}`}
               </Button>
             </DialogFooter>
           </AppErrorBoundary>
@@ -529,24 +537,32 @@ const Profile = () => {
       </Dialog>
 
       {/* Withdraw Dialog */}
-      <Dialog open={withdrawDialogOpen} onOpenChange={setWithdrawDialogOpen}>
+      <Dialog
+        open={withdrawDialogOpen}
+        onOpenChange={(open) => {
+          if (isSubmitting) return;
+          setWithdrawDialogOpen(open);
+          if (!open) setWithdrawError(null);
+        }}
+      >
         <DialogContent className="rounded-2xl">
-          <AppErrorBoundary onReset={() => setWithdrawDialogOpen(false)}>
+          <AppErrorBoundary onReset={() => { setWithdrawDialogOpen(false); setWithdrawError(null); }}>
             <DialogHeader>
               <DialogTitle className="font-heading">Withdraw Funds</DialogTitle>
               <DialogDescription>Withdraw funds from your wallet. Minimum $5, maximum $200 per transaction. Daily limit: $500.</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
+              <DialogError message={withdrawError} />
               <div className="space-y-2">
                 <label className="text-sm font-medium">Amount (USD)</label>
-                <Input type="number" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} placeholder="0.00" min="5" max="200" step="0.01" disabled={isSubmitting} className="rounded-xl" />
+                <Input type="number" value={withdrawAmount} onChange={(e) => { setWithdrawAmount(e.target.value); setWithdrawError(null); }} placeholder="0.00" min="5" max="200" step="0.01" disabled={isSubmitting} className="rounded-xl" />
                 <p className="text-xs text-muted-foreground">Available: ${profileData.wallet.availableBalance.toFixed(2)}</p>
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setWithdrawDialogOpen(false)} disabled={isSubmitting} className="rounded-xl">Cancel</Button>
+              <Button variant="outline" onClick={() => { setWithdrawDialogOpen(false); setWithdrawError(null); }} disabled={isSubmitting} className="rounded-xl">Cancel</Button>
               <Button onClick={handleWithdraw} disabled={isSubmitting || !withdrawAmount} className="rounded-xl">
-                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Request Withdrawal"}
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : (withdrawError ? "Retry Withdrawal" : "Request Withdrawal")}
               </Button>
             </DialogFooter>
           </AppErrorBoundary>
