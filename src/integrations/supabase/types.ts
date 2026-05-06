@@ -1571,6 +1571,14 @@ export type Database = {
           reason: string
         }[]
       }
+      change_username_atomic: {
+        Args: { _new_username: string; _user_id: string }
+        Returns: {
+          allowed: boolean
+          next_change_at: string
+          reason: string
+        }[]
+      }
       check_deposit_eligibility: {
         Args: {
           _amount_cents: number
