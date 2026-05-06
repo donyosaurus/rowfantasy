@@ -1482,6 +1482,16 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_override_responsible_gaming: {
+        Args: {
+          _action: string
+          _admin_user_id: string
+          _new_limit_cents: number
+          _reason: string
+          _target_user_id: string
+        }
+        Returns: Json
+      }
       admin_update_race_results: {
         Args: {
           _admin_user_id: string
@@ -1612,6 +1622,10 @@ export type Database = {
           today_total_cents: number
           transaction_id: string
         }[]
+      }
+      log_blocked_rg_delete: {
+        Args: { _session_user: string; _user_id: string }
+        Returns: undefined
       }
       move_to_dlq: {
         Args: {
