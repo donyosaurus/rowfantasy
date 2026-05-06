@@ -225,24 +225,68 @@ Deno.serve(async (req) => {
       },
     };
 
-    // Log the export event
-    await adminClient.from('compliance_audit_logs').insert({
-      event_type: 'daily_export_generated',
+    // Idempotent completion audit row (UNIQUE on metadata->>report_date for event_type='compliance_export_completed')
+    const description = `Daily compliance export generated for ${targetDate}`;
+    const completionMetadata = {
+      unique_users: uniqueUsers.size,
+      total_transactions: (ledgerEntries || []).length,
+      file_hash: fileHash,
       admin_id: user.id,
-      description: `Daily compliance export generated for ${targetDate}`,
-      severity: 'info',
-      metadata: {
-        report_date: targetDate,
-        unique_users: uniqueUsers.size,
-        total_transactions: (ledgerEntries || []).length,
-        file_hash: fileHash,
-      },
+    };
+
+    const { data: rpcResult, error: rpcError } = await adminClient.rpc(
+      'record_compliance_export_completed',
+      {
+        _report_date: reportDate,
+        _run_id: _run_id,
+        _metadata: completionMetadata,
+        _description: description,
+      }
+    );
+
+    if (rpcError) {
+      console.error('[compliance-export] RPC failure', { run_id: _run_id, report_date: reportDate, error: rpcError });
+      return new Response(
+        JSON.stringify({ error: 'Failed to record export completion' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const row = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
+    const wasInserted: boolean = !!row?.inserted;
+    let exportedAt = new Date().toISOString();
+    let priorRunId: string | undefined;
+
+    if (!wasInserted) {
+      const { data: prior } = await adminClient
+        .from('compliance_audit_logs')
+        .select('id, created_at, metadata')
+        .eq('event_type', 'compliance_export_completed')
+        .filter('metadata->>report_date', 'eq', reportDate)
+        .single();
+      if (prior) {
+        exportedAt = prior.created_at;
+        priorRunId = (prior.metadata as any)?.run_id;
+      }
+    }
+
+    console.log('[compliance-export] Completion recorded', {
+      run_id: _run_id,
+      report_date: reportDate,
+      was_duplicate: !wasInserted,
+      hash: fileHash,
     });
 
-    console.log('[compliance-export] Report generated successfully for:', targetDate, 'Hash:', fileHash);
-
     return new Response(
-      JSON.stringify(report),
+      JSON.stringify({
+        success: true,
+        was_duplicate: !wasInserted,
+        run_id: _run_id,
+        report_date: reportDate,
+        exported_at: exportedAt,
+        ...(priorRunId ? { prior_run_id: priorRunId } : {}),
+        report,
+      }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
