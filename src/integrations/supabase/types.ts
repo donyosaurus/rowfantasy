@@ -1495,6 +1495,16 @@ export type Database = {
         Returns: undefined
       }
       auto_lock_expired_contests: { Args: never; Returns: number }
+      cancel_pending_withdrawal_atomic: {
+        Args: { _transaction_id: string; _user_id: string }
+        Returns: {
+          allowed: boolean
+          amount_cents: number
+          available_balance_cents: number
+          pending_balance_cents: number
+          reason: string
+        }[]
+      }
       check_deposit_eligibility: {
         Args: {
           _amount_cents: number
