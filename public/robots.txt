@@ -12,3 +12,11 @@ Allow: /
 
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /profile
+Disallow: /my-entries
+Disallow: /login
+Disallow: /signup
+Disallow: /api/
+
+Sitemap: https://rowfantasy.com/sitemap.xml
