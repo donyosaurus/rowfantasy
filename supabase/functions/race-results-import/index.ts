@@ -1,268 +1,325 @@
-// Race Results Import - Admin function to import race results and trigger scoring
+// Race Results Import (Hardened — Wave 2 #4)
+// - Atomic via import_race_results_atomic SQL function (full rollback)
+// - Idempotency key (UUID) with 24h dedup via UNIQUE(race_results_imports.idempotency_key)
+// - Optional external CSV/JSON URL fetch wrapped in AbortController(30s)
+// - Scoring decoupled to scoring_jobs queue (consumed by separate worker)
+// - Structured logging with import_run_id + step
+// - Sanitized admin-facing responses (no raw exception messages)
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
-import { crypto } from "https://deno.land/std@0.177.0/crypto/mod.ts";
-import { scoreContestPool, calculateOfficialMargin, type RaceResult } from '../shared/scoring-logic.ts';
-import { createErrorResponse } from '../shared/error-handler.ts';
-import { requireAdmin } from '../shared/auth-helpers.ts';
+import { crypto } from 'https://deno.land/std@0.177.0/crypto/mod.ts';
 import { getCorsHeaders } from '../shared/cors.ts';
+import { requireAdmin } from '../shared/auth-helpers.ts';
+import { logSecureError, ERROR_MESSAGES } from '../shared/error-handler.ts';
+
+const FUNCTION_NAME = 'race-results-import';
+const FETCH_TIMEOUT_MS = 30_000;
+
+const ResultRowSchema = z.object({
+  crewId: z.string(),
+  crewName: z.string(),
+  divisionId: z.string(),
+  divisionName: z.string(),
+  finishPosition: z.number().int().min(1),
+  finishTime: z.string().optional(),
+  marginSeconds: z.number().optional(),
+});
+
+const BodySchema = z.object({
+  contestTemplateId: z.string().uuid(),
+  regattaName: z.string().min(1).max(255),
+  results: z.array(ResultRowSchema).optional(),
+  // Optional external source — if results not supplied, fetch from URL.
+  resultsUrl: z.string().url().optional(),
+  // Required idempotency key (server fills if absent).
+  idempotencyKey: z.string().uuid().optional(),
+}).refine(
+  (b) => Array.isArray(b.results) || typeof b.resultsUrl === 'string',
+  { message: 'either results or resultsUrl is required' },
+);
+
+function slog(
+  level: 'info' | 'warn' | 'error',
+  importRunId: string,
+  step: string,
+  msg: string,
+  extra: Record<string, unknown> = {},
+) {
+  const line = JSON.stringify({
+    function: FUNCTION_NAME,
+    import_run_id: importRunId,
+    step,
+    level,
+    msg,
+    ...extra,
+  });
+  if (level === 'error') console.error(line);
+  else if (level === 'warn') console.warn(line);
+  else console.log(line);
+}
+
+async function fetchResultsWithTimeout(url: string, importRunId: string): Promise<unknown> {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { signal: ac.signal });
+    if (!res.ok) {
+      throw Object.assign(new Error(`fetch_${res.status}`), { httpStatus: res.status });
+    }
+    const ct = res.headers.get('content-type') || '';
+    if (ct.includes('application/json')) return await res.json();
+    // Caller is responsible for parsing CSV; we just return text.
+    return await res.text();
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+  const importRunId = crypto.randomUUID();
 
+  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Allow': 'POST, OPTIONS' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json', Allow: 'POST, OPTIONS' },
     });
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const authHeader = req.headers.get('Authorization')!;
-    const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+    const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    // ---- Auth + admin
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: ERROR_MESSAGES.UNAUTHORIZED }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
     });
-
-    // Authenticate user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
     if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: ERROR_MESSAGES.UNAUTHORIZED }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // Require admin role - throws if not admin
-    await requireAdmin(supabase, user.id);
+    try {
+      await requireAdmin(userClient, user.id);
+    } catch {
+      return new Response(JSON.stringify({ error: ERROR_MESSAGES.FORBIDDEN }), {
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
-    // Create service client after admin verification
-    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
+    // ---- Parse body
+    let bodyJson: unknown;
+    try { bodyJson = await req.json(); } catch (e) {
+      logSecureError(FUNCTION_NAME, e, { import_run_id: importRunId, step: 'parse_body', error_class: 'invalid_json' });
+      return new Response(JSON.stringify({ error: 'invalid request body' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
-    // Validate input
-    const importSchema = z.object({
-      contestTemplateId: z.string().uuid(),
-      regattaName: z.string(),
-      results: z.array(z.object({
-        crewId: z.string(),
-        crewName: z.string(),
-        divisionId: z.string(),
-        divisionName: z.string(),
-        finishPosition: z.number().int().min(1),
-        finishTime: z.string().optional(),
-        marginSeconds: z.number().optional(),
-      })),
+    const parsed = BodySchema.safeParse(bodyJson);
+    if (!parsed.success) {
+      logSecureError(FUNCTION_NAME, parsed.error, {
+        import_run_id: importRunId, step: 'validate_body',
+        error_class: 'zod_validation_failed', zod: parsed.error.flatten(),
+      });
+      return new Response(JSON.stringify({ error: 'invalid request body' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const body = parsed.data;
+    const idempotencyKey = body.idempotencyKey ?? crypto.randomUUID();
+
+    slog('info', importRunId, 'start', 'import_start', {
+      admin_id: user.id,
+      contest_template_id: body.contestTemplateId,
+      idempotency_key: idempotencyKey,
+      has_inline_results: Array.isArray(body.results),
+      has_results_url: !!body.resultsUrl,
     });
 
-    const body = importSchema.parse(await req.json());
+    // ---- Fetch external results if needed (with timeout)
+    let results = body.results;
+    if (!results && body.resultsUrl) {
+      try {
+        const fetched = await fetchResultsWithTimeout(body.resultsUrl, importRunId);
+        // Expect an array; if vendor returns wrapped object, look for .results.
+        const candidate: any = Array.isArray(fetched) ? fetched : (fetched as any)?.results;
+        const fetchedParsed = z.array(ResultRowSchema).safeParse(candidate);
+        if (!fetchedParsed.success) {
+          logSecureError(FUNCTION_NAME, fetchedParsed.error, {
+            import_run_id: importRunId, step: 'parse_external_results',
+            error_class: 'external_format_invalid',
+            zod: fetchedParsed.error.flatten(),
+          });
+          return new Response(JSON.stringify({ error: 'External results format invalid', importRunId }), {
+            status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        results = fetchedParsed.data;
+      } catch (e: any) {
+        const isAbort = e?.name === 'AbortError';
+        const requestId = logSecureError(FUNCTION_NAME, e, {
+          import_run_id: importRunId, step: 'fetch_external_results',
+          error_class: isAbort ? 'fetch_timeout' : 'fetch_failed',
+        });
+        return new Response(JSON.stringify({
+          error: isAbort ? 'External results fetch timed out' : 'External results fetch failed',
+          requestId, importRunId,
+        }), {
+          status: isAbort ? 504 : 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
 
-    console.log('[race-results-import] Processing', body.results.length, 'results for', body.regattaName);
+    if (!results || results.length === 0) {
+      return new Response(JSON.stringify({ error: 'No results to import', importRunId }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
-    // Validate contest template exists
+    // ---- Compute file hash (kept for back-compat / observability)
+    const enc = new TextEncoder().encode(JSON.stringify(results));
+    const hashBuf = await crypto.subtle.digest('SHA-256', enc);
+    const fileHash = Array.from(new Uint8Array(hashBuf))
+      .map((b) => b.toString(16).padStart(2, '0')).join('');
+
+    // ---- Crew/division ID validation against template (cheap pre-check)
+    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
     const { data: template, error: templateError } = await supabaseAdmin
       .from('contest_templates')
-      .select('*')
+      .select('id, crews, divisions')
       .eq('id', body.contestTemplateId)
       .single();
 
     if (templateError || !template) {
-      return new Response(
-        JSON.stringify({ error: 'Contest template not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Calculate hash for deduplication
-    const encoder = new TextEncoder();
-    const data = encoder.encode(JSON.stringify(body.results));
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-    // Check for duplicate import
-    const { data: existingImport } = await supabaseAdmin
-      .from('race_results_imports')
-      .select('id')
-      .eq('file_hash', fileHash)
-      .maybeSingle();
-
-    if (existingImport) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'These results have already been imported',
-          importId: existingImport.id,
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Validation checks
-    const errors = [];
-    const validCrews = new Set(template.crews.map((c: any) => c.id));
-    const validDivisions = new Set(template.divisions.map((d: any) => d.id));
-
-    for (const result of body.results) {
-      if (!validCrews.has(result.crewId)) {
-        errors.push(`Invalid crew ID: ${result.crewId} (${result.crewName})`);
-      }
-      if (!validDivisions.has(result.divisionId)) {
-        errors.push(`Invalid division ID: ${result.divisionId} (${result.divisionName})`);
-      }
-    }
-
-    if (errors.length > 0) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'Validation failed',
-          validationErrors: errors,
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Store import record
-    const { data: importRecord, error: importError } = await supabaseAdmin
-      .from('race_results_imports')
-      .insert({
+      slog('warn', importRunId, 'load_template', 'template_not_found', {
         contest_template_id: body.contestTemplateId,
-        admin_id: user.id,
-        regatta_name: body.regattaName,
-        results_data: body.results,
-        rows_processed: body.results.length,
-        status: 'completed',
-        file_hash: fileHash,
-        errors: [],
-      })
-      .select()
-      .single();
-
-    if (importError) {
-      console.error('[race-results-import] Error creating import record:', importError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to save import record' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      });
+      return new Response(JSON.stringify({ error: 'Contest template not found', importRunId }), {
+        status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // Update contest template with results
-    await supabaseAdmin
-      .from('contest_templates')
-      .update({ 
-        results: body.results,
-        status: 'locked', // Lock contest when results are posted
-      })
-      .eq('id', body.contestTemplateId);
-
-    // Get all pools for this template that are locked (ready for scoring)
-    const { data: pools } = await supabaseAdmin
-      .from('contest_pools')
-      .select('id')
-      .eq('contest_template_id', body.contestTemplateId)
-      .in('status', ['locked', 'live']);
-
-    // Convert imported results to RaceResult format for scoring
-    // Group by division to calculate margins per event
-    const divisionGroups = new Map<string, typeof body.results>();
-    for (const result of body.results) {
-      if (!divisionGroups.has(result.divisionId)) {
-        divisionGroups.set(result.divisionId, []);
+    const validCrews = new Set((template.crews as any[]).map((c: any) => c.id));
+    const validDivisions = new Set((template.divisions as any[]).map((d: any) => d.id));
+    const validationErrors: string[] = [];
+    let invalidCrewCount = 0, invalidDivisionCount = 0;
+    for (const r of results) {
+      if (!validCrews.has(r.crewId)) {
+        invalidCrewCount++;
+        if (validationErrors.length < 20) validationErrors.push(`Invalid crew ID: ${r.crewId}`);
       }
-      divisionGroups.get(result.divisionId)!.push(result);
-    }
-
-    // Build race results with margin calculation
-    const raceResults: RaceResult[] = [];
-    for (const [divisionId, divisionResults] of divisionGroups) {
-      // Sort by finish position
-      const sorted = [...divisionResults].sort((a, b) => a.finishPosition - b.finishPosition);
-      
-      // Calculate margin (time between 1st and 2nd)
-      let officialMargin = 0;
-      if (sorted.length >= 2 && sorted[0].marginSeconds !== undefined) {
-        officialMargin = sorted[0].marginSeconds;
-      }
-
-      for (const result of sorted) {
-        const raceResult: RaceResult = {
-          crewId: result.crewId,
-          eventId: result.divisionId, // Using divisionId as eventId
-          finishOrder: result.finishPosition,
-        };
-
-        // Only 1st place gets actualMargin for margin bonus
-        if (result.finishPosition === 1) {
-          raceResult.actualMargin = officialMargin;
-        }
-
-        raceResults.push(raceResult);
+      if (!validDivisions.has(r.divisionId)) {
+        invalidDivisionCount++;
+        if (validationErrors.length < 20) validationErrors.push(`Invalid division ID: ${r.divisionId}`);
       }
     }
-
-    // Trigger scoring for all locked pools
-    console.log('[race-results] Triggering scoring for', pools?.length || 0, 'pools');
-    
-    const scoringResults = [];
-    if (pools) {
-      for (const pool of pools) {
-        try {
-          const result = await scoreContestPool(
-            supabaseAdmin,
-            pool.id,
-            raceResults
-          );
-          
-          scoringResults.push({
-            poolId: pool.id,
-            success: true,
-            entriesScored: result.entriesScored,
-          });
-          
-          console.log('[race-results] Scoring completed for pool:', pool.id);
-        } catch (error: any) {
-          console.error('[race-results] Scoring failed for pool:', pool.id, error);
-          scoringResults.push({
-            poolId: pool.id,
-            success: false,
-            error: error.message,
-          });
-        }
-      }
+    if (validationErrors.length > 0) {
+      slog('warn', importRunId, 'validate_ids', 'validation_failed', {
+        invalid_crew_count: invalidCrewCount,
+        invalid_division_count: invalidDivisionCount,
+      });
+      return new Response(JSON.stringify({
+        error: 'Validation failed',
+        validationErrors,
+        invalidCrewCount,
+        invalidDivisionCount,
+        importRunId,
+      }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Log to compliance
-    await supabaseAdmin.from('compliance_audit_logs').insert({
-      admin_id: user.id,
-      event_type: 'race_results_imported',
-      severity: 'info',
-      description: `Race results imported for ${body.regattaName}`,
-      metadata: {
-        import_id: importRecord.id,
-        contest_template_id: body.contestTemplateId,
-        results_count: body.results.length,
-        pools_scored: scoringResults.length,
+    // ---- Atomic RPC
+    const importPayload = {
+      contestTemplateId: body.contestTemplateId,
+      regattaName: body.regattaName,
+      results,
+      fileHash,
+    };
+
+    const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc(
+      'import_race_results_atomic',
+      {
+        _admin_user_id: user.id,
+        _import_payload: importPayload,
+        _idempotency_key: idempotencyKey,
       },
-    });
-
-    console.log('[race-results-import] Import complete:', importRecord.id);
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        importId: importRecord.id,
-        rowsProcessed: body.results.length,
-        poolsScored: pools?.length || 0,
-        scoringResults,
-        message: 'Results imported and scoring completed successfully',
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
+    if (rpcError) {
+      const message = String(rpcError.message || '');
+      // Map known SQL EXCEPTION strings to client-safe codes.
+      if (message.includes('admin_not_found')) {
+        return new Response(JSON.stringify({ error: ERROR_MESSAGES.FORBIDDEN, importRunId }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (message.includes('template_not_found')) {
+        return new Response(JSON.stringify({ error: 'Contest template not found', importRunId }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (message.includes('idempotency_key_required') || message.includes('invalid_payload')) {
+        return new Response(JSON.stringify({ error: 'invalid request body', importRunId }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const requestId = logSecureError(FUNCTION_NAME, rpcError, {
+        import_run_id: importRunId, step: 'atomic_rpc', error_class: 'rpc_failed',
+      });
+      return new Response(JSON.stringify({
+        error: ERROR_MESSAGES.INTERNAL_ERROR, requestId, importRunId,
+      }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    const result = (rpcData ?? {}) as {
+      success?: boolean;
+      replayed?: boolean;
+      import_id?: string;
+      import_run_id?: string;
+      rows_processed?: number;
+      pools_queued?: number;
+      prior_status?: string;
+    };
+
+    slog('info', importRunId, 'complete', 'import_complete', {
+      replayed: !!result.replayed,
+      import_id: result.import_id,
+      pools_queued: result.pools_queued ?? 0,
+      rows_processed: result.rows_processed ?? results.length,
+    });
+
+    return new Response(JSON.stringify({
+      success: true,
+      replayed: !!result.replayed,
+      importId: result.import_id,
+      importRunId,
+      rowsProcessed: result.rows_processed ?? results.length,
+      poolsQueued: result.pools_queued ?? 0,
+      idempotencyKey,
+      message: result.replayed
+        ? 'Idempotency key matched a previous import — no duplicate work performed.'
+        : 'Import committed; scoring queued for asynchronous processing.',
+    }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
   } catch (error: any) {
-    return createErrorResponse(error, 'race-results-import', corsHeaders);
+    const requestId = logSecureError(FUNCTION_NAME, error, {
+      import_run_id: importRunId, step: 'unhandled', error_class: 'unhandled',
+    });
+    return new Response(JSON.stringify({
+      error: ERROR_MESSAGES.INTERNAL_ERROR, requestId, importRunId,
+    }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });
