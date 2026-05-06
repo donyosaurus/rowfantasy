@@ -1,3 +1,4 @@
+// All money values must route through src/lib/formatCurrency.ts. Direct division by 100 in JSX is a bug.
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { CrewLogo } from "@/components/CrewLogo";
 import { DraftPicksList } from "@/components/DraftPicksList";
@@ -600,8 +601,7 @@ const RegattaDetail = () => {
             <div className="flex gap-2 mb-2 overflow-x-auto">
               {entryTiers!.map((tier) => {
                 const isSelected = selectedTier?.name === tier.name;
-                const dollars = tier.entry_fee_cents / 100;
-                const displayFee = Number.isInteger(dollars) ? `$${dollars}` : `$${dollars.toFixed(2)}`;
+                const displayFee = formatCents(tier.entry_fee_cents);
                 const insufficientBalance = walletBalanceCents !== null && walletBalanceCents < tier.entry_fee_cents;
                 return (
                   <button

@@ -1,5 +1,7 @@
+// All money values must route through src/lib/formatCurrency.ts. Direct division by 100 in JSX is a bug.
 import { useEffect, useState } from "react";
 import { DraftPageBackground } from "@/components/DraftPageBackground";
+import { formatCents, formatDollars } from "@/lib/formatCurrency";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -308,6 +310,7 @@ const Profile = () => {
                     <div className="flex items-center gap-2">
                       <DollarSign className="h-6 w-6 text-success" />
                       <p className="text-4xl font-heading font-extrabold text-success">
+                        {/* profile-overview returns wallet fields already in dollars; DollarSign icon supplies the $ */}
                         {profileData.wallet.availableBalance.toFixed(2)}
                       </p>
                     </div>
@@ -315,7 +318,7 @@ const Profile = () => {
                   {profileData.wallet.pendingBalance > 0 && (
                     <div className="px-3 py-2 rounded-lg bg-muted">
                       <p className="text-xs text-muted-foreground">Pending</p>
-                      <p className="text-lg font-semibold">${profileData.wallet.pendingBalance.toFixed(2)}</p>
+                      <p className="text-lg font-semibold">{formatDollars(profileData.wallet.pendingBalance)}</p>
                     </div>
                   )}
                   <div className="space-y-2">
@@ -334,15 +337,15 @@ const Profile = () => {
                   <div className="pt-4 border-t space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Lifetime Deposits</span>
-                      <span className="font-medium">${profileData.wallet.lifetimeDeposits.toFixed(2)}</span>
+                      <span className="font-medium">{formatDollars(profileData.wallet.lifetimeDeposits)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Lifetime Winnings</span>
-                      <span className="font-medium text-success">${profileData.wallet.lifetimeWinnings.toFixed(2)}</span>
+                      <span className="font-medium text-success">{formatDollars(profileData.wallet.lifetimeWinnings)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Lifetime Withdrawals</span>
-                      <span className="font-medium">${profileData.wallet.lifetimeWithdrawals.toFixed(2)}</span>
+                      <span className="font-medium">{formatDollars(profileData.wallet.lifetimeWithdrawals)}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -410,7 +413,8 @@ const Profile = () => {
                             </div>
                             <div className="text-right">
                               <p className={`font-heading font-bold text-lg ${isPositive ? 'text-success' : ''}`}>
-                                {isPositive ? '+' : ''}${Math.abs(tx.amount).toFixed(2)}
+                                {/* transactions.amount is bigint cents per DB convention */}
+                                {isPositive ? '+' : '-'}{formatCents(Math.abs(Number(tx.amount)))}
                               </p>
                               <Badge 
                                 variant="outline"

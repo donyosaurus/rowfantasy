@@ -1,5 +1,7 @@
+// All money values must route through src/lib/formatCurrency.ts. Direct division by 100 in JSX is a bug.
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { formatCents } from "@/lib/formatCurrency";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Trophy, Medal, Award } from "lucide-react";
@@ -160,7 +162,7 @@ export const ContestLeaderboard = ({ instanceId, autoRefresh = false }: ContestL
                       Winner
                     </Badge>
                     <div className="text-sm font-semibold text-green-600 mt-1">
-                      ${(entry.payout_cents / 100).toFixed(2)}
+                      {formatCents(entry.payout_cents)}
                     </div>
                   </div>
                 )}

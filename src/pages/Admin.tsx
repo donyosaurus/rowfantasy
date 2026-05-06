@@ -18,8 +18,10 @@ import { ContestGroupsManager } from "@/components/admin/ContestGroupsManager";
 import { LogoPicker } from "@/components/LogoPicker";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+// All money values must route through src/lib/formatCurrency.ts. Direct division by 100 in JSX is a bug.
 import { getCircleFlagUrl } from "@/data/countryFlags";
 import { getCollegeLogoUrl } from "@/data/collegeLogos";
+import { formatCents } from "@/lib/formatCurrency";
 
 interface CrewResult {
   crew_id: string;
@@ -250,7 +252,7 @@ const Admin = () => {
         console.log("[Settlement Report]");
         for (const [tier, pools] of Object.entries(byTier)) {
           const fee = (pools as any[])[0]?.entryFeeCents;
-          console.log(`  ${tier}${fee ? ` ($${(fee / 100).toFixed(2)})` : ''}:`);
+          console.log(`  ${tier}${fee ? ` (${formatCents(fee)})` : ''}:`);
           (pools as any[]).forEach((p: any, i: number) => {
             if (p.action === 'settled') {
               console.log(`    Pool ${i + 1}: Settled — ${p.winners || 0} winner(s)`);
@@ -719,7 +721,7 @@ const Admin = () => {
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead><tr className="border-b"><th className="text-left p-2">Username</th><th className="text-left p-2">Email</th><th className="text-left p-2">State</th><th className="text-left p-2">Age Verified</th><th className="text-right p-2">Balance</th></tr></thead>
-                      <tbody>{users.map((u) => (<tr key={u.id} className="border-b hover:bg-muted/50"><td className="p-2">{u.username || "N/A"}</td><td className="p-2">{u.email}</td><td className="p-2">{u.state || "Unknown"}</td><td className="p-2">{u.age_confirmed_at ? <span className="text-green-600">✓ Verified</span> : <span className="text-yellow-600">Pending</span>}</td><td className="text-right p-2">${(Number(u.balance) / 100).toFixed(2)}</td></tr>))}</tbody>
+                      <tbody>{users.map((u) => (<tr key={u.id} className="border-b hover:bg-muted/50"><td className="p-2">{u.username || "N/A"}</td><td className="p-2">{u.email}</td><td className="p-2">{u.state || "Unknown"}</td><td className="p-2">{u.age_confirmed_at ? <span className="text-green-600">✓ Verified</span> : <span className="text-yellow-600">Pending</span>}</td><td className="text-right p-2">{formatCents(Number(u.balance))}</td></tr>))}</tbody>
                     </table>
                   </div>
                 </CardContent>
@@ -734,7 +736,7 @@ const Admin = () => {
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead><tr className="border-b"><th className="text-left p-2">Date</th><th className="text-left p-2">User</th><th className="text-left p-2">Type</th><th className="text-right p-2">Amount</th><th className="text-left p-2">Status</th></tr></thead>
-                      <tbody>{transactions.map((tx) => (<tr key={tx.id} className="border-b hover:bg-muted/50"><td className="p-2">{new Date(tx.created_at).toLocaleDateString()}</td><td className="p-2">{tx.profiles?.username || "N/A"}</td><td className="p-2 capitalize">{tx.type.replace("_", " ")}</td><td className="text-right p-2">${Math.abs(Number(tx.amount)).toFixed(2)}</td><td className="p-2 capitalize">{tx.status}</td></tr>))}</tbody>
+                      <tbody>{transactions.map((tx) => (<tr key={tx.id} className="border-b hover:bg-muted/50"><td className="p-2">{new Date(tx.created_at).toLocaleDateString()}</td><td className="p-2">{tx.profiles?.username || "N/A"}</td><td className="p-2 capitalize">{tx.type.replace("_", " ")}</td><td className="text-right p-2">{formatCents(Math.abs(Number(tx.amount)))}</td><td className="p-2 capitalize">{tx.status}</td></tr>))}</tbody>
                     </table>
                   </div>
                 </CardContent>
@@ -777,7 +779,7 @@ const Admin = () => {
                               {tierGroups.map((tier) => (
                                 <div key={tier.tierName || 'default'} className={`border-l-4 ${tierColors[tier.tierName || ''] || 'border-slate-300'} rounded-r-lg bg-muted/30 p-3`}>
                                   <div className="flex items-center justify-between mb-1">
-                                    <span className="font-semibold text-sm">{tier.tierName} (${(tier.entryFeeCents / 100).toFixed(2)})</span>
+                                    <span className="font-semibold text-sm">{tier.tierName} ({formatCents(tier.entryFeeCents)})</span>
                                     {tier.overallStatus !== 'settled' && tier.overallStatus !== 'voided' && (
                                       <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => voidTier(primary.contest_template_id, tier.tierName!)}>
                                         Void Tier
@@ -806,7 +808,7 @@ const Admin = () => {
                             </div>
                           ) : (
                             <div className="text-sm text-muted-foreground">
-                              {totalEntries}/{totalMaxEntries} entries · ${(totalPrize / 100).toFixed(2)} prize pool · ${(primary.entry_fee_cents / 100).toFixed(2)} entry
+                              {totalEntries}/{totalMaxEntries} entries · {formatCents(totalPrize)} prize pool · {formatCents(primary.entry_fee_cents)} entry
                             </div>
                           )}
 

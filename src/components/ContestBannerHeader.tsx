@@ -1,3 +1,4 @@
+// All money values must route through src/lib/formatCurrency.ts. Direct division by 100 in JSX is a bug.
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft } from "lucide-react";
@@ -34,9 +35,8 @@ function formatCountdown(lockTime: string): string {
 }
 
 function formatFee(cents: number): string {
-  const dollars = cents / 100;
-  if (Number.isInteger(dollars)) return `$${dollars}`;
-  return `$${dollars.toFixed(2)}`;
+  // Strict 2-decimal currency formatting per project standard.
+  return formatCents(cents);
 }
 
 interface ContestBannerHeaderProps {
