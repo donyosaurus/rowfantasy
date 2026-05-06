@@ -5,6 +5,7 @@ import { DraftPicksList } from "@/components/DraftPicksList";
 import { CrewCard } from "@/components/CrewCard";
 import { DraftPageBackground } from "@/components/DraftPageBackground";
 import { useEffect, useState, useMemo } from "react";
+import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -92,7 +93,9 @@ const RegattaDetail = () => {
   const [submitting, setSubmitting] = useState(false);
   const [scoringOpen, setScoringOpen] = useState(false);
   const [prizePoolOpen, setPrizePoolOpen] = useState(false);
-  const [walletBalanceCents, setWalletBalanceCents] = useState<number | null>(null);
+  // Wave 1 #6: balance via fail-closed centralized RPC.
+  const wallet = useWalletBalance();
+  const walletBalanceCents: number | null = wallet.status === 'ready' ? wallet.availableCents : null;
   const [selectedTier, setSelectedTier] = useState<EntryTier | null>(null);
 
   useEffect(() => {
@@ -139,18 +142,8 @@ const RegattaDetail = () => {
     fetchPoolData();
   }, [id]);
 
-  useEffect(() => {
-    if (!user) return;
-    const fetchWallet = async () => {
-      const { data } = await supabase
-        .from("wallets")
-        .select("available_balance")
-        .eq("user_id", user.id)
-        .single();
-      if (data) setWalletBalanceCents(Number(data.available_balance));
-    };
-    fetchWallet();
-  }, [user]);
+  // (Wave 1 #6) Direct .from('wallets') read removed — useWalletBalance hook
+  // handles the load through get_user_wallet_balances() RPC.
 
   const crewsByDivision = useMemo(() => {
     if (!contestPool?.contest_pool_crews) return {};
@@ -289,6 +282,11 @@ const RegattaDetail = () => {
     }
     if (selectedDivisions.size < 2) { toast.error("You must select crews from at least 2 different events"); return; }
     if (hasTiers && !selectedTier) { toast.error("Please select an entry tier"); return; }
+    // (Wave 1 #6) Fail-closed: refuse submit if balance read errored.
+    if (wallet.status === 'error') {
+      toast.error('Balance temporarily unavailable. Please retry before entering.');
+      return;
+    }
     if (walletBalanceCents !== null && walletBalanceCents < activeEntryFee) {
       toast.error(`Insufficient balance. You need ${formatCents(activeEntryFee)} but have ${formatCents(walletBalanceCents)}.`);
       return;
@@ -318,13 +316,8 @@ const RegattaDetail = () => {
         toast.error(data?.error || "Failed to submit entry.");
         return;
       }
-      // Refresh wallet balance after successful entry
-      const { data: walletData } = await supabase
-        .from("wallets")
-        .select("available_balance")
-        .eq("user_id", user.id)
-        .single();
-      if (walletData) setWalletBalanceCents(Number(walletData.available_balance));
+      // (Wave 1 #6) Refresh balance via centralized fail-closed RPC.
+      await wallet.refetch();
       setTimeout(() => navigate("/my-entries"), 1500);
     } catch (err: any) {
       let errorMessage = "Failed to enter contest";
