@@ -310,8 +310,8 @@ const Profile = () => {
                     <div className="flex items-center gap-2">
                       <DollarSign className="h-6 w-6 text-success" />
                       <p className="text-4xl font-heading font-extrabold text-success">
-                        {/* profile-overview returns wallet fields already converted to dollars */}
-                        {formatDollars(profileData.wallet.availableBalance).replace('$', '')}
+                        {/* profile-overview returns wallet fields already in dollars; DollarSign icon supplies the $ */}
+                        {profileData.wallet.availableBalance.toFixed(2)}
                       </p>
                     </div>
                   </div>
