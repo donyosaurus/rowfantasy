@@ -867,6 +867,54 @@ export type Database = {
           },
         ]
       }
+      payment_discrepancies: {
+        Row: {
+          actual_cents: number | null
+          created_at: string
+          difference_cents: number | null
+          expected_cents: number | null
+          id: string
+          issue: string
+          metadata: Json | null
+          our_status: string | null
+          provider: string
+          provider_amount_cents: number | null
+          provider_status: string | null
+          reconciliation_run_id: string
+          session_id: string
+        }
+        Insert: {
+          actual_cents?: number | null
+          created_at?: string
+          difference_cents?: number | null
+          expected_cents?: number | null
+          id?: string
+          issue: string
+          metadata?: Json | null
+          our_status?: string | null
+          provider: string
+          provider_amount_cents?: number | null
+          provider_status?: string | null
+          reconciliation_run_id: string
+          session_id: string
+        }
+        Update: {
+          actual_cents?: number | null
+          created_at?: string
+          difference_cents?: number | null
+          expected_cents?: number | null
+          id?: string
+          issue?: string
+          metadata?: Json | null
+          our_status?: string | null
+          provider?: string
+          provider_amount_cents?: number | null
+          provider_status?: string | null
+          reconciliation_run_id?: string
+          session_id?: string
+        }
+        Relationships: []
+      }
       payment_sessions: {
         Row: {
           amount_cents: number
