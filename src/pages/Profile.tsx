@@ -196,6 +196,8 @@ const Profile = () => {
       setIsSubmitting(false);
     }
   };
+
+  const canWithdraw = () => {
     if (!profileData) return false;
     return profileData.profile.isActive && !profileData.profile.selfExclusionUntil && profileData.wallet.availableBalance >= 5;
   };
