@@ -75,12 +75,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Default to yesterday if no date provided
-    const targetDate = body.date || getYesterday();
+    // Deterministic UTC report_date and per-invocation run_id
+    const _run_id = crypto.randomUUID();
+    const reportDate = body.date || new Date().toISOString().slice(0, 10);
+    const targetDate = reportDate;
     const startOfDay = `${targetDate}T00:00:00.000Z`;
     const endOfDay = `${targetDate}T23:59:59.999Z`;
 
-    console.log('[compliance-export] Generating report for:', targetDate);
+    console.log('[compliance-export] Generating report for:', targetDate, 'run_id:', _run_id);
 
     // Use service role for full data access
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
