@@ -141,44 +141,61 @@ const Profile = () => {
 
   const handleDeposit = async () => {
     const amount = parseFloat(depositAmount);
-    if (!amount || amount < 5 || amount > 500) { toast.error('Deposit amount must be between $5 and $500'); return; }
+    if (!amount || amount < 5 || amount > 500) {
+      setDepositError('Deposit amount must be between $5 and $500');
+      return;
+    }
     setIsSubmitting(true);
+    setDepositError(null);
     try {
       const { data, error } = await supabase.functions.invoke('wallet-deposit', {
         body: { amount: Math.floor(amount * 100) }
       });
-      if (error) { toast.error(error.message || 'Failed to process deposit'); return; }
-      if (data.error) { toast.error(data.error); return; }
+      if (error) { setDepositError(error.message || 'Failed to process deposit'); return; }
+      if (data?.error) { setDepositError(data.error); return; }
       toast.success(`Deposit successful! New balance: ${data.balanceDisplay}`);
       setDepositDialogOpen(false);
       setDepositAmount("");
+      setDepositError(null);
       fetchProfileData();
       fetchTransactions();
-    } catch { toast.error('Failed to process deposit'); }
-    finally { setIsSubmitting(false); }
+    } catch {
+      setDepositError('Failed to process deposit');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleWithdraw = async () => {
     const amount = parseFloat(withdrawAmount);
-    if (!amount || amount < 5 || amount > 200) { toast.error('Withdrawal amount must be between $5 and $200'); return; }
-    if (!profileData || profileData.wallet.availableBalance < amount) { toast.error('Insufficient balance'); return; }
+    if (!amount || amount < 5 || amount > 200) {
+      setWithdrawError('Withdrawal amount must be between $5 and $200');
+      return;
+    }
+    if (!profileData || profileData.wallet.availableBalance < amount) {
+      setWithdrawError('Insufficient balance');
+      return;
+    }
     setIsSubmitting(true);
+    setWithdrawError(null);
     try {
       const { data, error } = await supabase.functions.invoke('wallet-withdraw-request', {
         body: { amount_cents: Math.floor(amount * 100) }
       });
-      if (error) { toast.error(error.message || 'Failed to request withdrawal'); return; }
-      if (data.error) { toast.error(data.error); return; }
+      if (error) { setWithdrawError(error.message || 'Failed to request withdrawal'); return; }
+      if (data?.error) { setWithdrawError(data.error); return; }
       toast.success('Withdrawal request submitted');
       setWithdrawDialogOpen(false);
       setWithdrawAmount("");
+      setWithdrawError(null);
       fetchProfileData();
       fetchTransactions();
-    } catch { toast.error('Failed to request withdrawal'); }
-    finally { setIsSubmitting(false); }
+    } catch {
+      setWithdrawError('Failed to request withdrawal');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
-
-  const canWithdraw = () => {
     if (!profileData) return false;
     return profileData.profile.isActive && !profileData.profile.selfExclusionUntil && profileData.wallet.availableBalance >= 5;
   };
