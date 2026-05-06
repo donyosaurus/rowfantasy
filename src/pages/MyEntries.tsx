@@ -1,5 +1,6 @@
 // All money values must route through src/lib/formatCurrency.ts. Direct division by 100 in JSX is a bug.
 import { useEffect, useRef, useState } from "react";
+import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { getCircleFlagUrl } from "@/data/countryFlags";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -76,7 +77,9 @@ const MyEntries = () => {
   const [matchupEntry, setMatchupEntry] = useState<Entry | null>(null);
   const [resubmitEntry, setResubmitEntry] = useState<Entry | null>(null);
   const [resubmitting, setResubmitting] = useState(false);
-  const [walletBalanceCents, setWalletBalanceCents] = useState<number | null>(null);
+  // Wave 1 #6: balance via fail-closed centralized RPC.
+  const wallet = useWalletBalance();
+  const walletBalanceCents: number | null = wallet.status === 'ready' ? wallet.availableCents : null;
   const poolChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const [stats, setStats] = useState({
     totalEntries: 0,
@@ -208,13 +211,8 @@ const MyEntries = () => {
         winRate: completed.length > 0 ? wins.length / completed.length * 100 : 0
       });
 
-      // Fetch wallet balance for resubmit modal
-      const { data: walletData } = await supabase
-        .from('wallets')
-        .select('available_balance')
-        .eq('user_id', user.id)
-        .single();
-      if (walletData) setWalletBalanceCents(Number(walletData.available_balance));
+      // (Wave 1 #6) Direct .from('wallets') read removed — useWalletBalance
+      // hook handles the load through get_user_wallet_balances() RPC.
     } catch (error) {
       console.error('Error loading entries:', error);
     } finally {
@@ -242,6 +240,11 @@ const MyEntries = () => {
     if (entry.contest_pools?.status !== 'open' || new Date(entry.contest_templates.lock_time) <= new Date()) {
       toast.error('This contest has locked and is no longer accepting entries.');
       setResubmitEntry(null);
+      return;
+    }
+    // (Wave 1 #6) Fail-closed: refuse resubmit if balance read errored.
+    if (wallet.status === 'error') {
+      toast.error('Balance temporarily unavailable. Please retry before resubmitting.');
       return;
     }
     if (walletBalanceCents !== null && walletBalanceCents < fee) {
