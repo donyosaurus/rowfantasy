@@ -16,6 +16,7 @@ import { DollarSign, TrendingUp, Trophy, User, Edit2, ArrowUpDown, Loader2, Arro
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 
 interface ProfileData {
   profile: {
