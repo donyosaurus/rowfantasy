@@ -1,3 +1,4 @@
+// All money values must route through src/lib/formatCurrency.ts. Direct division by 100 in JSX is a bug.
 import { useEffect, useRef, useState } from "react";
 import { getCircleFlagUrl } from "@/data/countryFlags";
 import { useNavigate } from "react-router-dom";
@@ -431,7 +432,7 @@ const MyEntries = () => {
               <CardDescription className="space-y-1 mt-1">
                 <div>
                   {entry.tier_name && <span className="text-accent font-medium">{entry.tier_name} Tier · </span>}
-                  Entry: ${(entry.entry_fee_cents / 100).toFixed(2)}
+                  Entry: {formatCents(entry.entry_fee_cents)}
                   {prizeText && <span className="text-gold font-medium"> • {prizeText}</span>}
                 </div>
                 {!showScore && <div>Locks: {new Date(entry.contest_templates.lock_time).toLocaleString()}</div>}
