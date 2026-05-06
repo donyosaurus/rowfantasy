@@ -25,6 +25,25 @@ export class MockPaymentAdapter {
       transactionId: `mock_${crypto.randomUUID()}`,
     };
   }
+
+  /**
+   * Refund a previously captured payment. Called by deposit flow when the
+   * post-charge atomic RPC determinately rejects (Pass C contract).
+   * Real adapters (Aeropay, etc.) MUST implement this with provider-side
+   * reversal/refund APIs and surface failures so callers can write a
+   * `deposit_post_charge_refund_failed` critical compliance log.
+   */
+  async refundPayment(
+    transactionId: string,
+    amountCents: number,
+    reason: string,
+  ): Promise<{ success: boolean; refundId: string }> {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    return {
+      success: true,
+      refundId: `mock_refund_${crypto.randomUUID()}`,
+    };
+  }
 }
 
 export class MockProviderAdapter implements PaymentProvider {
