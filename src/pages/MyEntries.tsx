@@ -407,7 +407,7 @@ const MyEntries = () => {
 
     const getPrizeDisplayText = (): string => {
       if (isSettled) return '';
-      return topPrizeCents ? `Top Prize: $${(topPrizeCents / 100).toFixed(2)}` : `Prize Pool: $${(prizePoolCents / 100).toFixed(2)}`;
+      return topPrizeCents ? `Top Prize: ${formatCents(topPrizeCents)}` : `Prize Pool: ${formatCents(prizePoolCents)}`;
     };
 
     const getResultDisplay = () => {
@@ -415,7 +415,7 @@ const MyEntries = () => {
       if (entry.status === 'voided' || poolStatus === 'voided') return <Badge variant="secondary">Refunded</Badge>;
       const payoutCents = score?.payout_cents || 0;
       const rank = score?.rank || entry.rank;
-      if (payoutCents > 0) return <Badge className="bg-success text-success-foreground">Won ${(payoutCents / 100).toFixed(2)}</Badge>;
+      if (payoutCents > 0) return <Badge className="bg-success text-success-foreground">Won {formatCents(payoutCents)}</Badge>;
       if (rank) return <Badge variant="outline" className="text-muted-foreground">Finished #{rank}</Badge>;
       return <Badge variant="outline" className="text-muted-foreground">Did Not Win</Badge>;
     };

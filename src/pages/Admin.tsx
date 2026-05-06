@@ -252,7 +252,7 @@ const Admin = () => {
         console.log("[Settlement Report]");
         for (const [tier, pools] of Object.entries(byTier)) {
           const fee = (pools as any[])[0]?.entryFeeCents;
-          console.log(`  ${tier}${fee ? ` ($${(fee / 100).toFixed(2)})` : ''}:`);
+          console.log(`  ${tier}${fee ? ` (${formatCents(fee)})` : ''}:`);
           (pools as any[]).forEach((p: any, i: number) => {
             if (p.action === 'settled') {
               console.log(`    Pool ${i + 1}: Settled — ${p.winners || 0} winner(s)`);
