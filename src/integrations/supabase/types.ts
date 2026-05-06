@@ -1806,6 +1806,18 @@ export type Database = {
           read_ct: number
         }[]
       }
+      record_compliance_export_completed: {
+        Args: {
+          _description: string
+          _metadata: Json
+          _report_date: string
+          _run_id: string
+        }
+        Returns: {
+          existing_id: string
+          inserted: boolean
+        }[]
+      }
       settle_contest_pool_atomic: {
         Args: { _admin_user_id: string; _pool_id: string }
         Returns: {
