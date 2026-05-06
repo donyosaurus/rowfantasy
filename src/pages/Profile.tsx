@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
+import { DialogError } from "@/components/wallet/DialogError";
 
 interface ProfileData {
   profile: {
