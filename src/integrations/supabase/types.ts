@@ -1495,6 +1495,18 @@ export type Database = {
         Returns: undefined
       }
       auto_lock_expired_contests: { Args: never; Returns: number }
+      check_deposit_eligibility: {
+        Args: {
+          _amount_cents: number
+          _state_code: string
+          _user_id: string
+          _wallet_id: string
+        }
+        Returns: {
+          allowed: boolean
+          reason: string
+        }[]
+      }
       check_deposit_limit: {
         Args: { p_amount: number; p_user_id: string }
         Returns: boolean
