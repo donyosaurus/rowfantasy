@@ -46,18 +46,12 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Create privacy request — DELETE requests are queued for admin-mediated
-      // soft-delete review (Wave 4 #1). We never call auth.admin.deleteUser:
-      // GDPR/CCPA "right to erasure" is satisfied via PII redaction by
-      // public.soft_delete_user_account, which preserves the AML/KYC trail.
+      // Create privacy request
       const { data: request, error: insertError } = await supabase
         .from('privacy_requests')
         .insert({
           user_id: user.id,
-          type: body.type,
-          metadata: body.type === 'delete'
-            ? { handler: 'soft_delete_user_account', requires_admin_review: true }
-            : {}
+          type: body.type
         })
         .select()
         .single();
@@ -70,20 +64,14 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Log to compliance audit (best-effort; do not fail the user request)
-      try {
-        await supabase.from('compliance_audit_logs').insert({
-          user_id: user.id,
-          event_type: body.type === 'delete'
-            ? 'account_deletion_requested'
-            : 'privacy_request_submitted',
-          description: `User submitted ${body.type} request`,
-          severity: body.type === 'delete' ? 'warning' : 'info',
-          metadata: { request_id: request.id, type: body.type }
-        });
-      } catch (auditErr) {
-        console.error('[privacy-requests] audit log insert failed (non-fatal):', auditErr);
-      }
+      // Log to compliance audit
+      await supabase.from('compliance_audit_logs').insert({
+        user_id: user.id,
+        event_type: 'privacy_request_submitted',
+        description: `User submitted ${body.type} request`,
+        severity: 'info',
+        metadata: { request_id: request.id, type: body.type }
+      });
 
       return new Response(
         JSON.stringify({ request }),

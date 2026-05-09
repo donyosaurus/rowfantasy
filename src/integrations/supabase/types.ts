@@ -867,54 +867,6 @@ export type Database = {
           },
         ]
       }
-      payment_discrepancies: {
-        Row: {
-          actual_cents: number | null
-          created_at: string
-          difference_cents: number | null
-          expected_cents: number | null
-          id: string
-          issue: string
-          metadata: Json | null
-          our_status: string | null
-          provider: string
-          provider_amount_cents: number | null
-          provider_status: string | null
-          reconciliation_run_id: string
-          session_id: string
-        }
-        Insert: {
-          actual_cents?: number | null
-          created_at?: string
-          difference_cents?: number | null
-          expected_cents?: number | null
-          id?: string
-          issue: string
-          metadata?: Json | null
-          our_status?: string | null
-          provider: string
-          provider_amount_cents?: number | null
-          provider_status?: string | null
-          reconciliation_run_id: string
-          session_id: string
-        }
-        Update: {
-          actual_cents?: number | null
-          created_at?: string
-          difference_cents?: number | null
-          expected_cents?: number | null
-          id?: string
-          issue?: string
-          metadata?: Json | null
-          our_status?: string | null
-          provider?: string
-          provider_amount_cents?: number | null
-          provider_status?: string | null
-          reconciliation_run_id?: string
-          session_id?: string
-        }
-        Relationships: []
-      }
       payment_sessions: {
         Row: {
           amount_cents: number
@@ -1002,8 +954,6 @@ export type Database = {
           contest_count: number
           created_at: string
           date_of_birth: string | null
-          deleted_at: string | null
-          deleted_reason: string | null
           deposit_limit_monthly: number | null
           email: string
           full_name: string | null
@@ -1031,8 +981,6 @@ export type Database = {
           contest_count?: number
           created_at?: string
           date_of_birth?: string | null
-          deleted_at?: string | null
-          deleted_reason?: string | null
           deposit_limit_monthly?: number | null
           email: string
           full_name?: string | null
@@ -1060,8 +1008,6 @@ export type Database = {
           contest_count?: number
           created_at?: string
           date_of_birth?: string | null
-          deleted_at?: string | null
-          deleted_reason?: string | null
           deposit_limit_monthly?: number | null
           email?: string
           full_name?: string | null
@@ -1091,9 +1037,7 @@ export type Database = {
           errors: Json | null
           file_hash: string | null
           id: string
-          idempotency_key: string | null
           import_date: string
-          import_run_id: string | null
           metadata: Json | null
           regatta_name: string
           results_data: Json
@@ -1107,9 +1051,7 @@ export type Database = {
           errors?: Json | null
           file_hash?: string | null
           id?: string
-          idempotency_key?: string | null
           import_date?: string
-          import_run_id?: string | null
           metadata?: Json | null
           regatta_name: string
           results_data: Json
@@ -1123,9 +1065,7 @@ export type Database = {
           errors?: Json | null
           file_hash?: string | null
           id?: string
-          idempotency_key?: string | null
           import_date?: string
-          import_run_id?: string | null
           metadata?: Json | null
           regatta_name?: string
           results_data?: Json
@@ -1203,59 +1143,6 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: true
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      scoring_jobs: {
-        Row: {
-          attempts: number
-          completed_at: string | null
-          contest_template_id: string
-          created_at: string
-          id: string
-          import_id: string
-          last_error: string | null
-          picked_up_at: string | null
-          pool_id: string
-          race_results: Json
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          attempts?: number
-          completed_at?: string | null
-          contest_template_id: string
-          created_at?: string
-          id?: string
-          import_id: string
-          last_error?: string | null
-          picked_up_at?: string | null
-          pool_id: string
-          race_results: Json
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          attempts?: number
-          completed_at?: string | null
-          contest_template_id?: string
-          created_at?: string
-          id?: string
-          import_id?: string
-          last_error?: string | null
-          picked_up_at?: string | null
-          pool_id?: string
-          race_results?: Json
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "scoring_jobs_import_id_fkey"
-            columns: ["import_id"]
-            isOneToOne: false
-            referencedRelation: "race_results_imports"
             referencedColumns: ["id"]
           },
         ]
@@ -1636,14 +1523,6 @@ export type Database = {
           reason: string
         }[]
       }
-      change_username_atomic: {
-        Args: { _new_username: string; _user_id: string }
-        Returns: {
-          allowed: boolean
-          next_change_at: string
-          reason: string
-        }[]
-      }
       check_deposit_eligibility: {
         Args: {
           _amount_cents: number
@@ -1740,14 +1619,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      import_race_results_atomic: {
-        Args: {
-          _admin_user_id: string
-          _idempotency_key: string
-          _import_payload: Json
-        }
-        Returns: Json
-      }
       increment_pool_entries: {
         Args: { p_pool_id: string }
         Returns: undefined
@@ -1806,18 +1677,6 @@ export type Database = {
           read_ct: number
         }[]
       }
-      record_compliance_export_completed: {
-        Args: {
-          _description: string
-          _metadata: Json
-          _report_date: string
-          _run_id: string
-        }
-        Returns: {
-          existing_id: string
-          inserted: boolean
-        }[]
-      }
       settle_contest_pool_atomic: {
         Args: { _admin_user_id: string; _pool_id: string }
         Returns: {
@@ -1829,14 +1688,6 @@ export type Database = {
           was_already_settled: boolean
           winners_count: number
         }[]
-      }
-      soft_delete_user_account: {
-        Args: {
-          _admin_user_id: string
-          _reason: string
-          _target_user_id: string
-        }
-        Returns: Json
       }
       update_wallet_balance: {
         Args: {

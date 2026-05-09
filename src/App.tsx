@@ -6,7 +6,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./hooks/useAuth";
 import { ScrollToTop } from "./components/ScrollToTop";
-import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -34,30 +33,28 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <ScrollToTop />
-          <AppErrorBoundary>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/signup" element={<Signup />} />
-              <Route path="/lobby" element={<Lobby />} />
-              <Route path="/contests" element={<Lobby />} />
-              <Route path="/regatta/:id" element={<AppErrorBoundary><RegattaDetail /></AppErrorBoundary>} />
-              <Route path="/contest/:id" element={<AppErrorBoundary><ContestDetail /></AppErrorBoundary>} />
-              <Route path="/contest/:id/:tierId" element={<AppErrorBoundary><ContestDetail /></AppErrorBoundary>} />
-              <Route path="/profile" element={<AppErrorBoundary><Profile /></AppErrorBoundary>} />
-              <Route path="/my-entries" element={<AppErrorBoundary><MyEntries /></AppErrorBoundary>} />
-              <Route path="/admin" element={<Admin />} />
-              <Route path="/legal" element={<Legal />} />
-              <Route path="/legal/terms" element={<Terms />} />
-              <Route path="/legal/privacy" element={<Privacy />} />
-              <Route path="/legal/responsible-play" element={<ResponsiblePlay />} />
-              <Route path="/support/help-center" element={<HelpCenter />} />
-              <Route path="/support/contact" element={<Contact />} />
-
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AppErrorBoundary>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/lobby" element={<Lobby />} />
+            <Route path="/contests" element={<Lobby />} />
+            <Route path="/regatta/:id" element={<RegattaDetail />} />
+            <Route path="/contest/:id" element={<ContestDetail />} />
+            <Route path="/contest/:id/:tierId" element={<ContestDetail />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/my-entries" element={<MyEntries />} />
+            <Route path="/admin" element={<Admin />} />
+            <Route path="/legal" element={<Legal />} />
+            <Route path="/legal/terms" element={<Terms />} />
+            <Route path="/legal/privacy" element={<Privacy />} />
+            <Route path="/legal/responsible-play" element={<ResponsiblePlay />} />
+            <Route path="/support/help-center" element={<HelpCenter />} />
+            <Route path="/support/contact" element={<Contact />} />
+            
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

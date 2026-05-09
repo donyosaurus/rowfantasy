@@ -492,11 +492,6 @@ const ContestDetail = () => {
                           size="lg"
                           className="w-full font-semibold"
                           disabled={isSubmitting || crewPicks.size < minPicks || !allMarginsValid || (hasTiers && !selectedTier)}
-                          aria-label={
-                            hasTiers && !selectedTier
-                              ? "Select an entry tier before entering the contest"
-                              : `Enter contest, entry fee ${formatCents(activeEntryFee)}`
-                          }
                         >
                           {isSubmitting ? (
                             <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing…</>

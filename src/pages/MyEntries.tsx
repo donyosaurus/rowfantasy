@@ -476,7 +476,6 @@ const MyEntries = () => {
                 size="sm"
                 onClick={() => openResubmit(entry)}
                 className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-accent transition-smooth font-semibold"
-                aria-label={`Submit another entry, fee ${formatCents(entry.contest_pools?.entry_fee_cents ?? entry.entry_fee_cents)}`}
               >
                 <Plus className="h-4 w-4" />
                 Submit Another Entry
@@ -618,7 +617,7 @@ const MyEntries = () => {
               type="button"
               onClick={() => !resubmitting && setResubmitEntry(null)}
               className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
-              aria-label="Close dialog"
+              aria-label="Close"
             >
               <X className="h-5 w-5" />
             </button>
@@ -653,7 +652,6 @@ const MyEntries = () => {
               disabled={resubmitting}
               className="w-full mt-5 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold h-12"
               style={{ borderRadius: 12 }}
-              aria-label={`Resubmit entry, ${formatCents(resubmitEntry.contest_pools?.entry_fee_cents ?? resubmitEntry.entry_fee_cents)}`}
             >
               {resubmitting
                 ? "Submitting..."

@@ -27,20 +27,3 @@ idempotent on the email).
 
 The auto-void sweep defaults to `dry_run=true` for safety; production
 schedule MUST pass `?dry_run=false` explicitly.
-
-## Account deletion — HARD RULE (Wave 4 #1)
-
-**NEVER call `auth.admin.deleteUser` without legal sign-off.** The only supported
-account-removal path is `public.soft_delete_user_account(admin_id, target_id, reason)`,
-which redacts PII while preserving the AML/KYC/financial audit trail required by
-gaming regulators (5+ year retention).
-
-- All FKs from public.* to `auth.users` are `ON DELETE RESTRICT`. A hard delete
-  will fail at the database level until every retained row is manually purged
-  (which itself violates AML retention).
-- Privacy/GDPR "right to erasure" requests routed through
-  `supabase/functions/privacy-requests` are queued for admin-mediated soft-delete,
-  not hard-delete.
-- If a regulator/court order ever truly requires hard deletion, document the
-  legal basis in `compliance_audit_logs` first and only then perform the
-  operation under direct DBA supervision.

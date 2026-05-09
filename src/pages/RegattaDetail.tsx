@@ -474,11 +474,6 @@ const RegattaDetail = () => {
                           className="w-full rounded-xl font-semibold"
                           disabled={!isContestOpen || crewPicks.size < minPicks || !allMarginsValid || (hasTiers && !selectedTier) || submitting}
                           onClick={handleSubmitEntry}
-                          aria-label={
-                            hasTiers && !selectedTier
-                              ? "Select an entry tier before entering the contest"
-                              : `Enter contest, entry fee ${formatCents(activeEntryFee)}`
-                          }
                         >
                           {submitting ? (
                             <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Entering...</>
@@ -640,11 +635,6 @@ const RegattaDetail = () => {
               className="w-full rounded-xl font-semibold"
               disabled={!isContestOpen || crewPicks.size < minPicks || !allMarginsValid || (hasTiers && !selectedTier) || submitting}
               onClick={handleSubmitEntry}
-              aria-label={
-                hasTiers && !selectedTier
-                  ? "Select an entry tier before entering the contest"
-                  : `Enter contest, entry fee ${formatCents(activeEntryFee)}`
-              }
             >
               {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Entering...</> : hasTiers && !selectedTier ? "Select a Tier" : `Enter Contest — ${formatCents(activeEntryFee)}`}
             </Button>
