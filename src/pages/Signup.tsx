@@ -67,18 +67,10 @@ const Signup = () => {
     }
   };
 
-  // Redirect if already logged in. Sanitize `from` to prevent open-redirect (GHSA-2w69-qvjg-hvjx mitigation).
+  // Redirect if already logged in
   useEffect(() => {
     if (user) {
-      const rawFrom = (location.state as any)?.from;
-      const from =
-        typeof rawFrom === 'string' &&
-        rawFrom.startsWith('/') &&
-        !rawFrom.startsWith('//') &&
-        !rawFrom.includes(':') &&
-        !rawFrom.toLowerCase().startsWith('javascript:')
-          ? rawFrom
-          : '/';
+      const from = (location.state as any)?.from || "/";
       navigate(from);
     }
   }, [user, navigate, location.state]);

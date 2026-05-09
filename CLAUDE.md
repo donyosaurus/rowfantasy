@@ -1,53 +1,46 @@
-# RowFantasy — Collaboration Rules
+# RowFantasy — Operator Notes
 
-> Operational state (system accounts, cron schedules, account-deletion rules, dependency posture) lives in OPERATOR.md. Read it when working on infrastructure, scheduled jobs, or user-data lifecycle code.
+## System accounts
 
-## Context
-Real-money daily fantasy sports platform. Pre-launch. Backend lives in 
-Supabase, accessed exclusively through Lovable Cloud prompts — never the 
-Supabase dashboard, never direct SQL. Claude Code is secondary to Lovable 
-for backend work; primary for local frontend, scripting, and review.
+### `system+auto-void@rowfantasy.internal`
 
-## When to invoke Codex (MCP tool)
-Always cross-check with Codex before finalizing changes that touch:
-- **RLS policies** — past bugs include hiding opponent entries pre-lock 
-  and blocking unauthenticated contest browsing. Verify scope explicitly.
-- **Wallet logic** — units must be consistent (dollars throughout, never 
-  cents). Past bug: deposits stored in cents while transactions used dollars.
-- **Security DEFINER RPCs** — must use `auth.uid()` internally. Never 
-  accept caller-supplied user IDs. Codex should verify this on every RPC.
-- **Scoring constants** — `FINISH_POINTS` has historically existed in 
-  multiple files with inconsistent values. Grep all locations before 
-  changing any.
-- **H2H self-match logic** — duplicate-pool prevention must be scoped 
-  to the triggered tier only, never cascade across tiers.
-- **Cloudflare Worker geofencing** — `BLOCKED_STATES` changes affect 
-  legal compliance. DC is currently blocked for testing; remove post-test.
-- **Payment adapter integration** — when replacing the mock with Aeropay.
+Dedicated `auth.users` row used by the `auto-void-unfilled-pools` cron sweep
+as `_admin_user_id` when calling `void_contest_pool_atomic`.
 
-## When NOT to invoke Codex
-- Cosmetic frontend changes, copy edits, banner image generation
-- Lovable-managed backend work (Lovable is the source of truth there)
-- Anything where you'd be sending the same context to both models — 
-  that produces echo-chamber agreement, not a real second opinion
+- **Created by**: migration provisioning `system_auto_void` admin user.
+- **Role**: `admin` (in `public.user_roles`).
+- **Login**: disabled — no password is set; `encrypted_password = ''`.
+- **Purpose**: attribution for cron-driven void operations so that audit logs
+  show a stable, identifiable system actor rather than a real admin's UUID.
+- **Do not delete** — `void_contest_pool_atomic` re-validates that the
+  supplied `_admin_user_id` exists in `auth.users` and has the admin role.
 
-## Cross-check pattern
-Send Codex the diff plus intent only — not your reasoning. The independent 
-review is the value.
+If the account is ever lost, re-run the provisioning migration (it is
+idempotent on the email).
 
-## Debugging constraint
-Supabase MCP is unreliable for this project (`pg_proc`, 
-`information_schema.routines`, and user table queries return empty). 
-Reason from behavioral and UI evidence. Do not assume MCP query results 
-reflect actual database state. Route verification through Lovable prompts.
+## Cron schedules
 
-## Output style
-- Backend changes: deliver as Lovable prompts, batched and sequenced 
-  to respect dependency ordering. Do not write SQL directly.
-- Command-line tasks: numbered list, one step per action, no repetition.
-- Banner images: 1200×400px (3:1), centered logos/text, edges clear.
+| Function | Recommended cadence | Mode |
+|---|---|---|
+| `auto-lock-contests` | every 1 min | mutating |
+| `auto-void-unfilled-pools` | every 10 min | `?dry_run=false` |
 
-## Sandbox posture
-This is a pre-launch real-money platform. Do not use Codex wrappers that 
-bypass approvals/sandbox (`--dangerously-bypass-approvals-and-sandbox`). 
-Stick with `codex mcp-server` directly so confirmations stay in the loop.
+The auto-void sweep defaults to `dry_run=true` for safety; production
+schedule MUST pass `?dry_run=false` explicitly.
+
+## Account deletion — HARD RULE (Wave 4 #1)
+
+**NEVER call `auth.admin.deleteUser` without legal sign-off.** The only supported
+account-removal path is `public.soft_delete_user_account(admin_id, target_id, reason)`,
+which redacts PII while preserving the AML/KYC/financial audit trail required by
+gaming regulators (5+ year retention).
+
+- All FKs from public.* to `auth.users` are `ON DELETE RESTRICT`. A hard delete
+  will fail at the database level until every retained row is manually purged
+  (which itself violates AML retention).
+- Privacy/GDPR "right to erasure" requests routed through
+  `supabase/functions/privacy-requests` are queued for admin-mediated soft-delete,
+  not hard-delete.
+- If a regulator/court order ever truly requires hard deletion, document the
+  legal basis in `compliance_audit_logs` first and only then perform the
+  operation under direct DBA supervision.

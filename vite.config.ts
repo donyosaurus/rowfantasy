@@ -10,9 +10,6 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
-  build: {
-    target: ["chrome90", "edge90", "firefox90", "safari15", "es2020"],
-  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
