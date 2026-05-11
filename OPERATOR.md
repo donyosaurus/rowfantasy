@@ -62,5 +62,5 @@ Rules:
   (see `audits/wave8-accepted-router-exposure.md`). Do not loosen them.
 - Verification one-liner (run after any `package.json` edit):
 ```bash
-  node -e "const p=require('./package.json'); const all={...p.dependencies,...p.devDependencies}; const drift=Object.entries(all).filter(([k,v])=>/^[^\^~]/.test(v)); if(drift.length){console.error('floating:',drift); process.exit(1)} else console.log('ok: all pinned')"
+  node -e "const p=require('./package.json'); const all={...p.dependencies,...p.devDependencies}; const drift=Object.entries(all).filter(([k,v])=>/^[\^~]/.test(v)); if(drift.length){console.error('floating:',drift); process.exit(1)} else console.log('ok: all pinned')"
 ```
