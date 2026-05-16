@@ -17,10 +17,18 @@ const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Redirect if already logged in
+  // Redirect if already logged in. Sanitize `from` to prevent open-redirect (GHSA-2w69-qvjg-hvjx mitigation).
   useEffect(() => {
     if (user) {
-      const from = (location.state as any)?.from || "/";
+      const rawFrom = (location.state as any)?.from;
+      const from =
+        typeof rawFrom === 'string' &&
+        rawFrom.startsWith('/') &&
+        !rawFrom.startsWith('//') &&
+        !rawFrom.includes(':') &&
+        !rawFrom.toLowerCase().startsWith('javascript:')
+          ? rawFrom
+          : '/';
       navigate(from);
     }
   }, [user, navigate, location.state]);
