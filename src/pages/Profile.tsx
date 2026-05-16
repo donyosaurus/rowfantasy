@@ -156,7 +156,7 @@ const Profile = () => {
 
   const handleWithdraw = async () => {
     const amount = parseFloat(withdrawAmount);
-    if (!amount || amount < 5 || amount > 200) { toast.error('Withdrawal amount must be between $5 and $200'); return; }
+    if (!amount || amount < 5 || amount > 500) { toast.error('Withdrawal amount must be between $5 and $500'); return; }
     if (!profileData || profileData.wallet.availableBalance < amount) { toast.error('Insufficient balance'); return; }
     setIsSubmitting(true);
     try {
@@ -508,12 +508,12 @@ const Profile = () => {
         <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle className="font-heading">Withdraw Funds</DialogTitle>
-            <DialogDescription>Withdraw funds from your wallet. Minimum $5, maximum $200 per transaction. Daily limit: $500.</DialogDescription>
+            <DialogDescription>Withdraw funds from your wallet. Minimum $5, maximum $500 per transaction. Daily limit: $500.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Amount (USD)</label>
-              <Input type="number" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} placeholder="0.00" min="5" max="200" step="0.01" disabled={isSubmitting} className="rounded-xl" />
+              <Input type="number" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} placeholder="0.00" min="5" max="500" step="0.01" disabled={isSubmitting} className="rounded-xl" />
               <p className="text-xs text-muted-foreground">Available: ${profileData.wallet.availableBalance.toFixed(2)}</p>
             </div>
           </div>
