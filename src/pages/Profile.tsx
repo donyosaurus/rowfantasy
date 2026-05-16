@@ -141,7 +141,7 @@ const Profile = () => {
     setIsSubmitting(true);
     try {
       const { data, error } = await supabase.functions.invoke('wallet-deposit', {
-        body: { amount: Math.floor(amount * 100) }
+        body: { amount_cents: Math.floor(amount * 100) }
       });
       if (error) { toast.error(error.message || 'Failed to process deposit'); return; }
       if (data.error) { toast.error(data.error); return; }
