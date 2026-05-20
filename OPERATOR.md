@@ -64,3 +64,51 @@ Rules:
 ```bash
   node -e "const p=require('./package.json'); const all={...p.dependencies,...p.devDependencies}; const drift=Object.entries(all).filter(([k,v])=>/^[\^~]/.test(v)); if(drift.length){console.error('floating:',drift); process.exit(1)} else console.log('ok: all pinned')"
 ```
+
+## Deployment & Infrastructure (Cloudflare Worker + Lovable)
+
+### Routing architecture
+
+- `rowfantasy.com` (apex) is served by a Cloudflare Worker route named `rowfantasy-geofence`, NOT a standard A/AAAA
+  record. The Worker is the apex handler.
+- Request flow: user → `rowfantasy.com` → `rowfantasy-geofence` Worker (geofence check against `BLOCKED_STATES`) →
+  forwards to `ORIGIN_HOST`.
+- `ORIGIN_HOST = rowfantasy.lovable.app` — the production-published Lovable hostname.
+
+### Lovable hostnames — CRITICAL distinction
+
+- **PRODUCTION hostname**: `rowfantasy.lovable.app`. Public, no auth. **This is the only valid `ORIGIN_HOST`.**
+- **EDITOR PREVIEW hostname**: `id-preview--2b69429d-ad5f-4e48-8f93-e8587ead9e3c.lovable.app`. Requires Lovable
+  workspace auth; serves the Lovable platform "Authenticating..." shell to unauthenticated requests. **NEVER use as
+  `ORIGIN_HOST`** — doing so caused a multi-hour production outage where `rowfantasy.com` served Lovable's Next.js
+  platform shell instead of the app.
+- Diagnostic: if `rowfantasy.com` serves `/_next/` asset paths, the Worker is hitting the Lovable shell (broken).
+  The real app serves `/assets/` (Vite).
+- Lovable project ID: `2b69429d-ad5f-4e48-8f93-e8587ead9e3c`.
+
+### Cloudflare Worker source location
+
+- The Worker source code is **NOT in this git repo**. It lives only in the Cloudflare dashboard (Workers & Pages →
+  `rowfantasy-geofence`). Current version: v7.
+- Worker changes are made directly in Cloudflare, never via Lovable prompts.
+- Claude Code CANNOT verify Worker changes via `git pull`. Verify Worker behavior via: curl response headers
+  (`X-Geo-State`, `X-Geo-Status`), the `/geo-debug` endpoint (returns geo JSON), and confirming `/assets/` vs
+  `/_next/` paths.
+
+### DNS — do NOT use Lovable's automated domain setup
+
+- Do **NOT** run Lovable's Entri / Domain Connect automated DNS flow. It adds a DNS-only A record at the apex
+  (`rowfantasy.com → 185.158.133.1`, Lovable's edge) that bypasses the Cloudflare Worker entirely and silently
+  disables geofencing.
+- There is a locked AAAA placeholder record (`rowfantasy.com → 100::`, IPv6 discard prefix). It is
+  Cloudflare-managed and intentional for the Worker-only apex setup. Leave it.
+- Lovable's domain settings page perpetually shows "Complete setup" warnings for `rowfantasy.com` and
+  `www.rowfantasy.com` because the Entri flow is intentionally not used. Expected and cosmetic.
+
+### Known caveats
+
+- **Set-Cookie domain**: origin sets cookies scoped `Domain=lovable.app`, which won't transmit on `rowfantasy.com`.
+  If session persistence breaks on `rowfantasy.com`, the Worker must rewrite `Set-Cookie` `Domain` from `lovable.app`
+  to `rowfantasy.com`.
+- **DC geo status**: DC is currently allowed at the Worker (not in `BLOCKED_STATES`). CLAUDE.md's "blocked for
+  testing" note is stale (tracked as P0-C8).
