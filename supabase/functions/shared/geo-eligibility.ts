@@ -92,8 +92,8 @@ export async function checkLocationEligibility(
   const stateCode = getUserState(req);
   
   if (!stateCode) {
-    console.log('[geo-eligibility] No location header detected - allowing access');
-    return { allowed: true, stateCode: null };
+    console.log('[geo-eligibility] No location header detected - blocking access (fail-closed)');
+    throw new Error('Location Restricted: Unable to verify your location. Please try again.');
   }
   
   if (isStateBlocked(stateCode)) {
@@ -192,11 +192,12 @@ export async function checkGeoEligibility(
       await logGeoEvent(supabase, {
         userId,
         ipAddress: cleanIp,
-        isAllowed: true,
+        isAllowed: false,
         actionType: 'api_failure',
-        metadata: { error: 'IPBase API unavailable', status: response.status },
+        blockedReason: 'IPBase API unavailable - failing closed',
+        metadata: { error: 'IPBase API unavailable', status: response.status, severity: 'critical' },
       });
-      return { allowed: true, reason: 'Geolocation service unavailable' };
+      return { allowed: false, reason: 'Geolocation verification temporarily unavailable. Please try again.' };
     }
 
     const data = await response.json();
@@ -204,7 +205,15 @@ export async function checkGeoEligibility(
 
     if (!stateCode) {
       console.warn('[geo-eligibility] No state code found for IP:', cleanIp);
-      return { allowed: true, reason: 'Unable to determine state' };
+      await logGeoEvent(supabase, {
+        userId,
+        ipAddress: cleanIp,
+        isAllowed: false,
+        actionType: 'state_unresolvable',
+        blockedReason: 'IPBase returned no state code - failing closed',
+        metadata: { severity: 'warning' },
+      });
+      return { allowed: false, reason: 'Unable to determine your location. Please try again.' };
     }
 
     // Cache the result
@@ -218,11 +227,12 @@ export async function checkGeoEligibility(
     await logGeoEvent(supabase, {
       userId,
       ipAddress,
-      isAllowed: true,
+      isAllowed: false,
       actionType: 'error',
-      metadata: { error: error.message },
+      blockedReason: 'Geolocation check threw - failing closed',
+      metadata: { error: error.message, severity: 'critical' },
     });
-    return { allowed: true, reason: 'Geolocation check failed' };
+    return { allowed: false, reason: 'Geolocation verification failed. Please try again.' };
   }
 }
 
