@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { authenticateUser, checkRateLimit } from "../shared/auth-helpers.ts";
+import { performComplianceChecks } from "../shared/compliance-checks.ts";
 import { mapErrorToClient, logSecureError, ERROR_MESSAGES } from "../shared/error-handler.ts";
 import { getCorsHeaders } from "../shared/cors.ts";
 
@@ -90,6 +91,27 @@ Deno.serve(async (req) => {
     const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
 
     const stateCode = body.state_code || req.headers.get("x-user-state") || "";
+    const ipAddress =
+      req.headers.get("cf-connecting-ip") ||
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      "unknown";
+
+    // Application-layer compliance gates (P0-C1 / P0-C7): geo, state-reg, age, inactive, SX, employee.
+    // amountCents=0 — helper's success-log metadata will record `actionType: 'entry'` with `amount_cents: 0`.
+    // The actual entry fee is determined inside enter_contest_pool_atomic.
+    const compliance = await performComplianceChecks({
+      userId,
+      stateCode,
+      amountCents: 0,
+      actionType: "entry",
+      ipAddress,
+    });
+    if (!compliance.allowed) {
+      return new Response(
+        JSON.stringify({ error: compliance.reason ?? "Compliance check failed" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const { data: result, error: rpcError } = await supabaseAdmin.rpc("enter_contest_pool_atomic", {
       _user_id: userId,

@@ -3,6 +3,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { authenticateUser, checkRateLimit } from '../shared/auth-helpers.ts';
+import { performComplianceChecks } from '../shared/compliance-checks.ts';
 import { mapErrorToClient, logSecureError } from '../shared/error-handler.ts';
 import { getCorsHeaders } from '../shared/cors.ts';
 
@@ -58,23 +59,34 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check profile for self-exclusion
+    // Application-layer compliance gates (P0-C1 / P0-C7): geo, state-reg, age, inactive, SX, employee.
+    const ipAddress =
+      req.headers.get('cf-connecting-ip') ||
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      'unknown';
     const { data: profile } = await auth.supabase
       .from('profiles')
-      .select('self_exclusion_until, is_active, state')
+      .select('state')
       .eq('id', userId)
       .single();
 
-    if (!profile?.is_active) {
+    if (!profile) {
       return new Response(
-        JSON.stringify({ error: 'Account is inactive' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'User profile not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (profile.self_exclusion_until && new Date(profile.self_exclusion_until) > new Date()) {
+    const compliance = await performComplianceChecks({
+      userId,
+      stateCode: profile.state ?? '',
+      amountCents: body.amount_cents,
+      actionType: 'deposit',
+      ipAddress,
+    });
+    if (!compliance.allowed) {
       return new Response(
-        JSON.stringify({ error: mapErrorToClient({ message: 'self excluded' }) }),
+        JSON.stringify({ error: compliance.reason ?? 'Compliance check failed' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
