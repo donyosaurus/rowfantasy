@@ -92,8 +92,8 @@ export async function checkLocationEligibility(
   const stateCode = getUserState(req);
   
   if (!stateCode) {
-    console.log('[geo-eligibility] No location header detected - allowing access');
-    return { allowed: true, stateCode: null };
+    console.log('[geo-eligibility] No location header detected - blocking access (fail-closed)');
+    throw new Error('Location Restricted: Unable to verify your location. Please try again.');
   }
   
   if (isStateBlocked(stateCode)) {
