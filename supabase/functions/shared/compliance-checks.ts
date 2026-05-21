@@ -54,7 +54,7 @@ export async function performComplianceChecks(
       await logComplianceEvent(supabase, {
         userId: context.userId,
         eventType: 'geo_blocked',
-        severity: 'warn',
+        severity: 'warning',
         description: geoResult.reason || 'Geolocation check failed',
         stateCode: geoResult.stateCode,
         ipAddress: context.ipAddress,
@@ -84,7 +84,7 @@ export async function performComplianceChecks(
       await logComplianceEvent(supabase, {
         userId: context.userId,
         eventType: 'state_check_failed',
-        severity: 'error',
+        severity: 'critical',
         description: `State regulation check failed for ${context.stateCode}`,
         stateCode: context.stateCode,
         ipAddress: context.ipAddress,
@@ -100,7 +100,7 @@ export async function performComplianceChecks(
       await logComplianceEvent(supabase, {
         userId: context.userId,
         eventType: 'state_prohibited',
-        severity: 'warn',
+        severity: 'warning',
         description: `Attempted ${context.actionType} from ${stateRule.status} state ${context.stateCode}`,
         stateCode: context.stateCode,
         ipAddress: context.ipAddress,
@@ -132,7 +132,7 @@ export async function performComplianceChecks(
     await logComplianceEvent(supabase, {
       userId: context.userId,
       eventType: 'age_verification_missing',
-      severity: 'warn',
+      severity: 'warning',
       description: 'User has not completed age verification',
       stateCode: context.stateCode,
     });
@@ -153,7 +153,7 @@ export async function performComplianceChecks(
     await logComplianceEvent(supabase, {
       userId: context.userId,
       eventType: 'underage_blocked',
-      severity: 'error',
+      severity: 'critical',
       description: `User age ${age} is below minimum ${minAge}`,
       stateCode: context.stateCode,
     });
@@ -168,7 +168,7 @@ export async function performComplianceChecks(
     await logComplianceEvent(supabase, {
       userId: context.userId,
       eventType: 'inactive_account',
-      severity: 'warn',
+      severity: 'warning',
       description: 'Inactive account attempted transaction',
       stateCode: context.stateCode,
     });
@@ -204,7 +204,7 @@ export async function performComplianceChecks(
     await logComplianceEvent(supabase, {
       userId: context.userId,
       eventType: 'employee_block',
-      severity: 'warn',
+      severity: 'warning',
       description: 'Employee attempted transaction',
       stateCode: context.stateCode,
     });
