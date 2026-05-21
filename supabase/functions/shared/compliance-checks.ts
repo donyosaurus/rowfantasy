@@ -168,7 +168,7 @@ export async function performComplianceChecks(
     await logComplianceEvent(supabase, {
       userId: context.userId,
       eventType: 'inactive_account',
-      severity: 'warn',
+      severity: 'warning',
       description: 'Inactive account attempted transaction',
       stateCode: context.stateCode,
     });
