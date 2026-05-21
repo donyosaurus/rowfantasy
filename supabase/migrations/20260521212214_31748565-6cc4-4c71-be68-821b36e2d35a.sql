@@ -1,0 +1,16 @@
+-- =========================================================================
+-- Cleanup: Drop dead/broken/security-regression RPC `enter_contest_pool(uuid, uuid, jsonb)`.
+--
+-- This 3-arg signature was originally created in 20260106085616 then explicitly
+-- DROPPED for security in 20260310200146 (comment in that migration:
+-- "C2: Drop vulnerable 3-param enter_contest_pool that accepts arbitrary user_id").
+-- It was then incorrectly re-introduced in 20260413003850 with the same vulnerable
+-- caller-supplied-user_id signature. The function has zero callers in the current
+-- codebase (replacement path is enter_contest_pool_atomic, a 6-arg SECURITY DEFINER
+-- RPC granted only to service_role). Additionally the function body calls
+-- get_user_balance(p_user_id) which no longer exists (current signature is 0-arg
+-- per 20260502180051), so any future call would throw at runtime.
+--
+-- This migration re-applies the 20260310200146 drop forward-only.
+-- =========================================================================
+DROP FUNCTION IF EXISTS public.enter_contest_pool(uuid, uuid, jsonb);
