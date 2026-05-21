@@ -227,11 +227,12 @@ export async function checkGeoEligibility(
     await logGeoEvent(supabase, {
       userId,
       ipAddress,
-      isAllowed: true,
+      isAllowed: false,
       actionType: 'error',
-      metadata: { error: error.message },
+      blockedReason: 'Geolocation check threw - failing closed',
+      metadata: { error: error.message, severity: 'critical' },
     });
-    return { allowed: true, reason: 'Geolocation check failed' };
+    return { allowed: false, reason: 'Geolocation verification failed. Please try again.' };
   }
 }
 
