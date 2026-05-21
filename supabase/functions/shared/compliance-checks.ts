@@ -100,7 +100,7 @@ export async function performComplianceChecks(
       await logComplianceEvent(supabase, {
         userId: context.userId,
         eventType: 'state_prohibited',
-        severity: 'warn',
+        severity: 'warning',
         description: `Attempted ${context.actionType} from ${stateRule.status} state ${context.stateCode}`,
         stateCode: context.stateCode,
         ipAddress: context.ipAddress,
