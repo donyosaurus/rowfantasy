@@ -54,7 +54,7 @@ export async function performComplianceChecks(
       await logComplianceEvent(supabase, {
         userId: context.userId,
         eventType: 'geo_blocked',
-        severity: 'warn',
+        severity: 'warning',
         description: geoResult.reason || 'Geolocation check failed',
         stateCode: geoResult.stateCode,
         ipAddress: context.ipAddress,
