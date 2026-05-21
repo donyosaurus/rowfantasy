@@ -153,7 +153,7 @@ export async function performComplianceChecks(
     await logComplianceEvent(supabase, {
       userId: context.userId,
       eventType: 'underage_blocked',
-      severity: 'error',
+      severity: 'critical',
       description: `User age ${age} is below minimum ${minAge}`,
       stateCode: context.stateCode,
     });
