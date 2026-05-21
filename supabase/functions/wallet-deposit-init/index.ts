@@ -60,10 +60,17 @@ Deno.serve(async (req) => {
     }
 
     // Application-layer compliance gates (P0-C1 / P0-C7): geo, state-reg, age, inactive, SX, employee.
-    const ipAddress =
-      req.headers.get('cf-connecting-ip') ||
-      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-      'unknown';
+    // P0-C9 (2026-05-21): cf-connecting-ip is the trusted client IP source at Supabase Edge Functions.
+    // Cloudflare WAF actively blocks spoofing attempts (verified empirically via debug-headers test).
+    // x-forwarded-for fallback removed — its index-0 spoofability is not empirically verified.
+    // Fail-closed if cf-connecting-ip is absent (unexpected at production Edge Functions but possible).
+    const ipAddress = req.headers.get('cf-connecting-ip');
+    if (!ipAddress) {
+      return new Response(
+        JSON.stringify({ error: 'Geolocation verification required' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     const { data: profile } = await auth.supabase
       .from('profiles')
       .select('state')
