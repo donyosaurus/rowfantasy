@@ -69,7 +69,27 @@ Deno.serve(async (req) => {
     // Service client used to call SECURITY DEFINER function (function enforces user_id matching internally)
     const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    const stateCode = req.headers.get('x-user-state') || ''; // placeholder; geofencing not yet wired
+    const stateCode = req.headers.get('x-user-state') || '';
+    const ipAddress =
+      req.headers.get('cf-connecting-ip') ||
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      'unknown';
+
+    // Application-layer compliance gates (P0-C1 / P0-C7): geo, state-reg, age, inactive, SX, employee.
+    // Closes P0-C6 SX-at-withdrawal gap (initiate_withdrawal_atomic does not check SX).
+    const compliance = await performComplianceChecks({
+      userId,
+      stateCode,
+      amountCents: body.amount_cents,
+      actionType: 'withdrawal',
+      ipAddress,
+    });
+    if (!compliance.allowed) {
+      return new Response(
+        JSON.stringify({ error: compliance.reason ?? 'Compliance check failed' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const { data: result, error: rpcError } = await supabaseAdmin.rpc('initiate_withdrawal_atomic', {
       _user_id: userId,
