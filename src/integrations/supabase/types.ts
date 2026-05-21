@@ -1674,16 +1674,10 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
-      enter_contest_pool:
-        | { Args: { p_contest_pool_id: string; p_picks: Json }; Returns: Json }
-        | {
-            Args: {
-              p_contest_pool_id: string
-              p_picks: Json
-              p_user_id: string
-            }
-            Returns: Json
-          }
+      enter_contest_pool: {
+        Args: { p_contest_pool_id: string; p_picks: Json }
+        Returns: Json
+      }
       enter_contest_pool_atomic: {
         Args: {
           _contest_template_id: string
