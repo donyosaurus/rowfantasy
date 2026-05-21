@@ -135,7 +135,26 @@ Deno.serve(async (req) => {
       wallet = newWallet;
     }
 
-    const stateCode = req.headers.get('x-user-state') || ''; // placeholder; geofencing not yet wired
+    const stateCode = req.headers.get('x-user-state') || '';
+    const ipAddress =
+      req.headers.get('cf-connecting-ip') ||
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      'unknown';
+
+    // Application-layer compliance gates (P0-C1 / P0-C7): geo, state-reg, age, inactive, SX, employee.
+    const compliance = await performComplianceChecks({
+      userId,
+      stateCode,
+      amountCents: body.amount_cents,
+      actionType: 'deposit',
+      ipAddress,
+    });
+    if (!compliance.allowed) {
+      return new Response(
+        JSON.stringify({ error: compliance.reason ?? 'Compliance check failed' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // 5. PRE-FLIGHT eligibility check — read-only, no payment side effects.
     //    This is the gate that prevents ghost charges on rejected deposits.
