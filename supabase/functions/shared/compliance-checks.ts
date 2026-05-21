@@ -204,7 +204,7 @@ export async function performComplianceChecks(
     await logComplianceEvent(supabase, {
       userId: context.userId,
       eventType: 'employee_block',
-      severity: 'warn',
+      severity: 'warning',
       description: 'Employee attempted transaction',
       stateCode: context.stateCode,
     });
