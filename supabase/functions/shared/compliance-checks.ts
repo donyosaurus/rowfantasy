@@ -84,7 +84,7 @@ export async function performComplianceChecks(
       await logComplianceEvent(supabase, {
         userId: context.userId,
         eventType: 'state_check_failed',
-        severity: 'error',
+        severity: 'critical',
         description: `State regulation check failed for ${context.stateCode}`,
         stateCode: context.stateCode,
         ipAddress: context.ipAddress,
