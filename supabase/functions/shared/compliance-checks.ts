@@ -132,7 +132,7 @@ export async function performComplianceChecks(
     await logComplianceEvent(supabase, {
       userId: context.userId,
       eventType: 'age_verification_missing',
-      severity: 'warn',
+      severity: 'warning',
       description: 'User has not completed age verification',
       stateCode: context.stateCode,
     });
