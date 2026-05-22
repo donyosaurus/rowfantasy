@@ -21,7 +21,7 @@ Always cross-check with Codex before finalizing changes that touch:
 - **H2H self-match logic** — duplicate-pool prevention must be scoped
   to the triggered tier only, never cascade across tiers.
 - **Cloudflare Worker geofencing** — `BLOCKED_STATES` changes affect
-  legal compliance. DC is currently blocked for testing; remove post-test.
+  legal compliance.
 - **Payment adapter integration** — when replacing the mock with Aeropay.
 
 ## When NOT to invoke Codex
