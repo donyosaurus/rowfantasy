@@ -6,7 +6,7 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const ipbaseApiKey = Deno.env.get('IPBASE_API_KEY')!;
 
-// Blocked states: 5 banned + 23 restricted = 28 total
+// Blocked states: 5 banned + 22 restricted = 27 total
 export const BLOCKED_STATES = [
   // Banned states
   'HI', 'ID', 'MT', 'NV', 'WA',
