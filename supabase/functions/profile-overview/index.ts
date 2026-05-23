@@ -42,6 +42,15 @@ Deno.serve(async (req) => {
       throw profileError;
     }
 
+    // P0-C5: SX source-of-truth is responsible_gaming, NOT profiles.
+    // Absent row OR null = NOT excluded = ALLOWED (semantic guardrail).
+    const { data: rgSettings } = await supabase
+      .from('responsible_gaming')
+      .select('self_exclusion_until')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+
     // Fetch wallet
     const { data: wallet, error: walletError } = await supabase
       .from('wallets')
