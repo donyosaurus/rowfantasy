@@ -188,9 +188,9 @@ export async function performComplianceChecks(
     };
   }
 
-  // Check self-exclusion
-  if (profile.self_exclusion_until) {
-    const exclusionDate = new Date(profile.self_exclusion_until);
+  // Check self-exclusion (reads canonical responsible_gaming source per P0-C5).
+  if (rgSettings?.self_exclusion_until) {
+    const exclusionDate = new Date(rgSettings.self_exclusion_until);
     if (exclusionDate > new Date()) {
       await logComplianceEvent(supabase, {
         userId: context.userId,
@@ -198,9 +198,9 @@ export async function performComplianceChecks(
         severity: 'info',
         description: 'Self-excluded user attempted transaction',
         stateCode: context.stateCode,
-        metadata: { exclusion_until: profile.self_exclusion_until },
+        metadata: { exclusion_until: rgSettings.self_exclusion_until },
       });
-      
+
       return {
         allowed: false,
         reason: `Account self-excluded until ${exclusionDate.toLocaleDateString()}`,
