@@ -168,7 +168,7 @@ export default function ResponsiblePlay() {
             <Ban className="h-4 w-4" />
             <AlertDescription>
               Your account is currently under self-exclusion until{' '}
-              {new Date(profile.self_exclusion_until).toLocaleDateString()}.
+              {rgSelfExclusion ? new Date(rgSelfExclusion).toLocaleDateString() : ''}.
               All contest entries and deposits are disabled.
             </AlertDescription>
           </Alert>
