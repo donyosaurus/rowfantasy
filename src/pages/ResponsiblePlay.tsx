@@ -151,7 +151,7 @@ export default function ResponsiblePlay() {
     );
   }
 
-  const isExcluded = profile?.self_exclusion_until && new Date(profile.self_exclusion_until) > new Date();
+  const isExcluded = !!rgSelfExclusion && new Date(rgSelfExclusion) > new Date();
 
   return (
     <LegalLayout breadcrumbs={[{ label: 'Legal', path: '/legal' }, { label: 'Responsible Play' }]}>
