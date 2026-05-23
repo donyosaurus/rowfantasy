@@ -15,6 +15,7 @@ export default function ResponsiblePlay() {
   const [content, setContent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
+  const [rgSelfExclusion, setRgSelfExclusion] = useState<string | null>(null);
   const [depositLimit, setDepositLimit] = useState<string>("");
   const [selfExclusionDuration, setSelfExclusionDuration] = useState<string>("");
   const { toast } = useToast();
