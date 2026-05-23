@@ -15,6 +15,7 @@ export default function ResponsiblePlay() {
   const [content, setContent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
+  const [rgSelfExclusion, setRgSelfExclusion] = useState<string | null>(null);
   const [depositLimit, setDepositLimit] = useState<string>("");
   const [selfExclusionDuration, setSelfExclusionDuration] = useState<string>("");
   const { toast } = useToast();
@@ -43,6 +44,16 @@ export default function ResponsiblePlay() {
           setProfile(profileData);
           setDepositLimit(profileData.deposit_limit_monthly?.toString() || "");
         }
+
+        // P0-C5: SX source-of-truth is responsible_gaming, NOT profiles.
+        // Absent row OR null = NOT excluded (semantic guardrail).
+        const { data: rgData } = await supabase
+          .from('responsible_gaming')
+          .select('self_exclusion_until')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        setRgSelfExclusion(rgData?.self_exclusion_until ?? null);
+
 
         // Log view
         supabase.from('compliance_audit_logs').insert({
@@ -140,7 +151,7 @@ export default function ResponsiblePlay() {
     );
   }
 
-  const isExcluded = profile?.self_exclusion_until && new Date(profile.self_exclusion_until) > new Date();
+  const isExcluded = !!rgSelfExclusion && new Date(rgSelfExclusion) > new Date();
 
   return (
     <LegalLayout breadcrumbs={[{ label: 'Legal', path: '/legal' }, { label: 'Responsible Play' }]}>
@@ -157,7 +168,7 @@ export default function ResponsiblePlay() {
             <Ban className="h-4 w-4" />
             <AlertDescription>
               Your account is currently under self-exclusion until{' '}
-              {new Date(profile.self_exclusion_until).toLocaleDateString()}.
+              {rgSelfExclusion ? new Date(rgSelfExclusion).toLocaleDateString() : ''}.
               All contest entries and deposits are disabled.
             </AlertDescription>
           </Alert>

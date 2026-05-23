@@ -127,6 +127,15 @@ export async function performComplianceChecks(
     };
   }
 
+  // P0-C5: SX source-of-truth is responsible_gaming, NOT profiles.
+  // Absent row OR null self_exclusion_until = NOT excluded = ALLOWED (semantic guardrail per operator 2026-05-23).
+  // Do NOT fail-closed on missing row — fail-closed-on-missing is geo-only (P0-C9), not SX.
+  const { data: rgSettings } = await supabase
+    .from('responsible_gaming')
+    .select('self_exclusion_until')
+    .eq('user_id', context.userId)
+    .maybeSingle();
+
   // Check age verification (Phase 4 requirement)
   if (!profile.date_of_birth || !profile.age_confirmed_at) {
     await logComplianceEvent(supabase, {
@@ -179,9 +188,9 @@ export async function performComplianceChecks(
     };
   }
 
-  // Check self-exclusion
-  if (profile.self_exclusion_until) {
-    const exclusionDate = new Date(profile.self_exclusion_until);
+  // Check self-exclusion (reads canonical responsible_gaming source per P0-C5).
+  if (rgSettings?.self_exclusion_until) {
+    const exclusionDate = new Date(rgSettings.self_exclusion_until);
     if (exclusionDate > new Date()) {
       await logComplianceEvent(supabase, {
         userId: context.userId,
@@ -189,9 +198,9 @@ export async function performComplianceChecks(
         severity: 'info',
         description: 'Self-excluded user attempted transaction',
         stateCode: context.stateCode,
-        metadata: { exclusion_until: profile.self_exclusion_until },
+        metadata: { exclusion_until: rgSettings.self_exclusion_until },
       });
-      
+
       return {
         allowed: false,
         reason: `Account self-excluded until ${exclusionDate.toLocaleDateString()}`,
