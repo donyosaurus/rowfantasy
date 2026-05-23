@@ -45,6 +45,16 @@ export default function ResponsiblePlay() {
           setDepositLimit(profileData.deposit_limit_monthly?.toString() || "");
         }
 
+        // P0-C5: SX source-of-truth is responsible_gaming, NOT profiles.
+        // Absent row OR null = NOT excluded (semantic guardrail).
+        const { data: rgData } = await supabase
+          .from('responsible_gaming')
+          .select('self_exclusion_until')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        setRgSelfExclusion(rgData?.self_exclusion_until ?? null);
+
+
         // Log view
         supabase.from('compliance_audit_logs').insert({
           user_id: user.id,
