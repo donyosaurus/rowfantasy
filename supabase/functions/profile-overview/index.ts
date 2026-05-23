@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
           usernameLastChangedAt: profile.username_last_changed_at,
           kycStatus: profile.kyc_status,
           isActive: profile.is_active,
-          selfExclusionUntil: profile.self_exclusion_until,
+          selfExclusionUntil: rgSettings?.self_exclusion_until ?? null,
           depositLimitMonthly: Number(profile.deposit_limit_monthly),
         },
         wallet: {
