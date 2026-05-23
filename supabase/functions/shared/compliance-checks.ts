@@ -127,6 +127,15 @@ export async function performComplianceChecks(
     };
   }
 
+  // P0-C5: SX source-of-truth is responsible_gaming, NOT profiles.
+  // Absent row OR null self_exclusion_until = NOT excluded = ALLOWED (semantic guardrail per operator 2026-05-23).
+  // Do NOT fail-closed on missing row — fail-closed-on-missing is geo-only (P0-C9), not SX.
+  const { data: rgSettings } = await supabase
+    .from('responsible_gaming')
+    .select('self_exclusion_until')
+    .eq('user_id', context.userId)
+    .maybeSingle();
+
   // Check age verification (Phase 4 requirement)
   if (!profile.date_of_birth || !profile.age_confirmed_at) {
     await logComplianceEvent(supabase, {
