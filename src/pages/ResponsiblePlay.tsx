@@ -82,12 +82,14 @@ export default function ResponsiblePlay() {
       return;
     }
 
+    // P0-C4: backend expects `depositLimit` in CENTS per responsible-limits Zod schema.
+    const depositLimitCents = Math.round(Number(depositLimit) * 100);
+
     const { error } = await supabase.functions.invoke('responsible-limits', {
       method: 'POST',
       body: {
-        type: 'deposit_limit',
-        value: Number(depositLimit)
-      }
+        depositLimit: depositLimitCents,
+      },
     });
 
     if (error) {
@@ -99,9 +101,10 @@ export default function ResponsiblePlay() {
       return;
     }
 
+    setRgDepositLimitCents(depositLimitCents);
     toast({
       title: "Limit Updated",
-      description: `Monthly deposit limit set to $${depositLimit}`
+      description: `Monthly deposit limit set to $${depositLimit}`,
     });
   };
 
