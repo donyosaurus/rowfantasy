@@ -118,12 +118,27 @@ export default function ResponsiblePlay() {
       return;
     }
 
+    // P0-C4: backend expects `exclusionDays` (numeric int positive) per responsible-limits Zod schema.
+    // "permanent" → 36500 days (100 years, effectively permanent; clean numeric int).
+    const exclusionDays =
+      selfExclusionDuration === 'permanent'
+        ? 36500
+        : parseInt(selfExclusionDuration, 10);
+
+    if (!Number.isFinite(exclusionDays) || exclusionDays <= 0) {
+      toast({
+        title: "Invalid Duration",
+        description: "Please select a valid self-exclusion duration.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const { error } = await supabase.functions.invoke('responsible-limits', {
       method: 'POST',
       body: {
-        type: 'self_exclusion',
-        duration: selfExclusionDuration
-      }
+        exclusionDays,
+      },
     });
 
     if (error) {
@@ -134,6 +149,11 @@ export default function ResponsiblePlay() {
       });
       return;
     }
+
+    // P0-C4: sync local rgSelfExclusion state so banner updates immediately.
+    const exclusionUntilLocal = new Date();
+    exclusionUntilLocal.setDate(exclusionUntilLocal.getDate() + exclusionDays);
+    setRgSelfExclusion(exclusionUntilLocal.toISOString());
 
     toast({
       title: "Self-Exclusion Enabled",
