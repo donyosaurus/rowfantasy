@@ -221,7 +221,7 @@ export default function ResponsiblePlay() {
                   disabled={isExcluded}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Current limit: ${profile?.deposit_limit_monthly || '2500'}
+                  Current limit: ${rgDepositLimitCents != null ? (rgDepositLimitCents / 100).toFixed(2) : '2,500.00'}
                 </p>
               </div>
               <Button onClick={handleDepositLimit} disabled={isExcluded} className="w-full">
