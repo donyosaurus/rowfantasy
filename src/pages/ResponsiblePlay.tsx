@@ -43,7 +43,6 @@ export default function ResponsiblePlay() {
         
         if (profileData) {
           setProfile(profileData);
-          setDepositLimit(profileData.deposit_limit_monthly?.toString() || "");
         }
 
         // P0-C5: SX source-of-truth is responsible_gaming, NOT profiles.
