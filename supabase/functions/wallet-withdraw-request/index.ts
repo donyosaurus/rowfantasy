@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
       amountCents: body.amount_cents,
       actionType: 'withdrawal',
       ipAddress,
-    });
+    }, req);
     if (!compliance.allowed) {
       return new Response(
         JSON.stringify({ error: compliance.reason ?? 'Compliance check failed' }),
