@@ -42,6 +42,83 @@ export function getUserState(req: Request): string | null {
 }
 
 /**
+ * P0-W4 Step 1: Verify the Cloudflare Worker's HMAC-signed state header.
+ *
+ * Returns { stateCode, verified: true } only if ALL of these hold:
+ *   - All 4 headers present: x-verified-geo-state, x-verified-geo-country, x-verified-geo-ts, x-worker-verified
+ *   - WORKER_SHARED_SECRET env var set (read at runtime, not module load)
+ *   - Timestamp drift |now - ts| <= 60 seconds (replay protection)
+ *   - HMAC-SHA256(WORKER_SHARED_SECRET, `${fnName}|${state}|${country}|${ts}`) matches x-worker-verified header
+ *     (using constant-time comparison to prevent timing-side-channel oracles)
+ *   - fnName extracted from the request URL pathname (last segment after /functions/v1/)
+ *
+ * Returns null on any failure. NEVER throws. NEVER logs the expected vs actual signature
+ * (avoid leaking secret-validation oracle to attackers).
+ *
+ * IMPORTANT: This function is consumed by performComplianceChecks. On null return, the
+ * existing IPBase + getUserState fallback path runs unchanged. This preserves all
+ * existing behavior during transition and for direct PostgREST callers.
+ */
+export async function getVerifiedWorkerState(
+  req: Request
+): Promise<{ stateCode: string; verified: true } | null> {
+  const stateHeader = req.headers.get('x-verified-geo-state');
+  const countryHeader = req.headers.get('x-verified-geo-country');
+  const tsHeader = req.headers.get('x-verified-geo-ts');
+  const sigHeader = req.headers.get('x-worker-verified');
+  const secret = Deno.env.get('WORKER_SHARED_SECRET');
+
+  if (!stateHeader || !countryHeader || !tsHeader || !sigHeader || !secret) {
+    return null;
+  }
+
+  // Replay protection: reject signatures older than 60 seconds
+  const ts = parseInt(tsHeader, 10);
+  if (!Number.isFinite(ts)) return null;
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (Math.abs(nowSec - ts) > 60) return null;
+
+  // Extract function name from URL: /functions/v1/<fnName>
+  let fnName: string;
+  try {
+    const pathname = new URL(req.url).pathname;
+    fnName = pathname.replace(/^.*\/functions\/v1\//, '');
+    if (!fnName || fnName.includes('/')) return null;
+  } catch {
+    return null;
+  }
+
+  const payload = `${fnName}|${stateHeader}|${countryHeader}|${tsHeader}`;
+  const enc = new TextEncoder();
+
+  try {
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      enc.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+    const sigBytes = await crypto.subtle.sign('HMAC', cryptoKey, enc.encode(payload));
+    const expectedHex = Array.from(new Uint8Array(sigBytes))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+
+    // Constant-time string comparison
+    if (expectedHex.length !== sigHeader.length) return null;
+    let mismatch = 0;
+    for (let i = 0; i < expectedHex.length; i++) {
+      mismatch |= expectedHex.charCodeAt(i) ^ sigHeader.charCodeAt(i);
+    }
+    if (mismatch !== 0) return null;
+  } catch {
+    return null;
+  }
+
+  return { stateCode: stateHeader.toUpperCase(), verified: true };
+}
+
+/**
  * Check if a state is blocked
  */
 export function isStateBlocked(stateCode: string): boolean {

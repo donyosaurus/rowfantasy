@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
       amountCents: 0,
       actionType: "entry",
       ipAddress,
-    });
+    }, req);
     if (!compliance.allowed) {
       return new Response(
         JSON.stringify({ error: compliance.reason ?? "Compliance check failed" }),

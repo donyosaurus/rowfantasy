@@ -1,7 +1,7 @@
 // Compliance Gating Functions
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
-import { checkGeoEligibility } from './geo-eligibility.ts';
+import { checkGeoEligibility, getVerifiedWorkerState } from './geo-eligibility.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -21,9 +21,19 @@ export interface ComplianceContext {
 }
 
 export async function performComplianceChecks(
-  context: ComplianceContext
+  context: ComplianceContext,
+  req?: Request
 ): Promise<ComplianceCheckResult> {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  // P0-W4 Step 1: Try Worker-verified state FIRST. If present and valid, use it
+  // directly and skip the IPBase call entirely. Falls through to existing IPBase
+  // path if no Worker header is present (direct PostgREST calls, local dev, etc.).
+  const workerVerifiedState = req ? await getVerifiedWorkerState(req) : null;
+  if (workerVerifiedState) {
+    context.stateCode = workerVerifiedState.stateCode;
+    // Intentionally no audit-log row: Worker-verified is the expected steady state.
+  }
 
   // 0. Check if geo restrictions are enabled via feature flag
   const { data: flag } = await supabase
@@ -46,8 +56,8 @@ export async function performComplianceChecks(
     isAdmin = !!adminRole;
   }
 
-  // 1. Check geo eligibility first (only if enabled and not admin)
-  if (geoEnabled && !isAdmin && context.ipAddress && context.ipAddress !== 'unknown') {
+  // 1. Check geo eligibility first (only if enabled, not admin, and not already Worker-verified)
+  if (!workerVerifiedState && geoEnabled && !isAdmin && context.ipAddress && context.ipAddress !== 'unknown') {
     const geoResult = await checkGeoEligibility(context.ipAddress, context.userId);
     
     if (!geoResult.allowed) {
