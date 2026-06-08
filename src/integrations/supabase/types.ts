@@ -1015,7 +1015,6 @@ export type Database = {
           kyc_verified_at: string | null
           phone: string | null
           self_exclusion_type: string | null
-          self_exclusion_until: string | null
           state: string | null
           updated_at: string
           username: string | null
@@ -1044,7 +1043,6 @@ export type Database = {
           kyc_verified_at?: string | null
           phone?: string | null
           self_exclusion_type?: string | null
-          self_exclusion_until?: string | null
           state?: string | null
           updated_at?: string
           username?: string | null
@@ -1073,7 +1071,6 @@ export type Database = {
           kyc_verified_at?: string | null
           phone?: string | null
           self_exclusion_type?: string | null
-          self_exclusion_until?: string | null
           state?: string | null
           updated_at?: string
           username?: string | null
