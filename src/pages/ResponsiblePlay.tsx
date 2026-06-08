@@ -16,6 +16,7 @@ export default function ResponsiblePlay() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
   const [rgSelfExclusion, setRgSelfExclusion] = useState<string | null>(null);
+  const [rgDepositLimitCents, setRgDepositLimitCents] = useState<number | null>(null);
   const [depositLimit, setDepositLimit] = useState<string>("");
   const [selfExclusionDuration, setSelfExclusionDuration] = useState<string>("");
   const { toast } = useToast();
@@ -42,17 +43,17 @@ export default function ResponsiblePlay() {
         
         if (profileData) {
           setProfile(profileData);
-          setDepositLimit(profileData.deposit_limit_monthly?.toString() || "");
         }
 
         // P0-C5: SX source-of-truth is responsible_gaming, NOT profiles.
         // Absent row OR null = NOT excluded (semantic guardrail).
         const { data: rgData } = await supabase
           .from('responsible_gaming')
-          .select('self_exclusion_until')
+          .select('self_exclusion_until, deposit_limit_monthly_cents')
           .eq('user_id', user.id)
           .maybeSingle();
         setRgSelfExclusion(rgData?.self_exclusion_until ?? null);
+        setRgDepositLimitCents(rgData?.deposit_limit_monthly_cents ?? null);
 
 
         // Log view
@@ -81,12 +82,14 @@ export default function ResponsiblePlay() {
       return;
     }
 
+    // P0-C4: backend expects `depositLimit` in CENTS per responsible-limits Zod schema.
+    const depositLimitCents = Math.round(Number(depositLimit) * 100);
+
     const { error } = await supabase.functions.invoke('responsible-limits', {
       method: 'POST',
       body: {
-        type: 'deposit_limit',
-        value: Number(depositLimit)
-      }
+        depositLimit: depositLimitCents,
+      },
     });
 
     if (error) {
@@ -98,9 +101,10 @@ export default function ResponsiblePlay() {
       return;
     }
 
+    setRgDepositLimitCents(depositLimitCents);
     toast({
       title: "Limit Updated",
-      description: `Monthly deposit limit set to $${depositLimit}`
+      description: `Monthly deposit limit set to $${depositLimit}`,
     });
   };
 
@@ -114,12 +118,27 @@ export default function ResponsiblePlay() {
       return;
     }
 
+    // P0-C4: backend expects `exclusionDays` (numeric int positive) per responsible-limits Zod schema.
+    // "permanent" → 36500 days (100 years, effectively permanent; clean numeric int).
+    const exclusionDays =
+      selfExclusionDuration === 'permanent'
+        ? 36500
+        : parseInt(selfExclusionDuration, 10);
+
+    if (!Number.isFinite(exclusionDays) || exclusionDays <= 0) {
+      toast({
+        title: "Invalid Duration",
+        description: "Please select a valid self-exclusion duration.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const { error } = await supabase.functions.invoke('responsible-limits', {
       method: 'POST',
       body: {
-        type: 'self_exclusion',
-        duration: selfExclusionDuration
-      }
+        exclusionDays,
+      },
     });
 
     if (error) {
@@ -130,6 +149,11 @@ export default function ResponsiblePlay() {
       });
       return;
     }
+
+    // P0-C4: sync local rgSelfExclusion state so banner updates immediately.
+    const exclusionUntilLocal = new Date();
+    exclusionUntilLocal.setDate(exclusionUntilLocal.getDate() + exclusionDays);
+    setRgSelfExclusion(exclusionUntilLocal.toISOString());
 
     toast({
       title: "Self-Exclusion Enabled",
@@ -197,7 +221,7 @@ export default function ResponsiblePlay() {
                   disabled={isExcluded}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Current limit: ${profile?.deposit_limit_monthly || '2500'}
+                  Current limit: ${rgDepositLimitCents != null ? (rgDepositLimitCents / 100).toFixed(2) : '2,500.00'}
                 </p>
               </div>
               <Button onClick={handleDepositLimit} disabled={isExcluded} className="w-full">
