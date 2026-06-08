@@ -49,10 +49,11 @@ export default function ResponsiblePlay() {
         // Absent row OR null = NOT excluded (semantic guardrail).
         const { data: rgData } = await supabase
           .from('responsible_gaming')
-          .select('self_exclusion_until')
+          .select('self_exclusion_until, deposit_limit_monthly_cents')
           .eq('user_id', user.id)
           .maybeSingle();
         setRgSelfExclusion(rgData?.self_exclusion_until ?? null);
+        setRgDepositLimitCents(rgData?.deposit_limit_monthly_cents ?? null);
 
 
         // Log view
