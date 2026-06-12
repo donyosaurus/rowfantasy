@@ -1,10 +1,10 @@
 // P0-W4 Step 3: Geo-proxy wrapper for geo-gated edge function calls.
 //
-// When VITE_GEO_PROXY_URL is set, route calls through the Cloudflare Worker
-// proxy so the worker can inject HMAC-signed geo headers (consumed by
+// When the app is served from rowfantasy.com, route calls through the Cloudflare
+// Worker proxy so the worker can inject HMAC-signed geo headers (consumed by
 // supabase/functions/shared/geo-eligibility.ts#getVerifiedWorkerState).
-// When unset (local dev / preview), fall back to the normal supabase client
-// invoke path so nothing breaks without the env var.
+// On localhost, Lovable preview, or any other host, fall back to the normal
+// supabase client invoke path so nothing breaks.
 
 import { supabase } from '@/integrations/supabase/client';
 
