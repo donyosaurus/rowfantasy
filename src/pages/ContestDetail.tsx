@@ -5,6 +5,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { DraftPageBackground } from "@/components/DraftPageBackground";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeGeoFunction } from "@/integrations/supabase/geoFunctions";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -325,7 +326,7 @@ const ContestDetail = () => {
     }));
 
     try {
-      const { data, error } = await supabase.functions.invoke("contest-matchmaking", {
+      const { data, error } = await invokeGeoFunction("contest-matchmaking", {
         body: {
           contestTemplateId: contestPool.contest_template_id,
           tierId: contestPool.id,

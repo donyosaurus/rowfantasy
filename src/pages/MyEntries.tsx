@@ -5,6 +5,7 @@ import { getCircleFlagUrl } from "@/data/countryFlags";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeGeoFunction } from "@/integrations/supabase/geoFunctions";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 
@@ -282,7 +283,7 @@ const MyEntries = () => {
     setResubmitting(true);
     try {
       const templateId = entry.contest_pools?.contest_template_id || entry.contest_template_id;
-      const { data, error } = await supabase.functions.invoke('contest-matchmaking', {
+      const { data, error } = await invokeGeoFunction('contest-matchmaking', {
         body: {
           contestTemplateId: templateId,
           tierId: entry.pool_id,
