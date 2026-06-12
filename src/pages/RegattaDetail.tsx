@@ -5,6 +5,7 @@ import { DraftPicksList } from "@/components/DraftPicksList";
 import { CrewCard } from "@/components/CrewCard";
 import { DraftPageBackground } from "@/components/DraftPageBackground";
 import { useEffect, useState, useMemo } from "react";
+import { invokeGeoFunction } from "@/integrations/supabase/geoFunctions";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -299,7 +300,7 @@ const RegattaDetail = () => {
     });
 
     try {
-      const { data, error } = await supabase.functions.invoke("contest-matchmaking", {
+      const { data, error } = await invokeGeoFunction("contest-matchmaking", {
         body: {
           contestTemplateId: contestPool.contest_template_id,
           tierId: contestPool.id,

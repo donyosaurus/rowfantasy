@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DollarSign, TrendingUp, Trophy, User, Edit2, ArrowUpDown, Loader2, ArrowDownCircle, ArrowUpCircle, CreditCard, Gift, RefreshCw, Wallet, Target, BarChart3 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeGeoFunction } from "@/integrations/supabase/geoFunctions";
 import { toast } from "sonner";
 
 interface ProfileData {
@@ -140,7 +141,7 @@ const Profile = () => {
     if (!amount || amount < 5 || amount > 500) { toast.error('Deposit amount must be between $5 and $500'); return; }
     setIsSubmitting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('wallet-deposit', {
+      const { data, error } = await invokeGeoFunction('wallet-deposit', {
         body: { amount_cents: Math.floor(amount * 100) }
       });
       if (error) { toast.error(error.message || 'Failed to process deposit'); return; }
@@ -160,7 +161,7 @@ const Profile = () => {
     if (!profileData || profileData.wallet.availableBalance < amount) { toast.error('Insufficient balance'); return; }
     setIsSubmitting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('wallet-withdraw-request', {
+      const { data, error } = await invokeGeoFunction('wallet-withdraw-request', {
         body: { amount_cents: Math.floor(amount * 100) }
       });
       if (error) { toast.error(error.message || 'Failed to request withdrawal'); return; }
