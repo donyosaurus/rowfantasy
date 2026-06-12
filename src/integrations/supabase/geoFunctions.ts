@@ -14,7 +14,9 @@ export async function invokeGeoFunction(
   functionName: string,
   options: { body: Record<string, unknown> }
 ): Promise<InvokeResult> {
-  const proxyBase = import.meta.env.VITE_GEO_PROXY_URL as string | undefined;
+  const GEO_PROXY_HOSTS = ['rowfantasy.com', 'www.rowfantasy.com'];
+  const isProxiedHost = typeof window !== 'undefined' && GEO_PROXY_HOSTS.includes(window.location.hostname);
+  const proxyBase = isProxiedHost ? 'https://rowfantasy.com/api/edge' : null;
 
   if (!proxyBase) {
     return supabase.functions.invoke(functionName, options) as Promise<InvokeResult>;
