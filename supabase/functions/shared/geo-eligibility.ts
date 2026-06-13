@@ -78,15 +78,16 @@ export async function getVerifiedWorkerState(
   const nowSec = Math.floor(Date.now() / 1000);
   if (Math.abs(nowSec - ts) > 60) return null;
 
-  // Extract function name from URL: /functions/v1/<fnName>
+  // Extract function name from URL: last path segment
   let fnName: string;
   try {
-    const pathname = new URL(req.url).pathname;
-    fnName = pathname.replace(/^.*\/functions\/v1\//, '');
-    if (!fnName || fnName.includes('/')) return null;
+    const segments = new URL(req.url).pathname.split('/').filter(Boolean);
+    fnName = segments[segments.length - 1] || '';
+    if (!fnName) return null;
   } catch {
     return null;
   }
+
 
   const payload = `${fnName}|${stateHeader}|${countryHeader}|${tsHeader}`;
   const enc = new TextEncoder();
