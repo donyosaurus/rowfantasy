@@ -56,6 +56,20 @@ export async function performComplianceChecks(
     isAdmin = !!adminRole;
   }
 
+  // No trusted geo source (no Worker-verified state AND IPBase disabled) → fail-closed.
+  // Never trust caller-supplied x-user-state for the geo gate.
+  if (!workerVerifiedState && !geoEnabled && !isAdmin) {
+    await logComplianceEvent(supabase, {
+      userId: context.userId,
+      eventType: 'geo_no_trusted_source',
+      severity: 'warning',
+      description: 'No Worker-verified geo state and IPBase disabled — failing closed',
+      stateCode: context.stateCode,
+      ipAddress: context.ipAddress,
+    });
+    return { allowed: false, reason: 'Geolocation verification required' };
+  }
+
   // 1. Check geo eligibility first (only if enabled, not admin, and not already Worker-verified)
   if (!workerVerifiedState && geoEnabled && !isAdmin && context.ipAddress && context.ipAddress !== 'unknown') {
     const geoResult = await checkGeoEligibility(context.ipAddress, context.userId);
