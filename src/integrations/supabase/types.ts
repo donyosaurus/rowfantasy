@@ -1790,7 +1790,12 @@ export type Database = {
         }[]
       }
       process_webhook_deposit_atomic: {
-        Args: { _provider: string; _session_id: string; _webhook_id: string }
+        Args: {
+          _event_amount_cents: number
+          _provider: string
+          _session_id: string
+          _webhook_id: string
+        }
         Returns: {
           credited: boolean
           reason: string

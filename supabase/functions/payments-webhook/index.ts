@@ -44,6 +44,16 @@ Deno.serve(async (req) => {
     const webhookId = req.headers.get('webhook-id') || `${Date.now()}-${crypto.randomUUID()}`;
     const providerType = new URL(req.url).searchParams.get('provider') || 'mock';
 
+    // SECURITY: Reject unknown providers (fail-closed). Never fall back to mock.
+    const KNOWN_PROVIDERS = ['mock', 'highrisk', 'ach'] as const;
+    if (!(KNOWN_PROVIDERS as readonly string[]).includes(providerType)) {
+      console.warn('[webhook] Unknown provider rejected:', providerType, 'from', clientIp);
+      return new Response(JSON.stringify({ error: 'invalid' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // SECURITY: Reject mock provider in production unless explicitly allowed.
     // MockProviderAdapter.verifyWebhook always returns true, so it must never
     // be reachable in prod environments.
@@ -54,6 +64,7 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
 
     // SECURITY: Validate timestamp (max 5 minutes old)
     if (!isTimestampValid(timestamp, 300)) {
@@ -119,11 +130,16 @@ Deno.serve(async (req) => {
     if (webhookEvent.eventType === 'payment.succeeded') {
       const sessionId = webhookEvent.providerSessionId || webhookEvent.providerTransactionId;
 
-      const { data: session } = await supabase
+      const { data: session, error: sessionLookupError } = await supabase
         .from('payment_sessions')
         .select('id')
         .eq('provider_session_id', sessionId)
-        .single();
+        .maybeSingle();
+
+      if (sessionLookupError) {
+        console.error('[webhook] payment_sessions lookup error:', sessionLookupError);
+        throw sessionLookupError;
+      }
 
       if (session) {
         const { data: rpcData, error: rpcError } = await supabase.rpc(
@@ -132,6 +148,7 @@ Deno.serve(async (req) => {
             _session_id: session.id,
             _webhook_id: webhookId,
             _provider: providerType,
+            _event_amount_cents: webhookEvent.amountCents,
           },
         );
 
@@ -142,7 +159,26 @@ Deno.serve(async (req) => {
 
         const result = Array.isArray(rpcData) ? rpcData[0] : rpcData;
         console.log('[webhook] deposit credit result:', result);
+
+        // Log non-trivial failure reasons. already_processed is benign idempotent replay.
+        if (result && result.credited === false && result.reason !== 'already_processed') {
+          const criticalReasons = new Set(['provider_mismatch', 'amount_mismatch', 'wallet_not_found']);
+          const severity = criticalReasons.has(result.reason) ? 'critical' : 'warning';
+          await supabase.from('compliance_audit_logs').insert({
+            event_type: 'deposit_webhook_rejected',
+            severity,
+            description: `Webhook deposit not credited: ${result.reason}`,
+            metadata: {
+              session_id: session.id,
+              provider: providerType,
+              webhook_id: webhookId,
+              event_amount_cents: webhookEvent.amountCents,
+              reason: result.reason,
+            },
+          });
+        }
         // Idempotent no-op for already_processed / session_not_found / wallet_not_found:
+
         // still return 200 so the provider does not retry.
       }
     } else if (webhookEvent.eventType === 'payment.failed') {
