@@ -141,7 +141,64 @@ Deno.serve(async (req) => {
         throw sessionLookupError;
       }
 
-      if (session) {
+      const CRITICAL_REASONS = new Set([
+        'provider_mismatch',
+        'amount_mismatch',
+        'wallet_not_found',
+        'invalid_amount',
+      ]);
+
+      // Helper: insert a deposit_webhook_rejected compliance row. For critical
+      // reasons, an insert failure must NOT be silently 200'd — re-throw to 500
+      // so the provider retries.
+      const logRejection = async (
+        reason: string,
+        extraMetadata: Record<string, unknown> = {},
+      ) => {
+        const severity = CRITICAL_REASONS.has(reason) ? 'critical' : 'warning';
+        const { error: auditError } = await supabase.from('compliance_audit_logs').insert({
+          event_type: 'deposit_webhook_rejected',
+          severity,
+          description: `Webhook deposit not credited: ${reason}`,
+          metadata: {
+            provider: providerType,
+            webhook_id: webhookId,
+            event_amount_cents: webhookEvent.amountCents,
+            reason,
+            ...extraMetadata,
+          },
+        });
+        if (auditError) {
+          console.error('[webhook] compliance_audit_logs insert failed:', {
+            reason,
+            severity,
+            code: (auditError as any).code,
+            message: (auditError as any).message,
+          });
+          if (CRITICAL_REASONS.has(reason)) {
+            throw auditError;
+          }
+        }
+      };
+
+      if (!session) {
+        // Audit missing session so a real signed success for an unknown session
+        // is not silently dropped. Still return 200 (idempotent no-op).
+        await logRejection('session_not_found', { provider_session_id: sessionId });
+      } else {
+        // Edge-side amount validation — fail-closed before invoking the RPC.
+        if (
+          !Number.isSafeInteger(webhookEvent.amountCents) ||
+          (webhookEvent.amountCents as number) <= 0
+        ) {
+          console.warn('[webhook] Invalid event amount rejected:', webhookEvent.amountCents);
+          await logRejection('invalid_amount', { session_id: session.id });
+          return new Response(
+            JSON.stringify({ success: true }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          );
+        }
+
         const { data: rpcData, error: rpcError } = await supabase.rpc(
           'process_webhook_deposit_atomic',
           {
@@ -162,20 +219,7 @@ Deno.serve(async (req) => {
 
         // Log non-trivial failure reasons. already_processed is benign idempotent replay.
         if (result && result.credited === false && result.reason !== 'already_processed') {
-          const criticalReasons = new Set(['provider_mismatch', 'amount_mismatch', 'wallet_not_found']);
-          const severity = criticalReasons.has(result.reason) ? 'critical' : 'warning';
-          await supabase.from('compliance_audit_logs').insert({
-            event_type: 'deposit_webhook_rejected',
-            severity,
-            description: `Webhook deposit not credited: ${result.reason}`,
-            metadata: {
-              session_id: session.id,
-              provider: providerType,
-              webhook_id: webhookId,
-              event_amount_cents: webhookEvent.amountCents,
-              reason: result.reason,
-            },
-          });
+          await logRejection(result.reason, { session_id: session.id });
         }
         // Idempotent no-op for already_processed / session_not_found / wallet_not_found:
 
