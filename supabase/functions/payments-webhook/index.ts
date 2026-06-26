@@ -44,6 +44,16 @@ Deno.serve(async (req) => {
     const webhookId = req.headers.get('webhook-id') || `${Date.now()}-${crypto.randomUUID()}`;
     const providerType = new URL(req.url).searchParams.get('provider') || 'mock';
 
+    // SECURITY: Reject unknown providers (fail-closed). Never fall back to mock.
+    const KNOWN_PROVIDERS = ['mock', 'highrisk', 'ach'] as const;
+    if (!(KNOWN_PROVIDERS as readonly string[]).includes(providerType)) {
+      console.warn('[webhook] Unknown provider rejected:', providerType, 'from', clientIp);
+      return new Response(JSON.stringify({ error: 'invalid' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // SECURITY: Reject mock provider in production unless explicitly allowed.
     // MockProviderAdapter.verifyWebhook always returns true, so it must never
     // be reachable in prod environments.
@@ -54,6 +64,7 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
 
     // SECURITY: Validate timestamp (max 5 minutes old)
     if (!isTimestampValid(timestamp, 300)) {
