@@ -1789,6 +1789,13 @@ export type Database = {
           was_duplicate: boolean
         }[]
       }
+      process_webhook_deposit_atomic: {
+        Args: { _provider: string; _session_id: string; _webhook_id: string }
+        Returns: {
+          credited: boolean
+          reason: string
+        }[]
+      }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {

@@ -44,6 +44,17 @@ Deno.serve(async (req) => {
     const webhookId = req.headers.get('webhook-id') || `${Date.now()}-${crypto.randomUUID()}`;
     const providerType = new URL(req.url).searchParams.get('provider') || 'mock';
 
+    // SECURITY: Reject mock provider in production unless explicitly allowed.
+    // MockProviderAdapter.verifyWebhook always returns true, so it must never
+    // be reachable in prod environments.
+    if (providerType === 'mock' && Deno.env.get('ALLOW_MOCK_WEBHOOKS') !== 'true') {
+      console.warn('[webhook] Mock provider rejected (ALLOW_MOCK_WEBHOOKS not set) from', clientIp);
+      return new Response(JSON.stringify({ error: 'invalid' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // SECURITY: Validate timestamp (max 5 minutes old)
     if (!isTimestampValid(timestamp, 300)) {
       console.warn('[webhook] Invalid timestamp from', clientIp);
@@ -107,69 +118,32 @@ Deno.serve(async (req) => {
     // Handle different event types
     if (webhookEvent.eventType === 'payment.succeeded') {
       const sessionId = webhookEvent.providerSessionId || webhookEvent.providerTransactionId;
-      
+
       const { data: session } = await supabase
         .from('payment_sessions')
-        .select('*')
+        .select('id')
         .eq('provider_session_id', sessionId)
         .single();
-        
-      if (session) {
-        // Update session status
-        await supabase
-          .from('payment_sessions')
-          .update({ 
-            status: 'succeeded', 
-            completed_at: new Date().toISOString() 
-          })
-          .eq('id', session.id);
-        
-        // Get wallet
-        const { data: wallet } = await supabase
-          .from('wallets')
-          .select('*')
-          .eq('user_id', session.user_id)
-          .single();
-          
-        if (wallet) {
-          // Create deposit transaction (transactions.amount stores cents (bigint))
-          await supabase.from('transactions').insert({ 
-            user_id: session.user_id, 
-            wallet_id: wallet.id, 
-            type: 'deposit', 
-            amount: session.amount_cents, 
-            status: 'completed', 
-            reference_id: sessionId,
-            reference_type: 'payment_session',
-            description: 'Deposit via payment processor',
-            completed_at: new Date().toISOString(),
-            metadata: { provider: providerType, webhook_id: webhookId }
-          });
-          
-          // Update wallet balance atomically (update_wallet_balance expects cents)
-          await supabase.rpc('update_wallet_balance', { 
-            _wallet_id: wallet.id, 
-            _available_delta: session.amount_cents, 
-            _pending_delta: 0,
-            _lifetime_deposits_delta: session.amount_cents 
-          });
 
-          // Log to compliance
-          await supabase.from('compliance_audit_logs').insert({
-            user_id: session.user_id,
-            event_type: 'deposit_completed',
-            description: 'Deposit processed via webhook',
-            severity: 'info',
-            state_code: session.state_code,
-            metadata: {
-              amount_cents: session.amount_cents,
-              provider: providerType,
-              session_id: session.id,
-            },
-          });
-          
-          console.log('[webhook] Deposit processed:', session.amount_cents / 100, 'for user', session.user_id);
+      if (session) {
+        const { data: rpcData, error: rpcError } = await supabase.rpc(
+          'process_webhook_deposit_atomic',
+          {
+            _session_id: session.id,
+            _webhook_id: webhookId,
+            _provider: providerType,
+          },
+        );
+
+        if (rpcError) {
+          console.error('[webhook] process_webhook_deposit_atomic error:', rpcError);
+          throw rpcError;
         }
+
+        const result = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+        console.log('[webhook] deposit credit result:', result);
+        // Idempotent no-op for already_processed / session_not_found / wallet_not_found:
+        // still return 200 so the provider does not retry.
       }
     } else if (webhookEvent.eventType === 'payment.failed') {
       const sessionId = webhookEvent.providerSessionId || webhookEvent.providerTransactionId;
