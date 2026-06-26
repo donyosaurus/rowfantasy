@@ -44,6 +44,17 @@ Deno.serve(async (req) => {
     const webhookId = req.headers.get('webhook-id') || `${Date.now()}-${crypto.randomUUID()}`;
     const providerType = new URL(req.url).searchParams.get('provider') || 'mock';
 
+    // SECURITY: Reject mock provider in production unless explicitly allowed.
+    // MockProviderAdapter.verifyWebhook always returns true, so it must never
+    // be reachable in prod environments.
+    if (providerType === 'mock' && Deno.env.get('ALLOW_MOCK_WEBHOOKS') !== 'true') {
+      console.warn('[webhook] Mock provider rejected (ALLOW_MOCK_WEBHOOKS not set) from', clientIp);
+      return new Response(JSON.stringify({ error: 'invalid' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // SECURITY: Validate timestamp (max 5 minutes old)
     if (!isTimestampValid(timestamp, 300)) {
       console.warn('[webhook] Invalid timestamp from', clientIp);
