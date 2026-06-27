@@ -23,6 +23,7 @@ Deno.serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
     const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
     // SECURITY: Authenticate user
     const auth = await authenticateUser(req, SUPABASE_URL, ANON_KEY);
@@ -32,6 +33,10 @@ Deno.serve(async (req) => {
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Service-role client for privileged writes (payment_sessions insert is denied to authenticated).
+    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
+
 
     const userId = auth.user.id;
 
@@ -98,8 +103,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create mock payment session
-    const { data: session, error: sessionError } = await auth.supabase
+    // Create mock payment session (service-role: RLS denies authenticated inserts)
+    const { data: session, error: sessionError } = await supabaseAdmin
       .from('payment_sessions')
       .insert({
         user_id: userId,
@@ -112,6 +117,7 @@ Deno.serve(async (req) => {
       })
       .select()
       .single();
+
 
     if (sessionError) {
       throw sessionError;
