@@ -103,8 +103,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create mock payment session
-    const { data: session, error: sessionError } = await auth.supabase
+    // Create mock payment session (service-role: RLS denies authenticated inserts)
+    const { data: session, error: sessionError } = await supabaseAdmin
       .from('payment_sessions')
       .insert({
         user_id: userId,
@@ -117,6 +117,7 @@ Deno.serve(async (req) => {
       })
       .select()
       .single();
+
 
     if (sessionError) {
       throw sessionError;
