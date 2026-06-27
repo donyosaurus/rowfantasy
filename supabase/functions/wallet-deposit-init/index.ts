@@ -23,11 +23,20 @@ Deno.serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
     const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
     // SECURITY: Authenticate user
     const auth = await authenticateUser(req, SUPABASE_URL, ANON_KEY);
     if (!auth) {
       return new Response(
+        JSON.stringify({ error: mapErrorToClient({ message: 'not authenticated' }) }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Service-role client for privileged writes (payment_sessions insert is denied to authenticated).
+    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
+
         JSON.stringify({ error: mapErrorToClient({ message: 'not authenticated' }) }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
