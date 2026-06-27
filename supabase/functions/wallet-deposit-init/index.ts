@@ -37,10 +37,6 @@ Deno.serve(async (req) => {
     // Service-role client for privileged writes (payment_sessions insert is denied to authenticated).
     const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-        JSON.stringify({ error: mapErrorToClient({ message: 'not authenticated' }) }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
     const userId = auth.user.id;
 
