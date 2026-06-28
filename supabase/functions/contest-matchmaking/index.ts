@@ -33,6 +33,8 @@ Deno.serve(async (req) => {
     }
 
     const userId = auth.user.id;
+    console.log('[cm-debug] resolved userId:', userId);
+    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
 
     const rateLimitOk = await checkRateLimit(auth.supabase, userId, "contest-matchmaking", 20, 1);
     if (!rateLimitOk) {
