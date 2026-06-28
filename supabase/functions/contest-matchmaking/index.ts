@@ -33,6 +33,8 @@ Deno.serve(async (req) => {
     }
 
     const userId = auth.user.id;
+    console.log('[cm-debug] resolved userId:', userId);
+    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
 
     const rateLimitOk = await checkRateLimit(auth.supabase, userId, "contest-matchmaking", 20, 1);
     if (!rateLimitOk) {
@@ -88,7 +90,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
 
     const stateCode = body.state_code || req.headers.get("x-user-state") || "";
     // P0-C9 (2026-05-21): cf-connecting-ip is the trusted client IP source at Supabase Edge Functions.
@@ -106,6 +107,13 @@ Deno.serve(async (req) => {
     // Application-layer compliance gates (P0-C1 / P0-C7): geo, state-reg, age, inactive, SX, employee.
     // amountCents=0 — helper's success-log metadata will record `actionType: 'entry'` with `amount_cents: 0`.
     // The actual entry fee is determined inside enter_contest_pool_atomic.
+    const { data: cmDbgProfile, error: cmDbgErr } = await supabaseAdmin
+      .from('profiles')
+      .select('id, date_of_birth, age_confirmed_at, is_active, kyc_status')
+      .eq('id', userId)
+      .maybeSingle();
+    console.log('[cm-debug] profile-as-read:', JSON.stringify(cmDbgProfile), 'err:', cmDbgErr?.message ?? null);
+
     const compliance = await performComplianceChecks({
       userId,
       stateCode,
@@ -113,6 +121,7 @@ Deno.serve(async (req) => {
       actionType: "entry",
       ipAddress,
     }, req);
+    console.log('[cm-debug] compliance result:', JSON.stringify({ allowed: compliance.allowed, reason: compliance.reason, stateCode }));
     if (!compliance.allowed) {
       return new Response(
         JSON.stringify({ error: compliance.reason ?? "Compliance check failed" }),
