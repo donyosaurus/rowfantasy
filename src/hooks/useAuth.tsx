@@ -61,7 +61,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .from('profiles')
         .select('username')
         .eq('username', username)
-        .single();
+        .maybeSingle();
+
+      if (checkError) {
+        // Surface real DB errors instead of swallowing them (maybeSingle avoids the
+        // benign 406 that .single() raised for available usernames).
+        console.error('[signUp] username availability check failed:', checkError);
+        toast.error('Could not verify username availability. Please try again.');
+        return { error: checkError };
+      }
 
       if (existingUser) {
         toast.error("Username is already taken. Please choose another.");
@@ -100,17 +108,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { error };
       }
 
-      // Update profile with DOB and age confirmation after signup
-      if (data.user) {
-        await supabase
-          .from('profiles')
-          .update({
-            date_of_birth: dateOfBirth,
-            age_confirmed_at: new Date().toISOString(),
-            state: stateCode,
-          })
-          .eq('id', data.user.id);
-      }
+      // Profile (incl. date_of_birth, age_confirmed_at, state) is created atomically
+      // by the handle_new_user trigger from signUp metadata. The previous client-side
+      // profiles.update() ran before the auth session was established, failed RLS
+      // silently, and left age_confirmed_at null — blocking every money flow with
+      // "Age verification required" (P0-AGE, 2026-06-27). Do not reintroduce it; the
+      // trigger is the single source of truth for these fields.
 
       toast.success("Account created successfully!");
       navigate("/");
