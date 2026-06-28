@@ -90,7 +90,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
 
     const stateCode = body.state_code || req.headers.get("x-user-state") || "";
     // P0-C9 (2026-05-21): cf-connecting-ip is the trusted client IP source at Supabase Edge Functions.
