@@ -33,7 +33,6 @@ Deno.serve(async (req) => {
     }
 
     const userId = auth.user.id;
-    console.log('[cm-debug] resolved userId:', userId);
     const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
 
     const rateLimitOk = await checkRateLimit(auth.supabase, userId, "contest-matchmaking", 20, 1);
@@ -44,9 +43,13 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Frontend sends camelCase. Keep this contract — do not regress to snake_case.
     const enterSchema = z.object({
-      contest_template_id: z.string().uuid(),
-      tier_name: z.string().min(1).max(100).optional().nullable(),
+      contestTemplateId: z.string().uuid(),
+      tierId: z.string().optional().nullable(),
+      tierName: z.string().min(1).max(100).optional().nullable(),
+      entryFeeCents: z.number().int().nonnegative().optional().nullable(),
+      stateCode: z.string().length(2).optional().nullable(),
       picks: z
         .array(
           z.object({
@@ -57,7 +60,6 @@ Deno.serve(async (req) => {
         )
         .min(1)
         .max(10),
-      state_code: z.string().length(2).optional().nullable(),
     });
 
     const body = enterSchema.parse(await req.json());
@@ -80,7 +82,7 @@ Deno.serve(async (req) => {
     const { data: template, error: templateError } = await auth.supabase
       .from("contest_templates")
       .select("regatta_name")
-      .eq("id", body.contest_template_id)
+      .eq("id", body.contestTemplateId)
       .single();
 
     if (templateError || !template) {
@@ -90,11 +92,9 @@ Deno.serve(async (req) => {
       });
     }
 
-
-    const stateCode = body.state_code || req.headers.get("x-user-state") || "";
+    const stateCode = body.stateCode || req.headers.get("x-user-state") || "";
     // P0-C9 (2026-05-21): cf-connecting-ip is the trusted client IP source at Supabase Edge Functions.
     // Cloudflare WAF actively blocks spoofing attempts (verified empirically via debug-headers test).
-    // x-forwarded-for fallback removed — its index-0 spoofability is not empirically verified.
     // Fail-closed if cf-connecting-ip is absent (unexpected at production Edge Functions but possible).
     const ipAddress = req.headers.get("cf-connecting-ip");
     if (!ipAddress) {
@@ -105,24 +105,7 @@ Deno.serve(async (req) => {
     }
 
     // Application-layer compliance gates (P0-C1 / P0-C7): geo, state-reg, age, inactive, SX, employee.
-    // amountCents=0 — helper's success-log metadata will record `actionType: 'entry'` with `amount_cents: 0`.
-    // The actual entry fee is determined inside enter_contest_pool_atomic.
-    const { data: cmDbgProfile, error: cmDbgErr } = await supabaseAdmin
-      .from('profiles')
-      .select('id, date_of_birth, age_confirmed_at, is_active, kyc_status')
-      .eq('id', userId)
-      .maybeSingle();
-    console.log('[cm-debug] profile-as-read:', JSON.stringify(cmDbgProfile), 'err:', cmDbgErr?.message ?? null);
-
-    // Temporary debug early-return: bypasses log stream and short-circuits entry
-    // to surface the exact profile row the compliance helper will see.
-    return new Response(JSON.stringify({
-      cmDebug: true,
-      resolvedUserId: userId,
-      profileAsRead: cmDbgProfile,
-      profileReadErr: cmDbgErr?.message ?? null,
-    }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-
+    // amountCents=0 — actual entry fee is determined inside enter_contest_pool_atomic.
     const compliance = await performComplianceChecks({
       userId,
       stateCode,
@@ -130,7 +113,6 @@ Deno.serve(async (req) => {
       actionType: "entry",
       ipAddress,
     }, req);
-    console.log('[cm-debug] compliance result:', JSON.stringify({ allowed: compliance.allowed, reason: compliance.reason, stateCode }));
     if (!compliance.allowed) {
       return new Response(
         JSON.stringify({ error: compliance.reason ?? "Compliance check failed" }),
@@ -141,8 +123,8 @@ Deno.serve(async (req) => {
     const { data: result, error: rpcError } = await supabaseAdmin.rpc("enter_contest_pool_atomic", {
       _user_id: userId,
       _wallet_id: wallet.id,
-      _contest_template_id: body.contest_template_id,
-      _tier_name: body.tier_name ?? null,
+      _contest_template_id: body.contestTemplateId,
+      _tier_name: body.tierName ?? null,
       _picks: body.picks,
       _state_code: stateCode,
     });
@@ -203,8 +185,10 @@ Deno.serve(async (req) => {
         metadata: {
           entry_id: entry.entry_id,
           pool_id: entry.pool_id,
-          contest_template_id: body.contest_template_id,
-          tier_name: body.tier_name,
+          contest_template_id: body.contestTemplateId,
+          tier_id: body.tierId ?? null,
+          tier_name: body.tierName ?? null,
+          entry_fee_cents: body.entryFeeCents ?? null,
           state_code: stateCode,
           balance_after_cents: entry.available_balance_cents,
           current_entries: entry.current_entries,
