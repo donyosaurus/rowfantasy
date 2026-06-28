@@ -114,6 +114,15 @@ Deno.serve(async (req) => {
       .maybeSingle();
     console.log('[cm-debug] profile-as-read:', JSON.stringify(cmDbgProfile), 'err:', cmDbgErr?.message ?? null);
 
+    // Temporary debug early-return: bypasses log stream and short-circuits entry
+    // to surface the exact profile row the compliance helper will see.
+    return new Response(JSON.stringify({
+      cmDebug: true,
+      resolvedUserId: userId,
+      profileAsRead: cmDbgProfile,
+      profileReadErr: cmDbgErr?.message ?? null,
+    }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
     const compliance = await performComplianceChecks({
       userId,
       stateCode,
