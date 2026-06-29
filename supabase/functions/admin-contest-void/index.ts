@@ -53,8 +53,10 @@ Deno.serve(async (req) => {
 
     console.log('Voiding pool:', { contestPoolId, admin: user.id });
 
-    const { data, error } = await supabaseAdmin.rpc('admin_void_contest', {
-      p_contest_pool_id: contestPoolId
+    const { data, error } = await supabaseAdmin.rpc('void_contest_pool_atomic', {
+      _pool_id: contestPoolId,
+      _admin_user_id: user.id,
+      _reason: 'Admin manual void',
     });
 
     if (error) {
@@ -65,18 +67,28 @@ Deno.serve(async (req) => {
       );
     }
 
+    const result = Array.isArray(data) ? data[0] : data;
+    if (!result || !result.allowed) {
+      return new Response(
+        JSON.stringify({ error: result?.reason || 'Failed to void contest' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const refundedCount = result.refunded_count || 0;
+
     await supabaseAdmin.from('compliance_audit_logs').insert({
       admin_id: user.id,
       event_type: 'pool_voided',
       description: `Admin voided pool ${contestPoolId}`,
       severity: 'warning',
-      metadata: { pool_id: contestPoolId, refunded_count: data?.refunded_count || 0 },
+      metadata: { pool_id: contestPoolId, refunded_count: refundedCount },
     });
 
-    console.log(`Pool ${contestPoolId} voided. Refunded ${data?.refunded_count || 0} entries`);
+    console.log(`Pool ${contestPoolId} voided. Refunded ${refundedCount} entries`);
 
     return new Response(
-      JSON.stringify({ success: true, message: 'Pool voided and refunds processed', refundedCount: data?.refunded_count || 0 }),
+      JSON.stringify({ success: true, message: 'Pool voided and refunds processed', refundedCount }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
