@@ -1,3 +1,4 @@
+import { withFnVersion } from '../shared/fn-version.ts';
 // Payment Webhook Handler - Process provider callbacks securely
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
@@ -6,7 +7,7 @@ import { isTimestampValid } from '../shared/crypto-utils.ts';
 import { checkRateLimit } from '../shared/auth-helpers.ts';
 import { getCorsHeaders } from '../shared/cors.ts';
 
-Deno.serve(async (req) => {
+Deno.serve(withFnVersion('payments-webhook', async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
   if (req.method === 'OPTIONS') {
@@ -247,4 +248,4 @@ Deno.serve(async (req) => {
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
-});
+}));

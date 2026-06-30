@@ -1,3 +1,4 @@
+import { withFnVersion } from '../shared/fn-version.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { requireAdmin } from '../shared/auth-helpers.ts';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
@@ -14,7 +15,7 @@ const RequestSchema = z.object({
   results: z.array(ResultItemSchema).min(1),
 });
 
-Deno.serve(async (req) => {
+Deno.serve(withFnVersion('admin-contest-results', async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
   if (req.method === 'OPTIONS') {
@@ -95,4 +96,4 @@ Deno.serve(async (req) => {
       { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
-});
+}));

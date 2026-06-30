@@ -1618,7 +1618,6 @@ export type Database = {
         }
         Returns: Json
       }
-      admin_void_contest: { Args: { p_contest_pool_id: string }; Returns: Json }
       apply_pending_responsible_gaming_limit: {
         Args: { p_user_id: string }
         Returns: undefined

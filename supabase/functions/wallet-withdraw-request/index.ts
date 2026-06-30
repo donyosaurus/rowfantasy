@@ -1,3 +1,4 @@
+import { withFnVersion } from '../shared/fn-version.ts';
 // Wallet Withdraw Request - Thin wrapper around initiate_withdrawal_atomic SQL function
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
@@ -7,7 +8,7 @@ import { performComplianceChecks } from '../shared/compliance-checks.ts';
 import { mapErrorToClient, logSecureError, ERROR_MESSAGES } from '../shared/error-handler.ts';
 import { getCorsHeaders } from '../shared/cors.ts';
 
-Deno.serve(async (req) => {
+Deno.serve(withFnVersion('wallet-withdraw-request', async (req) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -183,4 +184,4 @@ Deno.serve(async (req) => {
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
-});
+}));
