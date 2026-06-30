@@ -1,3 +1,4 @@
+import { withFnVersion } from '../shared/fn-version.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { requireAdmin } from '../shared/auth-helpers.ts';
 import { getCorsHeaders } from '../shared/cors.ts';
@@ -6,7 +7,7 @@ interface VoidRequest {
   contestPoolId: string;
 }
 
-Deno.serve(async (req) => {
+Deno.serve(withFnVersion('admin-contest-void', async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
   if (req.method === 'OPTIONS') {
@@ -99,4 +100,4 @@ Deno.serve(async (req) => {
       { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
-});
+}));

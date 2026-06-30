@@ -1,3 +1,4 @@
+import { withFnVersion } from '../shared/fn-version.ts';
 // Contest Settlement - Thin wrapper that batches calls to atomic SQL functions
 // across sibling pools sharing the same contest_template_id.
 //
@@ -46,7 +47,7 @@ type SiblingDecision = {
 
 const settleSchema = z.object({ contestPoolId: z.string().uuid() });
 
-Deno.serve(async (req) => {
+Deno.serve(withFnVersion('contest-settle', async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
   if (req.method === 'OPTIONS') {
@@ -350,4 +351,4 @@ Deno.serve(async (req) => {
       { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
     );
   }
-});
+}));

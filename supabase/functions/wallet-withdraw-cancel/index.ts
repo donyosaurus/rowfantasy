@@ -1,3 +1,4 @@
+import { withFnVersion } from '../shared/fn-version.ts';
 // Wallet Withdraw Cancel — atomic single-RPC implementation.
 // All state transitions (transactions.status -> 'failed', wallets pending->available
 // restoration, ledger entry) happen inside cancel_pending_withdrawal_atomic so
@@ -10,7 +11,7 @@ import { getCorsHeaders } from '../shared/cors.ts';
 import { authenticateUser, checkRateLimit } from '../shared/auth-helpers.ts';
 import { ERROR_MESSAGES, logSecureError, mapErrorToClient } from '../shared/error-handler.ts';
 
-Deno.serve(async (req) => {
+Deno.serve(withFnVersion('wallet-withdraw-cancel', async (req) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   if (req.method !== 'POST') {
@@ -133,4 +134,4 @@ Deno.serve(async (req) => {
       headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
     });
   }
-});
+}));

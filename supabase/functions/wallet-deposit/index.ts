@@ -1,3 +1,4 @@
+import { withFnVersion } from '../shared/fn-version.ts';
 // Wallet Deposit
 //
 // ───────────────────────────────────────────────────────────────────────────
@@ -53,7 +54,7 @@ function classifyRpcException(err: unknown): 'determinate' | 'ambiguous' {
   return 'ambiguous';
 }
 
-Deno.serve(async (req) => {
+Deno.serve(withFnVersion('wallet-deposit', async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
   if (req.method === 'OPTIONS') {
@@ -350,7 +351,7 @@ Deno.serve(async (req) => {
       { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
-});
+}));
 
 /**
  * Refund payment and write a compliance audit log. Called only on
