@@ -30,7 +30,9 @@ interface Candidate {
   status: string;
   current_entries: number;
   max_entries: number;
+  void_unfilled_on_settle: boolean;
 }
+
 
 interface Failure {
   pool_id: string;
