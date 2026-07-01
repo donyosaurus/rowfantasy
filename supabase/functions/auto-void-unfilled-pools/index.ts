@@ -144,10 +144,12 @@ Deno.serve(async (req) => {
 
     for (const c of candidates as Candidate[]) {
       if (c.current_entries >= c.max_entries) continue; // filled — settle path handles this
+      if (c.void_unfilled_on_settle !== true) continue; // belt-and-suspenders: SQL already filtered
       const tStatus = templateStatus.get(c.contest_template_id);
       if (tStatus && ['cancelled', 'settled', 'voided', 'completed'].includes(tStatus)) continue;
       eligible.push(c);
     }
+
   }
 
   // ── Per-pool dispatch ────────────────────────────────────────────────
