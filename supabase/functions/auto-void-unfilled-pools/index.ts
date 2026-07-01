@@ -30,7 +30,9 @@ interface Candidate {
   status: string;
   current_entries: number;
   max_entries: number;
+  void_unfilled_on_settle: boolean;
 }
+
 
 interface Failure {
   pool_id: string;
@@ -111,12 +113,14 @@ Deno.serve(async (req) => {
 
   const { data: candidates, error: selectErr } = await supabaseAdmin
     .from('contest_pools')
-    .select('id, contest_template_id, lock_time, status, current_entries, max_entries')
+    .select('id, contest_template_id, lock_time, status, current_entries, max_entries, void_unfilled_on_settle')
     .in('status', ['open', 'locked'])
+    .eq('void_unfilled_on_settle', true)
     .not('lock_time', 'is', null)
     .lt('lock_time', graceCutoff)
     .order('lock_time', { ascending: true })
     .limit(CANDIDATE_LIMIT);
+
 
   if (selectErr) {
     console.error('[auto-void-unfilled-pools] candidate query failed', selectErr);
@@ -140,10 +144,12 @@ Deno.serve(async (req) => {
 
     for (const c of candidates as Candidate[]) {
       if (c.current_entries >= c.max_entries) continue; // filled — settle path handles this
+      if (c.void_unfilled_on_settle !== true) continue; // belt-and-suspenders: SQL already filtered
       const tStatus = templateStatus.get(c.contest_template_id);
       if (tStatus && ['cancelled', 'settled', 'voided', 'completed'].includes(tStatus)) continue;
       eligible.push(c);
     }
+
   }
 
   // ── Per-pool dispatch ────────────────────────────────────────────────

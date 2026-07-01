@@ -143,19 +143,24 @@ Deno.serve(withFnVersion('contest-settle', async (req) => {
       );
     }
 
-    // Decide per-pool action
+    // Decide per-pool action.
+    // Order matters:
+    //   1. already-finalized (settled/voided) → skip
+    //   2. void_unfilled_on_settle && under capacity → auto_voided
+    //      (applies regardless of status, including results_entered/scoring_completed)
+    //   3. scoring_completed → settled
+    //   4. anything else → pool_not_ready
     const decisions: SiblingDecision[] = siblings.map((p: any) => {
       let action: SiblingDecision['action'];
       if (p.status === 'settled' || p.status === 'voided') {
         action = 'already_finalized';
-      } else if (p.status === 'scoring_completed') {
-        action = 'settled';
       } else if (
-        (p.status === 'open' || p.status === 'locked') &&
         p.void_unfilled_on_settle === true &&
         (p.current_entries ?? 0) < (p.max_entries ?? 0)
       ) {
         action = 'auto_voided';
+      } else if (p.status === 'scoring_completed') {
+        action = 'settled';
       } else {
         action = 'pool_not_ready';
       }
@@ -168,6 +173,7 @@ Deno.serve(withFnVersion('contest-settle', async (req) => {
         action,
       };
     });
+
 
     const actionable = decisions.filter((d) => d.action === 'settled' || d.action === 'auto_voided');
     const alreadyFinalized = decisions.filter((d) => d.action === 'already_finalized');
@@ -216,6 +222,48 @@ Deno.serve(withFnVersion('contest-settle', async (req) => {
             continue;
           }
           if (!result.allowed) {
+            // If the RPC now insists the pool must be voided (race between the
+            // JS decision and the FOR UPDATE lock inside the RPC), promote it
+            // to a void call instead of surfacing a generic error.
+            if (result.reason === 'must_void_unfilled') {
+              sibling.action = 'auto_voided';
+              // fall through to the auto_voided branch below by re-dispatching
+              const { data: vData, error: vErr } = await supabaseAdmin.rpc('void_contest_pool_atomic', {
+                _pool_id: sibling.id,
+                _admin_user_id: userId,
+                _reason: 'Pool unfilled at settlement time (RPC-directed)',
+              });
+              if (vErr) {
+                const requestId = logSecureError('contest-settle', vErr);
+                results.push({
+                  poolId: sibling.id,
+                  action: 'error',
+                  reason: 'rpc_error',
+                  message: mapErrorToClient(vErr),
+                  requestId,
+                });
+                continue;
+              }
+              const vResult: any = Array.isArray(vData) ? vData[0] : vData;
+              if (!vResult?.allowed) {
+                results.push({
+                  poolId: sibling.id,
+                  action: 'error',
+                  reason: vResult?.reason ?? 'void_retry_failed',
+                  totalRefundedCents: 0,
+                  refundedCount: 0,
+                });
+                continue;
+              }
+              results.push({
+                poolId: sibling.id,
+                action: vResult.was_already_voided ? 'already_voided' : 'auto_voided',
+                reason: vResult.reason,
+                totalRefundedCents: Number(vResult.total_refunded_cents ?? 0),
+                refundedCount: Number(vResult.refunded_count ?? 0),
+              });
+              continue;
+            }
             results.push({
               poolId: sibling.id,
               action: 'error',
@@ -225,6 +273,7 @@ Deno.serve(withFnVersion('contest-settle', async (req) => {
             });
             continue;
           }
+
           results.push({
             poolId: sibling.id,
             action: result.was_already_settled
