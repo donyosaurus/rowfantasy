@@ -113,12 +113,14 @@ Deno.serve(async (req) => {
 
   const { data: candidates, error: selectErr } = await supabaseAdmin
     .from('contest_pools')
-    .select('id, contest_template_id, lock_time, status, current_entries, max_entries')
+    .select('id, contest_template_id, lock_time, status, current_entries, max_entries, void_unfilled_on_settle')
     .in('status', ['open', 'locked'])
+    .eq('void_unfilled_on_settle', true)
     .not('lock_time', 'is', null)
     .lt('lock_time', graceCutoff)
     .order('lock_time', { ascending: true })
     .limit(CANDIDATE_LIMIT);
+
 
   if (selectErr) {
     console.error('[auto-void-unfilled-pools] candidate query failed', selectErr);
