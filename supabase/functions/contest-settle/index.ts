@@ -143,19 +143,24 @@ Deno.serve(withFnVersion('contest-settle', async (req) => {
       );
     }
 
-    // Decide per-pool action
+    // Decide per-pool action.
+    // Order matters:
+    //   1. already-finalized (settled/voided) → skip
+    //   2. void_unfilled_on_settle && under capacity → auto_voided
+    //      (applies regardless of status, including results_entered/scoring_completed)
+    //   3. scoring_completed → settled
+    //   4. anything else → pool_not_ready
     const decisions: SiblingDecision[] = siblings.map((p: any) => {
       let action: SiblingDecision['action'];
       if (p.status === 'settled' || p.status === 'voided') {
         action = 'already_finalized';
-      } else if (p.status === 'scoring_completed') {
-        action = 'settled';
       } else if (
-        (p.status === 'open' || p.status === 'locked') &&
         p.void_unfilled_on_settle === true &&
         (p.current_entries ?? 0) < (p.max_entries ?? 0)
       ) {
         action = 'auto_voided';
+      } else if (p.status === 'scoring_completed') {
+        action = 'settled';
       } else {
         action = 'pool_not_ready';
       }
@@ -168,6 +173,7 @@ Deno.serve(withFnVersion('contest-settle', async (req) => {
         action,
       };
     });
+
 
     const actionable = decisions.filter((d) => d.action === 'settled' || d.action === 'auto_voided');
     const alreadyFinalized = decisions.filter((d) => d.action === 'already_finalized');
