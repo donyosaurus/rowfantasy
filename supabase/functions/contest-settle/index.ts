@@ -222,6 +222,48 @@ Deno.serve(withFnVersion('contest-settle', async (req) => {
             continue;
           }
           if (!result.allowed) {
+            // If the RPC now insists the pool must be voided (race between the
+            // JS decision and the FOR UPDATE lock inside the RPC), promote it
+            // to a void call instead of surfacing a generic error.
+            if (result.reason === 'must_void_unfilled') {
+              sibling.action = 'auto_voided';
+              // fall through to the auto_voided branch below by re-dispatching
+              const { data: vData, error: vErr } = await supabaseAdmin.rpc('void_contest_pool_atomic', {
+                _pool_id: sibling.id,
+                _admin_user_id: userId,
+                _reason: 'Pool unfilled at settlement time (RPC-directed)',
+              });
+              if (vErr) {
+                const requestId = logSecureError('contest-settle', vErr);
+                results.push({
+                  poolId: sibling.id,
+                  action: 'error',
+                  reason: 'rpc_error',
+                  message: mapErrorToClient(vErr),
+                  requestId,
+                });
+                continue;
+              }
+              const vResult: any = Array.isArray(vData) ? vData[0] : vData;
+              if (!vResult?.allowed) {
+                results.push({
+                  poolId: sibling.id,
+                  action: 'error',
+                  reason: vResult?.reason ?? 'void_retry_failed',
+                  totalRefundedCents: 0,
+                  refundedCount: 0,
+                });
+                continue;
+              }
+              results.push({
+                poolId: sibling.id,
+                action: vResult.was_already_voided ? 'already_voided' : 'auto_voided',
+                reason: vResult.reason,
+                totalRefundedCents: Number(vResult.total_refunded_cents ?? 0),
+                refundedCount: Number(vResult.refunded_count ?? 0),
+              });
+              continue;
+            }
             results.push({
               poolId: sibling.id,
               action: 'error',
@@ -231,6 +273,7 @@ Deno.serve(withFnVersion('contest-settle', async (req) => {
             });
             continue;
           }
+
           results.push({
             poolId: sibling.id,
             action: result.was_already_settled
