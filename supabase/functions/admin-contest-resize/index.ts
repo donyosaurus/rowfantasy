@@ -11,7 +11,7 @@ import { mapErrorToClient, logSecureError, ERROR_MESSAGES } from '../shared/erro
 
 const bodySchema = z.object({
   contestPoolId: z.string().uuid(),
-  newMaxEntries: z.number().int().positive(),
+  newMaxEntries: z.number().int().positive().max(2147483647),
 });
 
 const REASON_MESSAGES: Record<string, string> = {
