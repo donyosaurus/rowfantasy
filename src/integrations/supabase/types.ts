@@ -1610,6 +1610,21 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_resize_contest_pool_atomic: {
+        Args: {
+          _admin_user_id: string
+          _new_max_entries: number
+          _pool_id: string
+        }
+        Returns: {
+          allowed: boolean
+          new_max_entries: number
+          new_payout_structure: Json
+          new_prize_pool_cents: number
+          old_max_entries: number
+          reason: string
+        }[]
+      }
       admin_update_race_results: {
         Args: {
           _admin_user_id: string
