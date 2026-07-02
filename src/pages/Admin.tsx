@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -112,6 +112,9 @@ const Admin = () => {
   const [settlingPoolId, setSettlingPoolId] = useState<string | null>(null);
   const [scoringPoolId, setScoringPoolId] = useState<string | null>(null);
   const [voidingPoolId, setVoidingPoolId] = useState<string | null>(null);
+  const [resizeTarget, setResizeTarget] = useState<any | null>(null);
+  const [resizeMaxInput, setResizeMaxInput] = useState("");
+  const [resizing, setResizing] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [creatingContest, setCreatingContest] = useState(false);
@@ -211,6 +214,11 @@ const Admin = () => {
       toast.success(`Scored ${scoringData?.poolsScored || 1} pool(s). Settling payouts...`);
       const { data: settleData, error: settleError } = await supabase.functions.invoke("contest-settle", { body: { contestPoolId: selectedContest.id } });
       if (settleError) throw new Error(`Settlement failed: ${settleError.message}`);
+      if (settleData && settleData.success === false) {
+        const failed = (settleData.details || []).filter((d: any) => d.action === 'error');
+        const f = failed[0];
+        throw new Error(`Settlement did not complete: ${settleData.poolsFailed ?? failed.length} pool(s) failed${f ? ` — ${f.reason || 'error'}${f.requestId ? ` (req ${f.requestId})` : ''}` : ''}.`);
+      }
       let settleMsg = `Done! ${settleData?.winnersCount || 0} winner(s) paid out.`;
       if (settleData?.poolsAutoVoided > 0) {
         settleMsg += ` ${settleData.poolsAutoVoided} unfilled pool(s) auto-voided, ${settleData.entriesRefunded || 0} entry fee(s) refunded.`;
@@ -229,6 +237,11 @@ const Admin = () => {
       if (error) throw error;
 
       const details = data?.details || [];
+      const failedPools = details.filter((d: any) => d.action === 'error');
+      if (failedPools.length > 0) {
+        const f = failedPools[0];
+        throw new Error(`${failedPools.length} pool(s) failed to settle — ${f.reason || 'error'}${f.requestId ? ` (req ${f.requestId})` : ''}.`);
+      }
       const settledCount = details.filter((d: any) => d.action === 'settled').length;
       const voidedCount = details.filter((d: any) => d.action === 'auto_voided').length;
       const refundedEntries = details
@@ -285,7 +298,8 @@ const Admin = () => {
     try {
       const tierPools = contests.filter((p: any) => p.contest_template_id === templateId && p.tier_name === tierName && p.status !== 'voided' && p.status !== 'settled');
       for (const pool of tierPools) {
-        await supabase.functions.invoke("admin-contest-void", { body: { contestPoolId: pool.id } });
+        const { data, error } = await supabase.functions.invoke("admin-contest-void", { body: { contestPoolId: pool.id } });
+        if (error || data?.error) throw new Error(error?.message || data?.error || `Failed to void pool ${pool.id}`);
       }
       toast.success(`${tierName} tier voided and refunds issued`);
       loadDashboardData();
@@ -305,7 +319,8 @@ const Admin = () => {
     setVoidingPoolId(templateId);
     try {
       for (const pool of allPools) {
-        await supabase.functions.invoke("admin-contest-void", { body: { contestPoolId: pool.id } });
+        const { data, error } = await supabase.functions.invoke("admin-contest-void", { body: { contestPoolId: pool.id } });
+        if (error || data?.error) throw new Error(error?.message || data?.error || `Failed to void pool ${pool.id}`);
       }
       toast.success(allPools.length === 1 ? "Contest voided and refunds issued" : "All pools voided and refunds issued");
       loadDashboardData();
@@ -313,6 +328,45 @@ const Admin = () => {
   };
 
   const isContestPastLockTime = (contest: any) => new Date() > new Date(contest.lock_time);
+
+  // Resize is restricted to configurations where overflow clones can't inherit
+  // the shrunken economics: locked pools never clone; open pools only when
+  // the contest has overflow disabled.
+  const canResizePool = (pool: any) => {
+    if (pool.status === "locked") return pool.current_entries >= 2 && pool.current_entries < pool.max_entries;
+    if (pool.status === "open") return !pool.allow_overflow && pool.max_entries > 2;
+    return false;
+  };
+
+  const maxPrizeRank = (payoutStructure: Record<string, number> | null) =>
+    Math.max(1, ...Object.keys(payoutStructure || {}).map((k) => parseInt(k, 10)).filter(Number.isInteger));
+
+  const scalePayoutStructure = (payoutStructure: Record<string, number> | null, oldMax: number, newMax: number): Record<string, number> =>
+    Object.fromEntries(
+      Object.entries(payoutStructure || {}).map(([place, cents]) => [place, Math.floor((Number(cents) * newMax) / oldMax)])
+    );
+
+  const openResizeModal = (pool: any) => {
+    setResizeTarget(pool);
+    // Locked pools may only be resized to exactly their active entry count.
+    setResizeMaxInput(pool.status === "locked" ? String(pool.current_entries) : "");
+  };
+
+  const resizeContestPool = async () => {
+    if (!resizeTarget) return;
+    const newMax = parseInt(resizeMaxInput, 10);
+    if (!Number.isInteger(newMax)) { toast.error("Enter a valid number of entries"); return; }
+    setResizing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-contest-resize", {
+        body: { contestPoolId: resizeTarget.id, newMaxEntries: newMax },
+      });
+      if (error || data?.error) throw new Error(error?.message || data?.error || "Failed to resize pool");
+      toast.success(`Pool resized to ${newMax} entries; prizes scaled proportionally`);
+      setResizeTarget(null);
+      loadDashboardData();
+    } catch (error: any) { console.error("Error resizing pool:", error); toast.error(error.message || "Failed to resize pool"); } finally { setResizing(false); }
+  };
 
   const groupedContests = useMemo(() => {
     const groups = new Map<string, any[]>();
@@ -600,7 +654,7 @@ const Admin = () => {
           cardBannerUrl: createForm.cardBannerUrl.trim() || null,
           draftBannerUrl: createForm.draftBannerUrl.trim() || null,
           contestGroupId: (createForm.contestGroupId && createForm.contestGroupId !== "none") ? createForm.contestGroupId : null,
-          voidUnfilledOnSettle: createForm.allowOverflow ? createForm.voidUnfilledOnSettle : false,
+          voidUnfilledOnSettle: createForm.voidUnfilledOnSettle,
         }
       });
       if (error) throw error;
@@ -800,6 +854,9 @@ const Admin = () => {
                                         {pool.void_unfilled_on_settle && pool.current_entries < pool.max_entries && pool.status !== 'voided' && pool.status !== 'settled' && (
                                           <Badge variant="outline" className="text-[10px] h-5 border-amber-400 text-amber-600">⚠ Auto-void</Badge>
                                         )}
+                                        {canResizePool(pool) && (
+                                          <Button size="sm" variant="ghost" className="text-[10px] h-5 px-2" onClick={() => openResizeModal(pool)}>Resize</Button>
+                                        )}
                                       </div>
                                     );
                                   })}
@@ -807,8 +864,29 @@ const Admin = () => {
                               ))}
                             </div>
                           ) : (
-                            <div className="text-sm text-muted-foreground">
-                              {totalEntries}/{totalMaxEntries} entries · {formatCents(totalPrize)} prize pool · {formatCents(primary.entry_fee_cents)} entry
+                            <div className="space-y-1">
+                              <div className="text-sm text-muted-foreground">
+                                {totalEntries}/{totalMaxEntries} entries · {formatCents(totalPrize)} prize pool · {formatCents(primary.entry_fee_cents)} entry
+                              </div>
+                              {pools.map((pool: any, idx: number) => {
+                                const isAutoVoided = pool.status === 'voided' && pool.void_unfilled_on_settle && pool.current_entries < pool.max_entries;
+                                return (
+                                  <div key={pool.id} className="text-xs text-muted-foreground flex items-center gap-2">
+                                    <span>Pool {idx + 1}: {pool.current_entries}/{pool.max_entries} entries</span>
+                                    <span>·</span>
+                                    <Badge variant="outline" className="text-[10px] h-5">
+                                      {isAutoVoided ? 'Voided (unfilled)' : pool.status}
+                                    </Badge>
+                                    {idx > 0 && <span className="text-muted-foreground/60">(overflow)</span>}
+                                    {pool.void_unfilled_on_settle && pool.current_entries < pool.max_entries && pool.status !== 'voided' && pool.status !== 'settled' && (
+                                      <Badge variant="outline" className="text-[10px] h-5 border-amber-400 text-amber-600">⚠ Auto-void</Badge>
+                                    )}
+                                    {canResizePool(pool) && (
+                                      <Button size="sm" variant="ghost" className="text-[10px] h-5 px-2" onClick={() => openResizeModal(pool)}>Resize</Button>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
 
@@ -890,6 +968,63 @@ const Admin = () => {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Resize Pool Modal */}
+      <Dialog open={!!resizeTarget} onOpenChange={(open) => { if (!open) setResizeTarget(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Resize Pool</DialogTitle>
+            <DialogDescription>
+              Lower the entry slots of this pool. Prizes scale down so the entry-fee-to-prize ratio is unchanged.
+            </DialogDescription>
+          </DialogHeader>
+          {resizeTarget && (() => {
+            const isLockedPool = resizeTarget.status === "locked";
+            const minAllowed = Math.max(2, resizeTarget.current_entries, maxPrizeRank(resizeTarget.payout_structure));
+            const parsed = parseInt(resizeMaxInput, 10);
+            const isValidInput = Number.isInteger(parsed) && parsed < resizeTarget.max_entries &&
+              (isLockedPool ? parsed === resizeTarget.current_entries : parsed >= minAllowed);
+            const preview = isValidInput ? scalePayoutStructure(resizeTarget.payout_structure, resizeTarget.max_entries, parsed) : null;
+            const hasZeroedPrize = !!preview && Object.entries(preview).some(([place, cents]) =>
+              cents === 0 && Number(resizeTarget.payout_structure?.[place]) > 0);
+            const formatPrizes = (structure: Record<string, number>) =>
+              Object.entries(structure).sort(([a], [b]) => Number(a) - Number(b)).map(([place, cents]) => `#${place} ${formatCents(Number(cents))}`).join(" · ");
+            const newPrizePool = preview ? Object.values(preview).reduce((sum, cents) => sum + cents, 0) : 0;
+            return (
+              <div className="space-y-3">
+                <div className="text-sm text-muted-foreground">
+                  Current: {resizeTarget.current_entries}/{resizeTarget.max_entries} entries · {formatCents(resizeTarget.entry_fee_cents)} entry
+                </div>
+                <div className="text-sm text-muted-foreground">Current prizes: {formatPrizes(resizeTarget.payout_structure || {})}</div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="resizeMax">
+                    {isLockedPool
+                      ? `New max entries (locked pool — must equal current entries: ${resizeTarget.current_entries})`
+                      : `New max entries (${minAllowed}–${resizeTarget.max_entries - 1})`}
+                  </Label>
+                  <Input id="resizeMax" type="number" min={minAllowed} max={resizeTarget.max_entries - 1} disabled={isLockedPool}
+                    value={resizeMaxInput} onChange={(e) => setResizeMaxInput(e.target.value)} />
+                </div>
+                {preview && !hasZeroedPrize && (
+                  <div className="text-sm">New prizes: {formatPrizes(preview)} · total {formatCents(newPrizePool)}</div>
+                )}
+                {hasZeroedPrize && (
+                  <p className="text-sm text-destructive">This size would reduce an advertised prize to $0 — choose a larger size.</p>
+                )}
+                <p className="text-xs text-amber-600 border border-amber-300 rounded-md p-2 bg-amber-50">
+                  ⚠ Material contest modification: this reduces the advertised prize amounts for players already entered. The change is audit-logged.
+                </p>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setResizeTarget(null)}>Cancel</Button>
+                  <Button disabled={!isValidInput || hasZeroedPrize || resizing} onClick={resizeContestPool}>
+                    {resizing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Resizing...</> : "Resize Pool"}
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
@@ -1068,21 +1203,19 @@ const Admin = () => {
               </div>
             </div>
             <div className="flex items-start space-x-3">
-              <Checkbox id="allowOverflow" checked={createForm.allowOverflow} onCheckedChange={(checked) => setCreateForm(prev => ({ ...prev, allowOverflow: checked === true, voidUnfilledOnSettle: checked === true ? prev.voidUnfilledOnSettle : false }))} />
+              <Checkbox id="allowOverflow" checked={createForm.allowOverflow} onCheckedChange={(checked) => setCreateForm(prev => ({ ...prev, allowOverflow: checked === true }))} />
               <div className="grid gap-1.5 leading-none">
                 <Label htmlFor="allowOverflow" className="text-sm font-medium cursor-pointer">Enable Auto-Pooling</Label>
                 <p className="text-xs text-muted-foreground">Automatically create a new pool when this one fills up.</p>
               </div>
             </div>
-            {createForm.allowOverflow && (
-              <div className="flex items-start space-x-3 ml-6 mt-2">
-                <Checkbox id="voidUnfilled" checked={createForm.voidUnfilledOnSettle} onCheckedChange={(checked) => setCreateForm(prev => ({ ...prev, voidUnfilledOnSettle: checked === true }))} />
-                <div className="grid gap-1.5 leading-none">
-                  <Label htmlFor="voidUnfilled" className="text-sm font-medium cursor-pointer">Auto-void unfilled pools on settlement</Label>
-                  <p className="text-xs text-muted-foreground">Pools that don't completely fill will be voided and entry fees refunded when the contest is settled.</p>
-                </div>
+            <div className="flex items-start space-x-3">
+              <Checkbox id="voidUnfilled" checked={createForm.voidUnfilledOnSettle} onCheckedChange={(checked) => setCreateForm(prev => ({ ...prev, voidUnfilledOnSettle: checked === true }))} />
+              <div className="grid gap-1.5 leading-none">
+                <Label htmlFor="voidUnfilled" className="text-sm font-medium cursor-pointer">Auto-void unfilled pools on settlement</Label>
+                <p className="text-xs text-muted-foreground">Pools that don't completely fill will be voided and entry fees refunded when the contest is settled. Applies to parent and overflow pools alike.</p>
               </div>
-            )}
+            </div>
 
             {/* Multi-Tier Toggle */}
             <div className="flex items-start space-x-3 border-t pt-4">
