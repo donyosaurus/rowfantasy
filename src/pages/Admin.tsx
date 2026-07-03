@@ -167,8 +167,18 @@ const Admin = () => {
       const { data: walletsData } = await supabase.from("wallets").select("user_id, available_balance");
       const usersWithBalance = usersData?.map(u => ({ ...u, balance: walletsData?.find(w => w.user_id === u.id)?.available_balance || 0 })) || [];
       setUsers(usersWithBalance);
-      const { data: txData } = await supabase.from("transactions").select("*, profiles!inner(username)").order("created_at", { ascending: false }).limit(100);
-      setTransactions(txData || []);
+      // transactions.user_id and profiles.id both reference auth.users, so there is no
+      // direct transactions→profiles FK for PostgREST to embed (PGRST200). Join client-side.
+      const { data: txData } = await supabase.from("transactions").select("*").order("created_at", { ascending: false }).limit(100);
+      const txUserIds = Array.from(new Set((txData || []).map((t: any) => t.user_id).filter(Boolean)));
+      const usernameById = new Map<string, string>((usersData || []).map((u: any) => [u.id, u.username]));
+      const missingIds = txUserIds.filter((id) => !usernameById.has(id));
+      if (missingIds.length > 0) {
+        const { data: extraProfiles } = await supabase.from("profiles").select("id, username").in("id", missingIds);
+        for (const p of extraProfiles || []) usernameById.set(p.id, p.username);
+      }
+      const txWithUser = (txData || []).map((t: any) => ({ ...t, profiles: { username: usernameById.get(t.user_id) || null } }));
+      setTransactions(txWithUser);
       const { data: poolsData } = await supabase.from("contest_pools").select("*, contest_templates!inner(regatta_name)").order("created_at", { ascending: false }).limit(50);
       setContests(poolsData || []);
       const { data: logsData } = await supabase.from("compliance_audit_logs").select("*").order("created_at", { ascending: false }).limit(100);
