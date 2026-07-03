@@ -361,7 +361,20 @@ const Admin = () => {
       const { data, error } = await supabase.functions.invoke("admin-contest-resize", {
         body: { contestPoolId: resizeTarget.id, newMaxEntries: newMax },
       });
-      if (error || data?.error) throw new Error(error?.message || data?.error || "Failed to resize pool");
+      if (error) {
+        // Surface the edge function's response body (message + reason code),
+        // not the generic FunctionsHttpError text.
+        let msg = "Failed to resize pool";
+        if (error.context && typeof error.context.json === "function") {
+          try {
+            const body = await error.context.json();
+            if (body?.error) msg = body.reason ? `${body.error} [${body.reason}]` : body.error;
+            if (body?.requestId) msg += ` (req ${body.requestId})`;
+          } catch { msg = error.message || msg; }
+        } else if (error.message) msg = error.message;
+        throw new Error(msg);
+      }
+      if (data?.error) throw new Error(data.reason ? `${data.error} [${data.reason}]` : data.error);
       toast.success(`Pool resized to ${newMax} entries; prizes scaled proportionally`);
       setResizeTarget(null);
       loadDashboardData();
