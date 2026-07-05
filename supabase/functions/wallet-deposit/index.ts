@@ -249,7 +249,7 @@ Deno.serve(withFnVersion('wallet-deposit', async (req) => {
         _payment_provider_reference: paymentResult.transactionId,
         _payment_method: body.payment_method,
         _idempotency_key: idempotencyKey,
-        _state_code: stateCode,
+        _state_code: resolvedStateCode,
       });
       result = data;
       rpcError = error;
