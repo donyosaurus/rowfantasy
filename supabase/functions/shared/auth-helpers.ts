@@ -75,7 +75,19 @@ export async function authenticateAdmin(
 }
 
 /**
- * Check rate limit for identifier (IP or user ID)
+ * Check rate limit for identifier (IP or user ID).
+ *
+ * SECURITY (batch 2): calls the atomic SECURITY DEFINER RPC
+ * `check_rate_limit_atomic` which enforces the counter in ONE statement
+ * (INSERT ... ON CONFLICT ... RETURNING). This eliminates the SELECT-then-write
+ * race that previously allowed exceeding the limit under concurrency.
+ *
+ * The `supabase` client passed here MUST be a service-role client — the RPC's
+ * EXECUTE is granted ONLY to service_role. If a JWT-scoped client is passed,
+ * the RPC call fails and this function fails CLOSED (returns false).
+ *
+ * Fail-closed semantics: any RPC error → log + return false. These call sites
+ * gate money/entry endpoints; a silent no-op is worse than a spurious 429.
  */
 export async function checkRateLimit(
   supabase: any,
@@ -84,43 +96,31 @@ export async function checkRateLimit(
   maxRequests: number = 100,
   windowMinutes: number = 1
 ): Promise<boolean> {
-  const windowStart = new Date();
-  windowStart.setMinutes(windowStart.getMinutes() - windowMinutes);
+  try {
+    const { data, error } = await supabase.rpc('check_rate_limit_atomic', {
+      _identifier: identifier,
+      _endpoint: endpoint,
+      _max_requests: maxRequests,
+      _window_minutes: windowMinutes,
+    });
 
-  // Try to increment existing counter
-  const { data: existing } = await supabase
-    .from('rate_limits')
-    .select('request_count')
-    .eq('identifier', identifier)
-    .eq('endpoint', endpoint)
-    .gte('window_start', windowStart.toISOString())
-    .single();
-
-  if (existing) {
-    if (existing.request_count >= maxRequests) {
-      return false; // Rate limit exceeded
+    if (error) {
+      console.error('[checkRateLimit] RPC error (failing closed):', {
+        endpoint,
+        message: error.message,
+        code: (error as any).code,
+      });
+      return false;
     }
 
-    // Increment counter
-    await supabase
-      .from('rate_limits')
-      .update({ request_count: existing.request_count + 1 })
-      .eq('identifier', identifier)
-      .eq('endpoint', endpoint)
-      .gte('window_start', windowStart.toISOString());
-  } else {
-    // Create new counter
-    await supabase
-      .from('rate_limits')
-      .insert({
-        identifier,
-        endpoint,
-        request_count: 1,
-        window_start: new Date().toISOString(),
-      });
+    return data === true;
+  } catch (err) {
+    console.error('[checkRateLimit] Unexpected exception (failing closed):', {
+      endpoint,
+      message: (err as any)?.message,
+    });
+    return false;
   }
-
-  return true;
 }
 
 /**
