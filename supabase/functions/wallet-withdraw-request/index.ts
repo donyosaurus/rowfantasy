@@ -71,14 +71,10 @@ Deno.serve(withFnVersion('wallet-withdraw-request', async (req) => {
       );
     }
 
-    // Service client used to call SECURITY DEFINER function (function enforces user_id matching internally)
-    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
+    // supabaseAdmin was created above for the rate-limit RPC; reused for the
+    // SECURITY DEFINER withdrawal function below.
 
     const stateCode = req.headers.get('x-user-state') || '';
-    // P0-C9 (2026-05-21): cf-connecting-ip is the trusted client IP source at Supabase Edge Functions.
-    // Cloudflare WAF actively blocks spoofing attempts (verified empirically via debug-headers test).
-    // x-forwarded-for fallback removed — its index-0 spoofability is not empirically verified.
-    // Fail-closed if cf-connecting-ip is absent (unexpected at production Edge Functions but possible).
     const ipAddress = req.headers.get('cf-connecting-ip');
     if (!ipAddress) {
       return new Response(
@@ -103,11 +99,14 @@ Deno.serve(withFnVersion('wallet-withdraw-request', async (req) => {
       );
     }
 
+    // Record-integrity: persist compliance-resolved state (not caller-supplied header).
+    const resolvedStateCode = compliance.resolvedStateCode;
+
     const { data: result, error: rpcError } = await supabaseAdmin.rpc('initiate_withdrawal_atomic', {
       _user_id: userId,
       _wallet_id: wallet.id,
       _amount_cents: body.amount_cents,
-      _state_code: stateCode,
+      _state_code: resolvedStateCode,
     });
 
     if (rpcError) {
