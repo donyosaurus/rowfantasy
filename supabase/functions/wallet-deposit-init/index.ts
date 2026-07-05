@@ -41,8 +41,8 @@ Deno.serve(withFnVersion('wallet-deposit-init', async (req) => {
 
     const userId = auth.user.id;
 
-    // SECURITY: Rate limit (10 requests per hour per user)
-    const rateLimitOk = await checkRateLimit(auth.supabase, userId, 'wallet-deposit-init', 10, 60);
+    // Rate limit MUST use service-role client — check_rate_limit_atomic grant is service-role only.
+    const rateLimitOk = await checkRateLimit(supabaseAdmin, userId, 'wallet-deposit-init', 10, 60);
     if (!rateLimitOk) {
       return new Response(
         JSON.stringify({ error: mapErrorToClient({ message: 'rate limit' }) }),
