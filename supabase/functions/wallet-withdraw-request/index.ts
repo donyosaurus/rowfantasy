@@ -37,8 +37,12 @@ Deno.serve(withFnVersion('wallet-withdraw-request', async (req) => {
 
     const userId = auth.user.id;
 
+    // Service-role client used both for the rate-limit RPC (grant is service-role only)
+    // and for the SECURITY DEFINER withdrawal function below.
+    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
+
     // SECURITY: Rate limit (5 requests per hour per user)
-    const rateLimitOk = await checkRateLimit(auth.supabase, userId, 'wallet-withdraw-request', 5, 60);
+    const rateLimitOk = await checkRateLimit(supabaseAdmin, userId, 'wallet-withdraw-request', 5, 60);
     if (!rateLimitOk) {
       return new Response(
         JSON.stringify({ error: ERROR_MESSAGES.RATE_LIMIT }),
