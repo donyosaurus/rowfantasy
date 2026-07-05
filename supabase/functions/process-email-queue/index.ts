@@ -1,5 +1,6 @@
 import { sendLovableEmail } from 'npm:@lovable.dev/email-js'
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { timingSafeEqual } from '../shared/crypto-utils.ts'
 
 const MAX_RETRIES = 5
 const DEFAULT_BATCH_SIZE = 10
@@ -79,10 +80,10 @@ async function moveToDlq(
 }
 
 Deno.serve(async (req) => {
-  // SECURITY: Verify cron secret
+  // SECURITY: Verify cron secret (header only — query-string secrets leak into logs)
   const cronSecret = Deno.env.get('CRON_SECRET');
-  const providedSecret = req.headers.get('x-cron-secret') || new URL(req.url).searchParams.get('secret');
-  if (!cronSecret || providedSecret !== cronSecret) {
+  const providedSecret = req.headers.get('x-cron-secret');
+  if (!cronSecret || !providedSecret || !(await timingSafeEqual(providedSecret, cronSecret))) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },

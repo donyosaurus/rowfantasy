@@ -210,7 +210,7 @@ Deno.serve(withFnVersion('wallet-deposit', async (req) => {
     } catch (flagErr) {
       const requestId = logSecureError('wallet-deposit', flagErr);
       try {
-        await supabaseAdmin.from('compliance_audit_logs').insert({
+        const { error: auditErr } = await supabaseAdmin.from('compliance_audit_logs').insert({
           user_id: userId,
           event_type: 'deposit_blocked_flag_unreadable',
           description: 'Deposit blocked: could not read real_money_enabled feature flag',
@@ -223,6 +223,14 @@ Deno.serve(withFnVersion('wallet-deposit', async (req) => {
             error: String((flagErr as any)?.message ?? flagErr),
           },
         });
+        if (auditErr) {
+          console.error('[wallet-deposit] audit log insert returned error:', {
+            function: 'wallet-deposit',
+            event_type: 'deposit_blocked_flag_unreadable',
+            user_id: userId,
+            error: auditErr,
+          });
+        }
       } catch (logErr) {
         logSecureError('wallet-deposit', logErr);
       }
@@ -234,7 +242,7 @@ Deno.serve(withFnVersion('wallet-deposit', async (req) => {
 
     if (realMoneyEnabled) {
       try {
-        await supabaseAdmin.from('compliance_audit_logs').insert({
+        const { error: auditErr } = await supabaseAdmin.from('compliance_audit_logs').insert({
           user_id: userId,
           event_type: 'deposit_blocked_no_real_provider',
           description: 'Deposit blocked: real_money_enabled=true but no non-mock payment provider is wired in wallet-deposit',
@@ -246,6 +254,14 @@ Deno.serve(withFnVersion('wallet-deposit', async (req) => {
             state_code_source: compliance.stateCodeSource,
           },
         });
+        if (auditErr) {
+          console.error('[wallet-deposit] audit log insert returned error:', {
+            function: 'wallet-deposit',
+            event_type: 'deposit_blocked_no_real_provider',
+            user_id: userId,
+            error: auditErr,
+          });
+        }
       } catch (logErr) {
         logSecureError('wallet-deposit', logErr);
       }

@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { getCorsHeaders } from '../shared/cors.ts';
+import { timingSafeEqual } from '../shared/crypto-utils.ts';
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -7,10 +8,10 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // SECURITY: Verify cron secret
+  // SECURITY: Verify cron secret (header only — query-string secrets leak into logs)
   const cronSecret = Deno.env.get('CRON_SECRET');
-  const providedSecret = req.headers.get('x-cron-secret') || new URL(req.url).searchParams.get('secret');
-  if (!cronSecret || providedSecret !== cronSecret) {
+  const providedSecret = req.headers.get('x-cron-secret');
+  if (!cronSecret || !providedSecret || !(await timingSafeEqual(providedSecret, cronSecret))) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

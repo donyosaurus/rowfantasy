@@ -47,6 +47,12 @@ async function scoreSinglePool(
       return { success: false, poolId: contestPoolId, error: 'Pool not found' };
     }
 
+    // HARD GUARD: never rescore a settled pool, even with forceRescore.
+    // Payouts have already been made from the existing scores.
+    if (pool.status === 'settled') {
+      return { success: true, poolId: contestPoolId, skipped: true, skipReason: 'Pool already settled — refusing to rescore' };
+    }
+
     if (pool.status === 'scoring_completed' && !forceRescore) {
       return { success: true, poolId: contestPoolId, skipped: true, skipReason: 'Already scored' };
     }
