@@ -36,7 +36,9 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
     const userId = auth.user.id;
     const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    const rateLimitOk = await checkRateLimit(auth.supabase, userId, "contest-matchmaking", 20, 1);
+    // Rate limit MUST use the service-role client — check_rate_limit_atomic is
+    // granted to service_role only. Passing auth.supabase silently fails-open.
+    const rateLimitOk = await checkRateLimit(supabaseAdmin, userId, "contest-matchmaking", 20, 1);
     if (!rateLimitOk) {
       return new Response(JSON.stringify({ error: mapErrorToClient({ message: "rate limit" }) }), {
         status: 429,
@@ -121,13 +123,16 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
       );
     }
 
+    // Record-integrity: persist the compliance-resolved state, NOT the spoofable caller value.
+    const resolvedStateCode = compliance.resolvedStateCode;
+
     const { data: result, error: rpcError } = await supabaseAdmin.rpc("enter_contest_pool_atomic", {
       _user_id: userId,
       _wallet_id: wallet.id,
       _contest_template_id: body.contestTemplateId,
       _tier_name: body.tierName ?? null,
       _picks: body.picks,
-      _state_code: stateCode,
+      _state_code: resolvedStateCode,
     });
 
     if (rpcError) {
@@ -190,7 +195,8 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
           tier_id: body.tierId ?? null,
           tier_name: body.tierName ?? null,
           entry_fee_cents: body.entryFeeCents ?? null,
-          state_code: stateCode,
+          state_code: resolvedStateCode,
+          state_code_source: compliance.stateCodeSource,
           balance_after_cents: entry.available_balance_cents,
           current_entries: entry.current_entries,
           max_entries: entry.max_entries,

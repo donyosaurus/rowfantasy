@@ -18,7 +18,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { MockPaymentAdapter } from '../shared/payment-providers/mock-adapter.ts';
 import { getCorsHeaders } from '../shared/cors.ts';
-import { authenticateUser, checkRateLimit } from '../shared/auth-helpers.ts';
+import { authenticateUser, checkRateLimit, isRealMoneyEnabled } from '../shared/auth-helpers.ts';
 import { performComplianceChecks } from '../shared/compliance-checks.ts';
 import { ERROR_MESSAGES, logSecureError, mapErrorToClient } from '../shared/error-handler.ts';
 
@@ -164,13 +164,16 @@ Deno.serve(withFnVersion('wallet-deposit', async (req) => {
       );
     }
 
+    // Record-integrity: persist compliance-resolved state, NOT the caller-supplied header.
+    const resolvedStateCode = compliance.resolvedStateCode;
+
     // 5. PRE-FLIGHT eligibility check — read-only, no payment side effects.
     //    This is the gate that prevents ghost charges on rejected deposits.
     const { data: eligData, error: eligError } = await supabaseAdmin.rpc('check_deposit_eligibility', {
       _user_id: userId,
       _wallet_id: wallet.id,
       _amount_cents: body.amount_cents,
-      _state_code: stateCode,
+      _state_code: resolvedStateCode,
     });
 
     if (eligError) {
@@ -194,7 +197,34 @@ Deno.serve(withFnVersion('wallet-deposit', async (req) => {
       );
     }
 
-    // 6. Charge payment provider — only after eligibility passes.
+    // 6. CRITICAL: block the mock payment adapter when the platform is in
+    //    real-money mode. MockPaymentAdapter always succeeds — using it live
+    //    would let any user mint withdrawable balance for zero payment. A
+    //    mis-flip is loudly visible via the critical audit log below.
+    if (await isRealMoneyEnabled(supabaseAdmin)) {
+      try {
+        await supabaseAdmin.from('compliance_audit_logs').insert({
+          user_id: userId,
+          event_type: 'deposit_blocked_no_real_provider',
+          description: 'Deposit blocked: real_money_enabled=true but no non-mock payment provider is wired in wallet-deposit',
+          severity: 'critical',
+          metadata: {
+            amount_cents: body.amount_cents,
+            payment_method: body.payment_method,
+            state_code: resolvedStateCode,
+            state_code_source: compliance.stateCodeSource,
+          },
+        });
+      } catch (logErr) {
+        logSecureError('wallet-deposit', logErr);
+      }
+      return new Response(
+        JSON.stringify({ error: 'Deposits are temporarily unavailable' }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 7. Charge payment provider — only after eligibility passes.
     const paymentAdapter = new MockPaymentAdapter();
     const paymentResult = await paymentAdapter.processPayment(body.amount_cents, 'USD');
 
@@ -219,7 +249,7 @@ Deno.serve(withFnVersion('wallet-deposit', async (req) => {
         _payment_provider_reference: paymentResult.transactionId,
         _payment_method: body.payment_method,
         _idempotency_key: idempotencyKey,
-        _state_code: stateCode,
+        _state_code: resolvedStateCode,
       });
       result = data;
       rpcError = error;
@@ -325,6 +355,8 @@ Deno.serve(withFnVersion('wallet-deposit', async (req) => {
           payment_provider_reference: paymentResult.transactionId,
           balance_after_cents: deposit.available_balance_cents,
           was_duplicate: deposit.was_duplicate,
+          state_code: resolvedStateCode,
+          state_code_source: compliance.stateCodeSource,
         },
       });
     } catch (logError) {
