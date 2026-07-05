@@ -107,15 +107,28 @@ Deno.serve(async (req) => {
     // silently discard the audit row for a change that already committed.
     async function writeAudit(evt: { eventType: string; description: string; metadata: Record<string, any> }) {
       try {
-        await adminClient.from('compliance_audit_logs').insert({
+        const { error: auditErr } = await adminClient.from('compliance_audit_logs').insert({
           user_id: user.id,
           event_type: evt.eventType,
           description: evt.description,
           severity: 'info',
           metadata: evt.metadata,
         });
+        if (auditErr) {
+          console.error('[responsible-limits] audit log insert returned error:', {
+            function: 'responsible-limits',
+            event_type: evt.eventType,
+            user_id: user.id,
+            error: auditErr,
+          });
+        }
       } catch (logErr) {
-        console.error('[responsible-limits] audit log failed:', logErr);
+        console.error('[responsible-limits] audit log threw:', {
+          function: 'responsible-limits',
+          event_type: evt.eventType,
+          user_id: user.id,
+          error: logErr,
+        });
       }
     }
 
