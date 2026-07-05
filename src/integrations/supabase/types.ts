@@ -1672,6 +1672,15 @@ export type Database = {
         Args: { p_amount: number; p_user_id: string }
         Returns: boolean
       }
+      check_rate_limit_atomic: {
+        Args: {
+          _endpoint: string
+          _identifier: string
+          _max_requests: number
+          _window_minutes: number
+        }
+        Returns: boolean
+      }
       cleanup_old_rate_limits: { Args: never; Returns: undefined }
       cleanup_old_webhooks: { Args: never; Returns: undefined }
       clone_contest_pool: {
