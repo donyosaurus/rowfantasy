@@ -5,9 +5,8 @@
 // void_contest_pool_atomic. Refunds entrants automatically as part of voiding.
 //
 // Safety properties:
-//   - Cron-secret guard (x-cron-secret header or ?secret= fallback; the
-//     query-string fallback is a known Wave 5 finding, mirrored here for
-//     parity with auto-lock-contests).
+//   - Cron-secret guard (x-cron-secret header only; query-string secrets are
+//     not supported and are never logged).
 //   - Default mode is dry-run. Mutations only when ?dry_run=false.
 //   - Per-invocation sweep_id (uuid) tagged on every audit log row.
 //   - 60-second runtime budget; remaining work picked up next tick.

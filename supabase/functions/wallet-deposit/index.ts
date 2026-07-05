@@ -398,7 +398,7 @@ Deno.serve(withFnVersion('wallet-deposit', async (req) => {
 
     // 9. Compliance audit — best-effort, never fail the request on log error.
     try {
-      await supabaseAdmin.from('compliance_audit_logs').insert({
+      const { error: auditErr } = await supabaseAdmin.from('compliance_audit_logs').insert({
         user_id: userId,
         event_type: deposit.was_duplicate ? 'deposit_idempotent_replay' : 'deposit_completed',
         description: deposit.was_duplicate ? 'Idempotent deposit replay returned existing transaction' : 'Deposit completed',
@@ -414,6 +414,14 @@ Deno.serve(withFnVersion('wallet-deposit', async (req) => {
           state_code_source: compliance.stateCodeSource,
         },
       });
+      if (auditErr) {
+        console.error('[wallet-deposit] audit log insert returned error:', {
+          function: 'wallet-deposit',
+          event_type: deposit.was_duplicate ? 'deposit_idempotent_replay' : 'deposit_completed',
+          user_id: userId,
+          error: auditErr,
+        });
+      }
     } catch (logError) {
       logSecureError('wallet-deposit', logError);
     }
@@ -466,7 +474,7 @@ async function refundAndAudit(
   }
 
   try {
-    await admin.from('compliance_audit_logs').insert({
+    const { error: auditErr } = await admin.from('compliance_audit_logs').insert({
       user_id: userId,
       event_type: refunded ? 'deposit_post_charge_refunded' : 'deposit_post_charge_refund_failed',
       description: refunded
@@ -482,6 +490,14 @@ async function refundAndAudit(
         reason_code: reasonCode,
       },
     });
+    if (auditErr) {
+      console.error('[wallet-deposit] audit log insert returned error:', {
+        function: 'wallet-deposit',
+        event_type: refunded ? 'deposit_post_charge_refunded' : 'deposit_post_charge_refund_failed',
+        user_id: userId,
+        error: auditErr,
+      });
+    }
   } catch (logErr) {
     logSecureError('wallet-deposit', logErr);
   }

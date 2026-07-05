@@ -254,7 +254,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    await supabaseAdmin.from('compliance_audit_logs').insert({
+    const { error: auditErr } = await supabaseAdmin.from('compliance_audit_logs').insert({
       admin_id: user.id,
       event_type: 'batch_pool_scoring',
       severity: 'info',
@@ -269,6 +269,14 @@ Deno.serve(async (req) => {
         results: scoringResults,
       },
     });
+    if (auditErr) {
+      console.error('[contest-scoring] audit log insert returned error:', {
+        function: 'contest-scoring',
+        event_type: 'batch_pool_scoring',
+        admin_id: user.id,
+        error: auditErr,
+      });
+    }
 
     return new Response(JSON.stringify({
       success: true,
