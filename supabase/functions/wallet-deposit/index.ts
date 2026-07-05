@@ -18,7 +18,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { MockPaymentAdapter } from '../shared/payment-providers/mock-adapter.ts';
 import { getCorsHeaders } from '../shared/cors.ts';
-import { authenticateUser, checkRateLimit } from '../shared/auth-helpers.ts';
+import { authenticateUser, checkRateLimit, isRealMoneyEnabled } from '../shared/auth-helpers.ts';
 import { performComplianceChecks } from '../shared/compliance-checks.ts';
 import { ERROR_MESSAGES, logSecureError, mapErrorToClient } from '../shared/error-handler.ts';
 
