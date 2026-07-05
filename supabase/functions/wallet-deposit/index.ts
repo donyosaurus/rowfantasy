@@ -164,13 +164,16 @@ Deno.serve(withFnVersion('wallet-deposit', async (req) => {
       );
     }
 
+    // Record-integrity: persist compliance-resolved state, NOT the caller-supplied header.
+    const resolvedStateCode = compliance.resolvedStateCode;
+
     // 5. PRE-FLIGHT eligibility check — read-only, no payment side effects.
     //    This is the gate that prevents ghost charges on rejected deposits.
     const { data: eligData, error: eligError } = await supabaseAdmin.rpc('check_deposit_eligibility', {
       _user_id: userId,
       _wallet_id: wallet.id,
       _amount_cents: body.amount_cents,
-      _state_code: stateCode,
+      _state_code: resolvedStateCode,
     });
 
     if (eligError) {
@@ -194,7 +197,34 @@ Deno.serve(withFnVersion('wallet-deposit', async (req) => {
       );
     }
 
-    // 6. Charge payment provider — only after eligibility passes.
+    // 6. CRITICAL: block the mock payment adapter when the platform is in
+    //    real-money mode. MockPaymentAdapter always succeeds — using it live
+    //    would let any user mint withdrawable balance for zero payment. A
+    //    mis-flip is loudly visible via the critical audit log below.
+    if (await isRealMoneyEnabled(supabaseAdmin)) {
+      try {
+        await supabaseAdmin.from('compliance_audit_logs').insert({
+          user_id: userId,
+          event_type: 'deposit_blocked_no_real_provider',
+          description: 'Deposit blocked: real_money_enabled=true but no non-mock payment provider is wired in wallet-deposit',
+          severity: 'critical',
+          metadata: {
+            amount_cents: body.amount_cents,
+            payment_method: body.payment_method,
+            state_code: resolvedStateCode,
+            state_code_source: compliance.stateCodeSource,
+          },
+        });
+      } catch (logErr) {
+        logSecureError('wallet-deposit', logErr);
+      }
+      return new Response(
+        JSON.stringify({ error: 'Deposits are temporarily unavailable' }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 7. Charge payment provider — only after eligibility passes.
     const paymentAdapter = new MockPaymentAdapter();
     const paymentResult = await paymentAdapter.processPayment(body.amount_cents, 'USD');
 
