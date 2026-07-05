@@ -1,8 +1,17 @@
-// Responsible Gaming Limits - Allow users to set deposit limits and self-exclusion
+// Responsible Gaming Limits - Users set deposit limits and self-exclusion.
+//
+// SECURITY (batch 2): writes to responsible_gaming MUST go through the
+// authenticated caller's client so the responsible_gaming_validate_update
+// trigger runs. The trigger short-circuits for postgres/service_role, which
+// previously silently defeated:
+//   - self-exclusion monotonic-extension (couldn't be shortened/cleared)
+//   - 24h cooling-off on deposit-limit increases
+// Only the compliance_audit_logs insert uses the service-role client.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { getCorsHeaders } from '../shared/cors.ts';
+
 const limitSchema = z.object({
   depositLimit: z.number().int().positive().optional(), // Monthly limit in cents
   exclusionDays: z.number().int().positive().optional(), // Days to self-exclude
@@ -24,11 +33,21 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Caller-authenticated client: writes go through here so the trigger runs.
     const supabase = createClient(
       supabaseUrl,
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+      anonKey,
+      { global: { headers: { Authorization: authHeader } } }
     );
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -42,7 +61,7 @@ Deno.serve(async (req) => {
     let body;
     try {
       body = limitSchema.parse(await req.json());
-    } catch (error) {
+    } catch {
       return new Response(
         JSON.stringify({ error: 'Invalid input' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -51,76 +70,174 @@ Deno.serve(async (req) => {
 
     const { depositLimit, exclusionDays } = body;
 
-    // Build upsert data
-    const upsertData: {
-      user_id: string;
-      deposit_limit_monthly_cents?: number;
-      self_exclusion_until?: string;
-      updated_at: string;
-    } = {
-      user_id: user.id,
-      updated_at: new Date().toISOString(),
-    };
-
-    let eventType = '';
-    let description = '';
-
-    if (depositLimit !== undefined) {
-      upsertData.deposit_limit_monthly_cents = depositLimit;
-      eventType = 'deposit_limit_set';
-      description = `Deposit limit set to $${(depositLimit / 100).toFixed(2)}/month`;
-    }
-
-    if (exclusionDays !== undefined) {
-      const exclusionUntil = new Date();
-      exclusionUntil.setDate(exclusionUntil.getDate() + exclusionDays);
-      upsertData.self_exclusion_until = exclusionUntil.toISOString();
-      eventType = 'self_exclusion_enabled';
-      description = `Self-exclusion enabled for ${exclusionDays} days until ${exclusionUntil.toLocaleDateString()}`;
-    }
-
-    // Use service role for upsert
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
-
-    // Upsert into responsible_gaming table
-    const { error: upsertError } = await adminClient
-      .from('responsible_gaming')
-      .upsert(upsertData, { onConflict: 'user_id' });
-
-    if (upsertError) {
-      console.error('[responsible-limits] Upsert error:', upsertError);
+    if (depositLimit === undefined && exclusionDays === undefined) {
       return new Response(
-        JSON.stringify({ error: 'Failed to update limits' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Provide depositLimit or exclusionDays' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Log to compliance audit
-    if (eventType) {
-      await adminClient.from('compliance_audit_logs').insert({
-        user_id: user.id,
-        event_type: eventType,
-        description: description,
-        severity: 'info',
-        metadata: body
+    // Service-role client — ONLY for audit-log inserts (users cannot insert audit rows).
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+    // Read current settings via caller client (RLS: own row).
+    const { data: currentRow } = await supabase
+      .from('responsible_gaming')
+      .select('deposit_limit_monthly_cents, pending_deposit_limit_monthly_cents, pending_limit_effective_at, self_exclusion_until')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    // Helper: ensure a row exists for this user before we UPDATE
+    // (upsert would still work but INSERT+UPDATE keeps semantics explicit).
+    async function ensureRow() {
+      if (currentRow) return;
+      const { error } = await supabase
+        .from('responsible_gaming')
+        .insert({ user_id: user.id });
+      if (error) throw error;
+    }
+
+    const auditEvents: Array<{ eventType: string; description: string; metadata: Record<string, any> }> = [];
+    const responseExtras: Record<string, any> = {};
+
+    // ── Deposit limit ─────────────────────────────────────────────────────
+    if (depositLimit !== undefined) {
+      const existing = currentRow?.deposit_limit_monthly_cents ?? null;
+      const isTightening = existing === null || depositLimit < existing;
+      const isIncrease = existing !== null && depositLimit > existing;
+
+      await ensureRow();
+
+      if (isTightening) {
+        // Tightening (including first-time setting) applies immediately.
+        const { error } = await supabase
+          .from('responsible_gaming')
+          .update({
+            deposit_limit_monthly_cents: depositLimit,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('user_id', user.id);
+        if (error) throw error;
+
+        auditEvents.push({
+          eventType: 'deposit_limit_set',
+          description: `Deposit limit set to $${(depositLimit / 100).toFixed(2)}/month`,
+          metadata: { deposit_limit_cents: depositLimit, previous_cents: existing },
+        });
+        responseExtras.depositLimit = `$${(depositLimit / 100).toFixed(2)}/month`;
+        responseExtras.depositLimitEffective = 'immediate';
+      } else if (isIncrease) {
+        // Increases go through pending + 24h cooling-off (trigger enforces the 24h floor).
+        const effectiveAt = new Date(Date.now() + 24 * 60 * 60 * 1000 + 60_000).toISOString(); // +24h+1min buffer
+        const { error } = await supabase
+          .from('responsible_gaming')
+          .update({
+            pending_deposit_limit_monthly_cents: depositLimit,
+            pending_limit_effective_at: effectiveAt,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('user_id', user.id);
+        if (error) throw error;
+
+        auditEvents.push({
+          eventType: 'deposit_limit_increase_pending',
+          description: `Deposit limit increase to $${(depositLimit / 100).toFixed(2)}/month pending 24h cooling-off`,
+          metadata: {
+            pending_deposit_limit_cents: depositLimit,
+            current_limit_cents: existing,
+            effective_at: effectiveAt,
+          },
+        });
+        responseExtras.pendingDepositLimit = `$${(depositLimit / 100).toFixed(2)}/month`;
+        responseExtras.pendingDepositLimitEffectiveAt = effectiveAt;
+        responseExtras.depositLimitEffective = 'pending_24h';
+      } else {
+        // depositLimit === existing → no-op; report state without an audit event.
+        responseExtras.depositLimit = `$${(depositLimit / 100).toFixed(2)}/month`;
+        responseExtras.depositLimitEffective = 'unchanged';
+      }
+    }
+
+    // ── Self-exclusion ────────────────────────────────────────────────────
+    let selfExclusionUntilOut: string | null = null;
+    if (exclusionDays !== undefined) {
+      const exclusionUntil = new Date();
+      exclusionUntil.setDate(exclusionUntil.getDate() + exclusionDays);
+      const exclusionUntilIso = exclusionUntil.toISOString();
+
+      await ensureRow();
+
+      const { error } = await supabase
+        .from('responsible_gaming')
+        .update({
+          self_exclusion_until: exclusionUntilIso,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', user.id);
+
+      if (error) {
+        // Trigger rejection → surface as 400 with the DB's message (do not hide as 500).
+        const msg = (error.message || '').toLowerCase();
+        const code = (error as any).code;
+        if (code === '23514' || msg.includes('self-exclusion') || msg.includes('cooling-off') || msg.includes('cannot be cleared')) {
+          return new Response(
+            JSON.stringify({ error: error.message }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        throw error;
+      }
+
+      selfExclusionUntilOut = exclusionUntilIso;
+      auditEvents.push({
+        eventType: 'self_exclusion_enabled',
+        description: `Self-exclusion enabled for ${exclusionDays} days until ${exclusionUntil.toLocaleDateString()}`,
+        metadata: { exclusion_days: exclusionDays, self_exclusion_until: exclusionUntilIso },
       });
+    }
+
+    // ── Audit logs (service-role: users cannot insert audit rows) ─────────
+    for (const evt of auditEvents) {
+      try {
+        await adminClient.from('compliance_audit_logs').insert({
+          user_id: user.id,
+          event_type: evt.eventType,
+          description: evt.description,
+          severity: 'info',
+          metadata: evt.metadata,
+        });
+      } catch (logErr) {
+        console.error('[responsible-limits] audit log failed:', logErr);
+      }
     }
 
     console.log('[responsible-limits] Updated:', { userId: user.id, depositLimit, exclusionDays });
 
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: true,
-        depositLimit: depositLimit ? `$${(depositLimit / 100).toFixed(2)}/month` : null,
-        selfExclusionUntil: upsertData.self_exclusion_until || null,
+        // Preserve existing response fields
+        depositLimit: responseExtras.depositLimit ?? (depositLimit ? `$${(depositLimit / 100).toFixed(2)}/month` : null),
+        selfExclusionUntil: selfExclusionUntilOut,
+        // New optional fields (do not remove existing ones)
+        ...responseExtras,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (error) {
+  } catch (error: any) {
+    // Trigger rejections from the deposit-limit path bubble here too — surface as 400.
+    const msg = (error?.message || '').toLowerCase();
+    const code = error?.code;
+    if (code === '23514' || msg.includes('self-exclusion') || msg.includes('cooling-off') || msg.includes('cannot be cleared') || msg.includes('deposit limit')) {
+      return new Response(
+        JSON.stringify({ error: error.message }),
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      );
+    }
     console.error('[responsible-limits] Error:', error);
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });
