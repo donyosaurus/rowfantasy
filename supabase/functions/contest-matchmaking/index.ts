@@ -36,7 +36,9 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
     const userId = auth.user.id;
     const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    const rateLimitOk = await checkRateLimit(auth.supabase, userId, "contest-matchmaking", 20, 1);
+    // Rate limit MUST use the service-role client — check_rate_limit_atomic is
+    // granted to service_role only. Passing auth.supabase silently fails-open.
+    const rateLimitOk = await checkRateLimit(supabaseAdmin, userId, "contest-matchmaking", 20, 1);
     if (!rateLimitOk) {
       return new Response(JSON.stringify({ error: mapErrorToClient({ message: "rate limit" }) }), {
         status: 429,
