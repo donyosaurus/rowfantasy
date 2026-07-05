@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { getCorsHeaders } from '../shared/cors.ts';
+import { timingSafeEqual } from '../shared/crypto-utils.ts';
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
