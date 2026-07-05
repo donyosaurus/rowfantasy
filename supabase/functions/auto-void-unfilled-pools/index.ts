@@ -17,6 +17,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { getCorsHeaders } from '../shared/cors.ts';
+import { timingSafeEqual } from '../shared/crypto-utils.ts';
 
 const SYSTEM_AUTO_VOID_EMAIL = 'system+auto-void@rowfantasy.internal';
 const GRACE_INTERVAL = '15 minutes';
