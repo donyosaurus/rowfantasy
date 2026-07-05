@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { LegalLayout } from "@/components/LegalLayout";
+import { formatCents } from "@/lib/formatCurrency";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -221,7 +222,7 @@ export default function ResponsiblePlay() {
                   disabled={isExcluded}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Current limit: ${rgDepositLimitCents != null ? (rgDepositLimitCents / 100).toFixed(2) : '2,500.00'}
+                  Current limit: {rgDepositLimitCents != null ? formatCents(rgDepositLimitCents) : '$2,500.00'}
                 </p>
               </div>
               <Button onClick={handleDepositLimit} disabled={isExcluded} className="w-full">

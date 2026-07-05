@@ -1,0 +1,34 @@
+name: Security Guards
+
+# Regression guards for the two systemic failure modes found in the
+# 2026-07-03/04 security audits:
+#  1. Auto-generated migrations silently re-granting money DEFINER RPCs to
+#     end users (finding C1 — regressed three times).
+#  2. Real secrets landing in the repo (.env is intentionally tracked and
+#     Lovable-managed, but must only ever contain public-by-design values).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  definer-grants:
+    name: DEFINER grant snapshot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Guarded money/admin RPCs must be service-role-only
+        run: node scripts/check-definer-grants.mjs
+
+  secret-scan:
+    name: Secret pattern scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: No service-role keys or private secrets in tracked files
+        run: bash scripts/check-secrets.sh

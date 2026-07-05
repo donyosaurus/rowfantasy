@@ -273,8 +273,8 @@ const Profile = () => {
             {[
               { icon: Trophy, label: "Contests", value: profileData.stats.contestsPlayed },
               { icon: Target, label: "Win Rate", value: `${profileData.stats.winRate.toFixed(1)}%` },
-              { icon: DollarSign, label: "Total Won", value: `$${profileData.stats.totalWinnings.toFixed(2)}`, highlight: true },
-              { icon: BarChart3, label: "Net P/L", value: `$${profileData.stats.netProfit.toFixed(2)}`, highlight: profileData.stats.netProfit > 0 },
+              { icon: DollarSign, label: "Total Won", value: formatDollars(profileData.stats.totalWinnings), highlight: true },
+              { icon: BarChart3, label: "Net P/L", value: formatDollars(profileData.stats.netProfit), highlight: profileData.stats.netProfit > 0 },
             ].map((stat, i) => (
               <Card key={i} className="rounded-xl shadow-sm card-hover">
                 <CardContent className="p-4 flex items-center gap-3">
@@ -491,7 +491,7 @@ const Profile = () => {
               <Input type="number" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} placeholder="0.00" min="5" max="500" step="1" disabled={isSubmitting} className="rounded-xl" />
             </div>
             {profileData.profile.depositLimitMonthly && (
-              <p className="text-xs text-muted-foreground">Monthly deposit limit: ${profileData.profile.depositLimitMonthly.toFixed(2)}</p>
+              <p className="text-xs text-muted-foreground">Monthly deposit limit: {formatDollars(profileData.profile.depositLimitMonthly)}</p>
             )}
           </div>
           <DialogFooter>
@@ -515,7 +515,7 @@ const Profile = () => {
             <div className="space-y-2">
               <label className="text-sm font-medium">Amount (USD)</label>
               <Input type="number" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} placeholder="0.00" min="5" max="500" step="0.01" disabled={isSubmitting} className="rounded-xl" />
-              <p className="text-xs text-muted-foreground">Available: ${profileData.wallet.availableBalance.toFixed(2)}</p>
+              <p className="text-xs text-muted-foreground">Available: {formatDollars(profileData.wallet.availableBalance)}</p>
             </div>
           </div>
           <DialogFooter>

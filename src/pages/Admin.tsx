@@ -21,7 +21,7 @@ import { toast } from "sonner";
 // All money values must route through src/lib/formatCurrency.ts. Direct division by 100 in JSX is a bug.
 import { getCircleFlagUrl } from "@/data/countryFlags";
 import { getCollegeLogoUrl } from "@/data/collegeLogos";
-import { formatCents } from "@/lib/formatCurrency";
+import { formatCents, formatDollars } from "@/lib/formatCurrency";
 
 interface CrewResult {
   crew_id: string;
@@ -1175,11 +1175,11 @@ const Admin = () => {
                         <div className="text-[8px] text-slate-500 uppercase">Entries</div>
                       </div>
                       <div className="bg-slate-50 rounded px-2 py-1 text-center flex-1">
-                        <div className="text-xs font-bold text-teal-600">{createForm.entryFee ? `$${parseFloat(createForm.entryFee).toFixed(2)}` : '$?.??'}</div>
+                        <div className="text-xs font-bold text-teal-600">{createForm.entryFee ? formatDollars(parseFloat(createForm.entryFee)) : '$?.??'}</div>
                         <div className="text-[8px] text-slate-500 uppercase">Entry</div>
                       </div>
                       <div className="bg-slate-50 rounded px-2 py-1 text-center flex-1">
-                        <div className="text-xs font-bold text-amber-600">{createForm.prizes[0]?.amount ? `$${parseFloat(createForm.prizes[0].amount).toFixed(2)}` : '$?.??'}</div>
+                        <div className="text-xs font-bold text-amber-600">{createForm.prizes[0]?.amount ? formatDollars(parseFloat(createForm.prizes[0].amount)) : '$?.??'}</div>
                         <div className="text-[8px] text-slate-500 uppercase">Prizes</div>
                       </div>
                     </div>
@@ -1373,9 +1373,9 @@ const Admin = () => {
                 : createForm.entryFee && createForm.maxEntries;
               return hasData ? (
                 <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-                  <div className="flex justify-between text-sm"><span className="text-muted-foreground">Max Potential Revenue:</span><span className="font-medium">${maxRevenue.toFixed(2)}</span></div>
-                  <div className="flex justify-between text-sm"><span className="text-muted-foreground">Total Guaranteed Payout:</span><span className="font-medium">${totalPayout.toFixed(2)}</span></div>
-                  <div className="flex justify-between text-sm border-t pt-2"><span className="font-medium">Projected Profit:</span><span className={`font-bold ${projectedProfit >= 0 ? 'text-green-600' : 'text-destructive'}`}>${projectedProfit.toFixed(2)}</span></div>
+                  <div className="flex justify-between text-sm"><span className="text-muted-foreground">Max Potential Revenue:</span><span className="font-medium">{formatDollars(maxRevenue)}</span></div>
+                  <div className="flex justify-between text-sm"><span className="text-muted-foreground">Total Guaranteed Payout:</span><span className="font-medium">{formatDollars(totalPayout)}</span></div>
+                  <div className="flex justify-between text-sm border-t pt-2"><span className="font-medium">Projected Profit:</span><span className={`font-bold ${projectedProfit >= 0 ? 'text-green-600' : 'text-destructive'}`}>{formatDollars(projectedProfit)}</span></div>
                   {projectedProfit < 0 && <p className="text-xs text-destructive">⚠️ Payouts exceed max revenue.</p>}
                 </div>
               ) : null;

@@ -19,7 +19,7 @@ import { Trophy, Calendar, DollarSign, TrendingUp, Users, Eye, Plus, X } from "l
 import myEntriesBg from "@/assets/my-entries-bg.jpg";
 import { CrewLogo } from "@/components/CrewLogo";
 import { toast } from "sonner";
-import { formatCents } from "@/lib/formatCurrency";
+import { formatCents, formatDollars } from "@/lib/formatCurrency";
 
 interface PickNew {
   crewId: string;
@@ -522,7 +522,7 @@ const MyEntries = () => {
             {[
               { icon: Trophy, label: "Total Entries", value: stats.totalEntries },
               { icon: Calendar, label: "Active", value: stats.activeEntries },
-              { icon: DollarSign, label: "Winnings", value: `$${stats.totalWinnings.toFixed(2)}` },
+              { icon: DollarSign, label: "Winnings", value: formatDollars(stats.totalWinnings) },
               { icon: TrendingUp, label: "Win Rate", value: `${stats.winRate.toFixed(1)}%` },
             ].map((stat, i) => (
               <Card key={i} className="glass rounded-xl border-white/20 shadow-lg animate-fade-in" style={{ animationDelay: `${i * 0.1}s` }}>
