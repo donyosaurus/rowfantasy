@@ -72,7 +72,21 @@ Deno.serve(async (req) => {
     }
 
     if (query) {
-      queryBuilder = queryBuilder.or(`title.ilike.%${query}%,body_md.ilike.%${query}%`);
+      if (query.length > 100) {
+        return new Response(
+          JSON.stringify({ error: 'Search query too long (max 100 characters)' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      // Strip LIKE wildcards so users can't run arbitrary wildcard scans,
+      // then escape backslashes and double-quotes per PostgREST quoting rules
+      // and wrap the pattern in double quotes so commas/parens/dots in the
+      // input aren't parsed as PostgREST filter DSL.
+      const stripped = query.replace(/[%_]/g, '');
+      const escaped = stripped.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      queryBuilder = queryBuilder.or(
+        `title.ilike."%${escaped}%",body_md.ilike."%${escaped}%"`
+      );
     }
 
     const { data: articles, error } = await queryBuilder;
