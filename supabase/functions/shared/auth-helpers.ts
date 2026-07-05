@@ -139,14 +139,26 @@ export async function requireAdmin(supabase: any, userId: string): Promise<void>
 }
 
 /**
- * Check if real money transactions are enabled
+ * Check if real money transactions are enabled.
+ *
+ * Fail-safe semantics for gate callers (e.g. wallet-deposit mock-adapter block):
+ *   - row absent (PostgREST PGRST116) → return false (flag genuinely unset)
+ *   - any OTHER error → THROW so callers can fail closed and return a 503
+ *     rather than silently opening the gate on a transient DB error.
  */
 export async function isRealMoneyEnabled(supabase: any): Promise<boolean> {
-  const { data: flag } = await supabase
+  const { data: flag, error } = await supabase
     .from('feature_flags')
     .select('value')
     .eq('key', 'real_money_enabled')
     .single();
+
+  if (error) {
+    if ((error as any).code === 'PGRST116') {
+      return false;
+    }
+    throw error;
+  }
 
   return flag?.value?.enabled ?? false;
 }
