@@ -306,7 +306,7 @@ Deno.serve(withFnVersion('wallet-deposit', async (req) => {
       if (classification === 'ambiguous') {
         // Ambiguous post-charge failure: DO NOT auto-refund. Escalate.
         try {
-          await supabaseAdmin.from('compliance_audit_logs').insert({
+          const { error: auditErr } = await supabaseAdmin.from('compliance_audit_logs').insert({
             user_id: userId,
             event_type: 'deposit_post_charge_unknown_state',
             description: 'Deposit charged but ledger RPC outcome unknown; manual reconciliation required',
@@ -319,6 +319,14 @@ Deno.serve(withFnVersion('wallet-deposit', async (req) => {
               error_name: String((thrown as any)?.name ?? ''),
             },
           });
+          if (auditErr) {
+            console.error('[wallet-deposit] audit log insert returned error:', {
+              function: 'wallet-deposit',
+              event_type: 'deposit_post_charge_unknown_state',
+              user_id: userId,
+              error: auditErr,
+            });
+          }
         } catch (logErr) {
           logSecureError('wallet-deposit', logErr);
         }
