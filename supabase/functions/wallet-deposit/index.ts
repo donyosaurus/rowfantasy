@@ -355,6 +355,8 @@ Deno.serve(withFnVersion('wallet-deposit', async (req) => {
           payment_provider_reference: paymentResult.transactionId,
           balance_after_cents: deposit.available_balance_cents,
           was_duplicate: deposit.was_duplicate,
+          state_code: resolvedStateCode,
+          state_code_source: compliance.stateCodeSource,
         },
       });
     } catch (logError) {
