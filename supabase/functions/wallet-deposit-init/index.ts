@@ -104,6 +104,9 @@ Deno.serve(withFnVersion('wallet-deposit-init', async (req) => {
       );
     }
 
+    // Record-integrity: persist compliance-resolved state, NOT the caller-supplied profile.state.
+    const resolvedStateCode = compliance.resolvedStateCode;
+
     // Create mock payment session (service-role: RLS denies authenticated inserts)
     const { data: session, error: sessionError } = await supabaseAdmin
       .from('payment_sessions')
@@ -112,7 +115,7 @@ Deno.serve(withFnVersion('wallet-deposit-init', async (req) => {
         amount_cents: body.amount_cents,
         provider: 'mock',
         status: 'pending',
-        state_code: profile.state,
+        state_code: resolvedStateCode,
         checkout_url: 'https://mock-checkout.example.com',
         client_token: 'mock_token_' + crypto.randomUUID(),
       })
@@ -132,8 +135,8 @@ Deno.serve(withFnVersion('wallet-deposit-init', async (req) => {
         event_type: 'deposit_initiated',
         description: 'User initiated deposit',
         severity: 'info',
-        state_code: profile.state,
-        metadata: { amount_cents: body.amount_cents, session_id: session.id },
+        state_code: resolvedStateCode,
+        metadata: { amount_cents: body.amount_cents, session_id: session.id, state_code_source: compliance.stateCodeSource },
       });
 
     return new Response(
