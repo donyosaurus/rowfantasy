@@ -10,6 +10,11 @@ export interface ComplianceCheckResult {
   allowed: boolean;
   reason?: string;
   metadata?: Record<string, any>;
+  // Batch 2 (record-integrity): the state actually used for gating decisions
+  // and its provenance. Callers MUST persist `resolvedStateCode` downstream
+  // instead of the caller-supplied (spoofable) header/body value.
+  resolvedStateCode: string;
+  stateCodeSource: 'worker' | 'ipbase' | 'unverified';
 }
 
 export interface ComplianceContext {
