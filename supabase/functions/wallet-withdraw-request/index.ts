@@ -162,6 +162,8 @@ Deno.serve(withFnVersion('wallet-withdraw-request', async (req) => {
           transaction_id: withdrawal.transaction_id,
           today_total_cents: withdrawal.today_total_cents,
           remaining_balance_cents: withdrawal.available_balance_cents,
+          state_code: resolvedStateCode,
+          state_code_source: compliance.stateCodeSource,
         },
       });
     } catch (logError) {
