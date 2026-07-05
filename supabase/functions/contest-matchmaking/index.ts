@@ -123,13 +123,16 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
       );
     }
 
+    // Record-integrity: persist the compliance-resolved state, NOT the spoofable caller value.
+    const resolvedStateCode = compliance.resolvedStateCode;
+
     const { data: result, error: rpcError } = await supabaseAdmin.rpc("enter_contest_pool_atomic", {
       _user_id: userId,
       _wallet_id: wallet.id,
       _contest_template_id: body.contestTemplateId,
       _tier_name: body.tierName ?? null,
       _picks: body.picks,
-      _state_code: stateCode,
+      _state_code: resolvedStateCode,
     });
 
     if (rpcError) {
