@@ -87,22 +87,44 @@ Deno.serve(async (req) => {
       .eq('user_id', user.id)
       .maybeSingle();
 
-    // Helper: ensure a row exists for this user before we UPDATE
-    // (upsert would still work but INSERT+UPDATE keeps semantics explicit).
+    // Helper: idempotent row-ensure. A first-time user sending BOTH
+    // depositLimit and exclusionDays would otherwise hit two INSERTs and
+    // fail the second with a 23505 unique violation AFTER the deposit-limit
+    // write already committed. Track a local flag AND use ignoreDuplicates.
+    let rowExists = !!currentRow;
     async function ensureRow() {
-      if (currentRow) return;
+      if (rowExists) return;
       const { error } = await supabase
         .from('responsible_gaming')
-        .insert({ user_id: user.id });
+        .upsert({ user_id: user.id }, { onConflict: 'user_id', ignoreDuplicates: true });
       if (error) throw error;
+      rowExists = true;
     }
 
-    const auditEvents: Array<{ eventType: string; description: string; metadata: Record<string, any> }> = [];
+    // Audit-log writer — service-role (users cannot insert audit rows).
+    // Called IMMEDIATELY after each successful responsible_gaming write so
+    // that a later error (e.g. self-exclusion trigger rejection) cannot
+    // silently discard the audit row for a change that already committed.
+    async function writeAudit(evt: { eventType: string; description: string; metadata: Record<string, any> }) {
+      try {
+        await adminClient.from('compliance_audit_logs').insert({
+          user_id: user.id,
+          event_type: evt.eventType,
+          description: evt.description,
+          severity: 'info',
+          metadata: evt.metadata,
+        });
+      } catch (logErr) {
+        console.error('[responsible-limits] audit log failed:', logErr);
+      }
+    }
+
     const responseExtras: Record<string, any> = {};
 
     // ── Deposit limit ─────────────────────────────────────────────────────
     if (depositLimit !== undefined) {
       const existing = currentRow?.deposit_limit_monthly_cents ?? null;
+      const existingPending = currentRow?.pending_deposit_limit_monthly_cents ?? null;
       const isTightening = existing === null || depositLimit < existing;
       const isIncrease = existing !== null && depositLimit > existing;
 
@@ -110,19 +132,33 @@ Deno.serve(async (req) => {
 
       if (isTightening) {
         // Tightening (including first-time setting) applies immediately.
+        // Also clear any pending increase — responsible-gaming principle:
+        // tightening must never be refused, and the DB trigger only permits
+        // a decrease-while-pending-active when both pending fields are
+        // cleared in the same UPDATE.
         const { error } = await supabase
           .from('responsible_gaming')
           .update({
             deposit_limit_monthly_cents: depositLimit,
+            pending_deposit_limit_monthly_cents: null,
+            pending_limit_effective_at: null,
             updated_at: new Date().toISOString(),
           })
           .eq('user_id', user.id);
         if (error) throw error;
 
-        auditEvents.push({
+        const metadata: Record<string, any> = {
+          deposit_limit_cents: depositLimit,
+          previous_cents: existing,
+        };
+        if (existingPending !== null) {
+          metadata.pending_cancelled = true;
+          metadata.cancelled_pending_cents = existingPending;
+        }
+        await writeAudit({
           eventType: 'deposit_limit_set',
           description: `Deposit limit set to $${(depositLimit / 100).toFixed(2)}/month`,
-          metadata: { deposit_limit_cents: depositLimit, previous_cents: existing },
+          metadata,
         });
         responseExtras.depositLimit = `$${(depositLimit / 100).toFixed(2)}/month`;
         responseExtras.depositLimitEffective = 'immediate';
@@ -139,7 +175,7 @@ Deno.serve(async (req) => {
           .eq('user_id', user.id);
         if (error) throw error;
 
-        auditEvents.push({
+        await writeAudit({
           eventType: 'deposit_limit_increase_pending',
           description: `Deposit limit increase to $${(depositLimit / 100).toFixed(2)}/month pending 24h cooling-off`,
           metadata: {
@@ -189,26 +225,11 @@ Deno.serve(async (req) => {
       }
 
       selfExclusionUntilOut = exclusionUntilIso;
-      auditEvents.push({
+      await writeAudit({
         eventType: 'self_exclusion_enabled',
         description: `Self-exclusion enabled for ${exclusionDays} days until ${exclusionUntil.toLocaleDateString()}`,
         metadata: { exclusion_days: exclusionDays, self_exclusion_until: exclusionUntilIso },
       });
-    }
-
-    // ── Audit logs (service-role: users cannot insert audit rows) ─────────
-    for (const evt of auditEvents) {
-      try {
-        await adminClient.from('compliance_audit_logs').insert({
-          user_id: user.id,
-          event_type: evt.eventType,
-          description: evt.description,
-          severity: 'info',
-          metadata: evt.metadata,
-        });
-      } catch (logErr) {
-        console.error('[responsible-limits] audit log failed:', logErr);
-      }
     }
 
     console.log('[responsible-limits] Updated:', { userId: user.id, depositLimit, exclusionDays });

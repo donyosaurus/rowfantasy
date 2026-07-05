@@ -201,7 +201,38 @@ Deno.serve(withFnVersion('wallet-deposit', async (req) => {
     //    real-money mode. MockPaymentAdapter always succeeds — using it live
     //    would let any user mint withdrawable balance for zero payment. A
     //    mis-flip is loudly visible via the critical audit log below.
-    if (await isRealMoneyEnabled(supabaseAdmin)) {
+    //
+    //    Fail-SAFE on flag-read error: a transient feature_flags read error
+    //    must NOT open the gate. Any thrown error → 503 + critical audit.
+    let realMoneyEnabled: boolean;
+    try {
+      realMoneyEnabled = await isRealMoneyEnabled(supabaseAdmin);
+    } catch (flagErr) {
+      const requestId = logSecureError('wallet-deposit', flagErr);
+      try {
+        await supabaseAdmin.from('compliance_audit_logs').insert({
+          user_id: userId,
+          event_type: 'deposit_blocked_flag_unreadable',
+          description: 'Deposit blocked: could not read real_money_enabled feature flag',
+          severity: 'critical',
+          metadata: {
+            amount_cents: body.amount_cents,
+            payment_method: body.payment_method,
+            state_code: resolvedStateCode,
+            state_code_source: compliance.stateCodeSource,
+            error: String((flagErr as any)?.message ?? flagErr),
+          },
+        });
+      } catch (logErr) {
+        logSecureError('wallet-deposit', logErr);
+      }
+      return new Response(
+        JSON.stringify({ error: 'Deposits are temporarily unavailable', requestId }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (realMoneyEnabled) {
       try {
         await supabaseAdmin.from('compliance_audit_logs').insert({
           user_id: userId,
