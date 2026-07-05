@@ -31,12 +31,24 @@ export async function performComplianceChecks(
 ): Promise<ComplianceCheckResult> {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+  // Track the provenance of the state code used for gating.
+  // 'worker' or 'ipbase' = trusted; 'unverified' = admin bypass or caller-supplied fallback.
+  let stateCodeSource: 'worker' | 'ipbase' | 'unverified' = 'unverified';
+
+  // Local helper to build return objects with the resolved state + source.
+  const result = (partial: { allowed: boolean; reason?: string; metadata?: Record<string, any> }): ComplianceCheckResult => ({
+    ...partial,
+    resolvedStateCode: context.stateCode,
+    stateCodeSource,
+  });
+
   // P0-W4 Step 1: Try Worker-verified state FIRST. If present and valid, use it
   // directly and skip the IPBase call entirely. Falls through to existing IPBase
   // path if no Worker header is present (direct PostgREST calls, local dev, etc.).
   const workerVerifiedState = req ? await getVerifiedWorkerState(req) : null;
   if (workerVerifiedState) {
     context.stateCode = workerVerifiedState.stateCode;
+    stateCodeSource = 'worker';
     // Intentionally no audit-log row: Worker-verified is the expected steady state.
   }
 
@@ -72,13 +84,13 @@ export async function performComplianceChecks(
       stateCode: context.stateCode,
       ipAddress: context.ipAddress,
     });
-    return { allowed: false, reason: 'Geolocation verification required' };
+    return result({ allowed: false, reason: 'Geolocation verification required' });
   }
 
   // 1. Check geo eligibility first (only if enabled, not admin, and not already Worker-verified)
   if (!workerVerifiedState && geoEnabled && !isAdmin && context.ipAddress && context.ipAddress !== 'unknown') {
     const geoResult = await checkGeoEligibility(context.ipAddress, context.userId);
-    
+
     if (!geoResult.allowed) {
       await logComplianceEvent(supabase, {
         userId: context.userId,
@@ -88,16 +100,14 @@ export async function performComplianceChecks(
         stateCode: geoResult.stateCode,
         ipAddress: context.ipAddress,
       });
-      
-      return {
-        allowed: false,
-        reason: geoResult.reason,
-      };
+
+      return result({ allowed: false, reason: geoResult.reason });
     }
-    
+
     // Update context with detected state if available
     if (geoResult.stateCode) {
       context.stateCode = geoResult.stateCode;
+      stateCodeSource = 'ipbase';
     }
   }
 
@@ -118,11 +128,8 @@ export async function performComplianceChecks(
         stateCode: context.stateCode,
         ipAddress: context.ipAddress,
       });
-      
-      return {
-        allowed: false,
-        reason: 'State not supported or regulations unavailable',
-      };
+
+      return result({ allowed: false, reason: 'State not supported or regulations unavailable' });
     }
 
     if (stateRule.status === 'prohibited' || stateRule.status === 'restricted') {
@@ -134,11 +141,8 @@ export async function performComplianceChecks(
         stateCode: context.stateCode,
         ipAddress: context.ipAddress,
       });
-      
-      return {
-        allowed: false,
-        reason: `Service not available in ${stateRule.state_name}`,
-      };
+
+      return result({ allowed: false, reason: `Service not available in ${stateRule.state_name}` });
     }
   }
 
@@ -150,15 +154,10 @@ export async function performComplianceChecks(
     .single();
 
   if (profileError || !profile) {
-    return {
-      allowed: false,
-      reason: 'User profile not found',
-    };
+    return result({ allowed: false, reason: 'User profile not found' });
   }
 
   // P0-C5: SX source-of-truth is responsible_gaming, NOT profiles.
-  // Absent row OR null self_exclusion_until = NOT excluded = ALLOWED (semantic guardrail per operator 2026-05-23).
-  // Do NOT fail-closed on missing row — fail-closed-on-missing is geo-only (P0-C9), not SX.
   const { data: rgSettings } = await supabase
     .from('responsible_gaming')
     .select('self_exclusion_until')
@@ -174,18 +173,13 @@ export async function performComplianceChecks(
       description: 'User has not completed age verification',
       stateCode: context.stateCode,
     });
-    
-    return {
-      allowed: false,
-      reason: 'Age verification required',
-    };
+
+    return result({ allowed: false, reason: 'Age verification required' });
   }
 
-  // Verify minimum age based on state rules
   const birthDate = new Date(profile.date_of_birth);
   const age = Math.floor((Date.now() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-  
-  // For admins, use default min age of 18 since we skip state rule check
+
   const minAge = 18;
   if (age < minAge) {
     await logComplianceEvent(supabase, {
@@ -195,11 +189,8 @@ export async function performComplianceChecks(
       description: `User age ${age} is below minimum ${minAge}`,
       stateCode: context.stateCode,
     });
-    
-    return {
-      allowed: false,
-      reason: `You must be at least ${minAge} years old to use this service`,
-    };
+
+    return result({ allowed: false, reason: `You must be at least ${minAge} years old to use this service` });
   }
 
   if (!profile.is_active) {
@@ -210,11 +201,8 @@ export async function performComplianceChecks(
       description: 'Inactive account attempted transaction',
       stateCode: context.stateCode,
     });
-    
-    return {
-      allowed: false,
-      reason: 'Account is inactive',
-    };
+
+    return result({ allowed: false, reason: 'Account is inactive' });
   }
 
   // Check self-exclusion (reads canonical responsible_gaming source per P0-C5).
@@ -230,10 +218,7 @@ export async function performComplianceChecks(
         metadata: { exclusion_until: rgSettings.self_exclusion_until },
       });
 
-      return {
-        allowed: false,
-        reason: `Account self-excluded until ${exclusionDate.toLocaleDateString()}`,
-      };
+      return result({ allowed: false, reason: `Account self-excluded until ${exclusionDate.toLocaleDateString()}` });
     }
   }
 
@@ -246,13 +231,9 @@ export async function performComplianceChecks(
       description: 'Employee attempted transaction',
       stateCode: context.stateCode,
     });
-    
-    return {
-      allowed: false,
-      reason: 'Employees are not permitted to participate',
-    };
-  }
 
+    return result({ allowed: false, reason: 'Employees are not permitted to participate' });
+  }
 
   // All checks passed
   await logComplianceEvent(supabase, {
@@ -264,12 +245,11 @@ export async function performComplianceChecks(
     metadata: {
       action: context.actionType,
       amount_cents: context.amountCents,
+      state_code_source: stateCodeSource,
     },
   });
 
-  return {
-    allowed: true,
-  };
+  return result({ allowed: true });
 }
 
 async function logComplianceEvent(
