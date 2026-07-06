@@ -319,10 +319,14 @@ const MyEntries = () => {
     const statusMap: Record<string, { label: string; className: string }> = {
       open: { label: 'Open', className: 'bg-success/10 text-success border-success/30' },
       locked: { label: 'Live', className: 'bg-gold/10 text-gold border-gold/30' },
-      completed: { label: 'Completed', className: 'bg-muted text-muted-foreground' },
+      results_entered: { label: 'Results In', className: 'bg-gold/10 text-gold border-gold/30' },
+      scoring_completed: { label: 'Scored', className: 'bg-accent/10 text-accent border-accent/30' },
+      settling: { label: 'Settling', className: 'bg-accent/10 text-accent border-accent/30' },
+      settled: { label: 'Completed', className: 'bg-muted text-muted-foreground' },
+      voided: { label: 'Voided', className: 'bg-destructive/10 text-destructive border-destructive/30' },
       cancelled: { label: 'Cancelled', className: 'bg-destructive/10 text-destructive border-destructive/30' }
     };
-    const config = statusMap[status] || statusMap.open;
+    const config = statusMap[status] || { label: '—', className: 'bg-muted text-muted-foreground' };
     return <Badge variant="outline" className={config.className}>{config.label}</Badge>;
   };
 
