@@ -32,7 +32,7 @@ export const StateComplianceBanner = ({ stateCode }: StateComplianceBannerProps)
     fetchStateInfo();
   }, [stateCode]);
 
-  if (loading || !stateData) return null;
+  if (loading || !stateData?.state) return null;
 
   const { state, license } = stateData;
 
