@@ -128,9 +128,10 @@ export function MatchupDialog({
       locked: { label: "Live", className: "bg-gold/10 text-gold border-gold/30" },
       results_entered: { label: "Results In", className: "bg-gold/10 text-gold border-gold/30" },
       scoring_completed: { label: "Scored", className: "bg-accent/10 text-accent border-accent/30" },
+      settling: { label: "Settling", className: "bg-accent/10 text-accent border-accent/30" },
       settled: { label: "Settled", className: "bg-muted text-muted-foreground" },
-      completed: { label: "Completed", className: "bg-muted text-muted-foreground" },
       voided: { label: "Voided", className: "bg-destructive/10 text-destructive border-destructive/30" },
+      cancelled: { label: "Cancelled", className: "bg-destructive/10 text-destructive border-destructive/30" },
     };
     const config = map[poolStatus] || map.open;
     return <Badge variant="outline" className={config.className}>{config.label}</Badge>;
