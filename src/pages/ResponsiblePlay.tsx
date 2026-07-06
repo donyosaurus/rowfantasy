@@ -86,7 +86,7 @@ export default function ResponsiblePlay() {
     // P0-C4: backend expects `depositLimit` in CENTS per responsible-limits Zod schema.
     const depositLimitCents = Math.round(Number(depositLimit) * 100);
 
-    const { error } = await supabase.functions.invoke('responsible-limits', {
+    const { data, error } = await supabase.functions.invoke('responsible-limits', {
       method: 'POST',
       body: {
         depositLimit: depositLimitCents,
@@ -98,6 +98,17 @@ export default function ResponsiblePlay() {
         title: "Error",
         description: "Failed to update deposit limit.",
         variant: "destructive"
+      });
+      return;
+    }
+
+    if (data?.depositLimitEffective === 'pending_24h') {
+      const effectiveAt = data?.pendingDepositLimitEffectiveAt
+        ? new Date(data.pendingDepositLimitEffectiveAt).toLocaleString()
+        : 'in 24 hours';
+      toast({
+        title: "Increase Pending",
+        description: `Deposit limit increases take effect after a 24-hour cooling-off period (effective ${effectiveAt}).`,
       });
       return;
     }
