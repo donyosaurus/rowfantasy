@@ -69,6 +69,7 @@ const Profile = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   
   const [usernameDialogOpen, setUsernameDialogOpen] = useState(false);
   const [depositDialogOpen, setDepositDialogOpen] = useState(false);
