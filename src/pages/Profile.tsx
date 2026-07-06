@@ -528,8 +528,8 @@ const Profile = () => {
               <label className="text-sm font-medium">Or enter custom amount (USD)</label>
               <Input type="number" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} placeholder="0.00" min="5" max="500" step="1" disabled={isSubmitting} className="rounded-xl" />
             </div>
-            {profileData.profile.depositLimitMonthly && (
-              <p className="text-xs text-muted-foreground">Monthly deposit limit: {formatDollars(profileData.profile.depositLimitMonthly)}</p>
+            {profileData.profile.depositLimitMonthlyCents != null && profileData.profile.depositLimitMonthlyCents > 0 && (
+              <p className="text-xs text-muted-foreground">Monthly deposit limit: {formatCents(profileData.profile.depositLimitMonthlyCents)}</p>
             )}
           </div>
           <DialogFooter>
