@@ -231,7 +231,7 @@ const Admin = () => {
       }
       let settleMsg = `Done! ${settleData?.winnersCount || 0} winner(s) paid out.`;
       if (settleData?.poolsAutoVoided > 0) {
-        settleMsg += ` ${settleData.poolsAutoVoided} unfilled pool(s) auto-voided, ${settleData.entriesRefunded || 0} entry fee(s) refunded.`;
+        settleMsg += ` ${settleData.poolsAutoVoided} unfilled pool(s) auto-voided, ${settleData.refundedCount || 0} entry fee(s) refunded.`;
       }
       toast.success(settleMsg);
       setResultsModalOpen(false);
@@ -256,7 +256,7 @@ const Admin = () => {
       const voidedCount = details.filter((d: any) => d.action === 'auto_voided').length;
       const refundedEntries = details
         .filter((d: any) => d.action === 'auto_voided')
-        .reduce((sum: number, d: any) => sum + (d.entriesRefunded || 0), 0);
+        .reduce((sum: number, d: any) => sum + (d.refundedCount || 0), 0);
 
       let msg = `${settledCount} pool(s) settled.`;
       if (voidedCount > 0) {

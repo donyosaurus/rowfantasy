@@ -42,7 +42,7 @@ const Signup = () => {
         body: { slug }
       });
       if (error) throw error;
-      return data?.body_md || null;
+      return data?.page?.body_md || null;
     } catch (err) {
       console.error(`Error fetching ${slug}:`, err);
       return null;

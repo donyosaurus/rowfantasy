@@ -29,7 +29,7 @@ export default function Privacy() {
       // Get user's privacy requests
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: requestsData } = await supabase.functions.invoke('privacy-requests');
+        const { data: requestsData } = await supabase.functions.invoke('privacy-requests', { method: 'GET' });
         if (requestsData?.requests) {
           setRequests(requestsData.requests);
         }
