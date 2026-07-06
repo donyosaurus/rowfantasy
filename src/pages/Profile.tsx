@@ -31,6 +31,7 @@ interface ProfileData {
     isActive: boolean;
     selfExclusionUntil: string | null;
     depositLimitMonthly: number;
+    depositLimitMonthlyCents: number | null;
   };
   wallet: {
     availableBalance: number;
