@@ -256,7 +256,7 @@ const Admin = () => {
       const voidedCount = details.filter((d: any) => d.action === 'auto_voided').length;
       const refundedEntries = details
         .filter((d: any) => d.action === 'auto_voided')
-        .reduce((sum: number, d: any) => sum + (d.entriesRefunded || 0), 0);
+        .reduce((sum: number, d: any) => sum + (d.refundedCount || 0), 0);
 
       let msg = `${settledCount} pool(s) settled.`;
       if (voidedCount > 0) {
