@@ -21,14 +21,16 @@ Deno.serve(async (req) => {
     // Parse and validate body (doc_slug, version as string)
     const body = await req.json().catch(() => ({} as any));
     const doc_slug = typeof body.doc_slug === 'string' ? body.doc_slug.trim() : '';
-    const version = typeof body.version === 'string' ? body.version.trim() : '';
+    const rawVersion = body.version;
+    const version = typeof rawVersion === 'number'
+      ? rawVersion
+      : (typeof rawVersion === 'string' && rawVersion.trim() !== '' ? Number(rawVersion) : NaN);
     const consented_at = typeof body.consented_at === 'string' ? body.consented_at : new Date().toISOString();
 
-    // Verbose logging (no PII):
-    console.log('[user-consents] request', { method: req.method, doc_slug, version_present: !!version });
+    console.log('[user-consents] request', { method: req.method, doc_slug, version });
 
-    if (!doc_slug || !version) {
-      console.warn('[user-consents] 400 invalid body', { doc_slug_present: !!doc_slug, version_present: !!version });
+    if (!doc_slug || !Number.isInteger(version) || version < 0) {
+      console.warn('[user-consents] 400 invalid body', { doc_slug_present: !!doc_slug, version });
       return new Response(JSON.stringify({ error: "Bad request" }), { status: 400, headers });
     }
 
