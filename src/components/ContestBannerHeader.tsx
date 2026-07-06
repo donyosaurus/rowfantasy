@@ -73,8 +73,9 @@ export const ContestBannerHeader = ({
   }, [lockTime]);
 
   const isOpen = status === "open" && new Date(lockTime) > new Date();
-  const isLocked = !isOpen && (status === "locked" || status === "open");
-  const isSettled = status === "completed" || status === "settled";
+  const isSettled = status === "settled";
+  const isVoided = status === "voided";
+  const isCancelled = status === "cancelled";
 
   const gradientIndex = hashString(regattaName) % CARD_GRADIENTS.length;
 
@@ -92,11 +93,15 @@ export const ContestBannerHeader = ({
   const subtitle = subtitleParts.join(" · ");
 
   // Status pill
-  const statusConfig = isOpen
-    ? { label: "Open", cls: "bg-teal-500/90" }
-    : isSettled
-      ? { label: "Settled", cls: "bg-slate-500/90" }
-      : { label: "Locked", cls: "bg-red-500/90" };
+  const statusConfig = isVoided
+    ? { label: "Voided", cls: "bg-destructive/90" }
+    : isCancelled
+      ? { label: "Cancelled", cls: "bg-destructive/90" }
+      : isOpen
+        ? { label: "Open", cls: "bg-teal-500/90" }
+        : isSettled
+          ? { label: "Settled", cls: "bg-slate-500/90" }
+          : { label: "Locked", cls: "bg-red-500/90" };
 
   return (
     <div className="relative w-full">
