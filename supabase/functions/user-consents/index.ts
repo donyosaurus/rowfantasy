@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
         doc_slug,
         version,
         consented_at,
-        ip,
+        ip_address: ip,
         user_agent,
       }, { onConflict: 'user_id,doc_slug,version', ignoreDuplicates: true });
 
