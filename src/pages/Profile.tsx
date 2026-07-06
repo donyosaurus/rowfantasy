@@ -214,6 +214,36 @@ const Profile = () => {
     }
   };
 
+  if (!loading && loadError && !profileData) {
+    return (
+      <div className="flex flex-col min-h-screen relative">
+        <DraftPageBackground />
+        <Header />
+        <main className="flex-1 py-12 relative z-10">
+          <div className="container mx-auto px-4 max-w-2xl">
+            <Card className="rounded-2xl">
+              <CardHeader>
+                <CardTitle>Unable to load profile</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-muted-foreground text-sm">
+                  We couldn't load your profile data. Please check your connection and try again.
+                </p>
+                <Button
+                  onClick={() => { setLoading(true); fetchProfileData().finally(() => setLoading(false)); }}
+                  className="rounded-xl"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" /> Retry
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
   if (loading || !profileData) {
     return (
       <div className="flex flex-col min-h-screen relative">
