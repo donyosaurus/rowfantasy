@@ -89,13 +89,18 @@ export default function Terms() {
       return;
     }
 
-    await supabase.functions.invoke('user-consents', {
+    const { error: consentErr } = await supabase.functions.invoke('user-consents', {
       method: 'POST',
       body: {
         doc_slug: 'terms',
         version: content.page.version
       }
     });
+
+    if (consentErr) {
+      console.error('[Terms] failed to record consent', consentErr);
+      return;
+    }
 
     setShowConsentModal(false);
     setUserConsent({ version: content.page.version });
