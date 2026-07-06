@@ -92,12 +92,14 @@ const Profile = () => {
 
   const fetchProfileData = async () => {
     try {
+      setLoadError(false);
       const { data, error } = await supabase.functions.invoke('profile-overview');
       if (error) throw error;
       setProfileData(data);
       setNewUsername(data.profile.username || "");
     } catch (error: any) {
       console.error('Error fetching profile:', error);
+      setLoadError(true);
       toast.error('Failed to load profile data');
     }
   };
