@@ -92,7 +92,7 @@ const Lobby = () => {
             .from("contest_entries")
             .select("pool_id")
             .eq("user_id", user.id)
-            .in("status", ["active", "confirmed", "scored"])
+            .in("status", ["active", "scored"])
         : Promise.resolve({ data: null, error: null });
 
       const groupsPromise = supabase
