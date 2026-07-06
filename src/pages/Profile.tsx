@@ -31,6 +31,7 @@ interface ProfileData {
     isActive: boolean;
     selfExclusionUntil: string | null;
     depositLimitMonthly: number;
+    depositLimitMonthlyCents: number | null;
   };
   wallet: {
     availableBalance: number;
@@ -68,6 +69,7 @@ const Profile = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   
   const [usernameDialogOpen, setUsernameDialogOpen] = useState(false);
   const [depositDialogOpen, setDepositDialogOpen] = useState(false);
@@ -90,12 +92,14 @@ const Profile = () => {
 
   const fetchProfileData = async () => {
     try {
+      setLoadError(false);
       const { data, error } = await supabase.functions.invoke('profile-overview');
       if (error) throw error;
       setProfileData(data);
       setNewUsername(data.profile.username || "");
     } catch (error: any) {
       console.error('Error fetching profile:', error);
+      setLoadError(true);
       toast.error('Failed to load profile data');
     }
   };
@@ -209,6 +213,36 @@ const Profile = () => {
         return 'border-l-muted-foreground';
     }
   };
+
+  if (!loading && loadError && !profileData) {
+    return (
+      <div className="flex flex-col min-h-screen relative">
+        <DraftPageBackground />
+        <Header />
+        <main className="flex-1 py-12 relative z-10">
+          <div className="container mx-auto px-4 max-w-2xl">
+            <Card className="rounded-2xl">
+              <CardHeader>
+                <CardTitle>Unable to load profile</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-muted-foreground text-sm">
+                  We couldn't load your profile data. Please check your connection and try again.
+                </p>
+                <Button
+                  onClick={() => { setLoading(true); fetchProfileData().finally(() => setLoading(false)); }}
+                  className="rounded-xl"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" /> Retry
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   if (loading || !profileData) {
     return (
@@ -494,8 +528,8 @@ const Profile = () => {
               <label className="text-sm font-medium">Or enter custom amount (USD)</label>
               <Input type="number" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} placeholder="0.00" min="5" max="500" step="1" disabled={isSubmitting} className="rounded-xl" />
             </div>
-            {profileData.profile.depositLimitMonthly && (
-              <p className="text-xs text-muted-foreground">Monthly deposit limit: {formatDollars(profileData.profile.depositLimitMonthly)}</p>
+            {profileData.profile.depositLimitMonthlyCents != null && profileData.profile.depositLimitMonthlyCents > 0 && (
+              <p className="text-xs text-muted-foreground">Monthly deposit limit: {formatCents(profileData.profile.depositLimitMonthlyCents)}</p>
             )}
           </div>
           <DialogFooter>
