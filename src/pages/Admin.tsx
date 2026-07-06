@@ -231,7 +231,7 @@ const Admin = () => {
       }
       let settleMsg = `Done! ${settleData?.winnersCount || 0} winner(s) paid out.`;
       if (settleData?.poolsAutoVoided > 0) {
-        settleMsg += ` ${settleData.poolsAutoVoided} unfilled pool(s) auto-voided, ${settleData.entriesRefunded || 0} entry fee(s) refunded.`;
+        settleMsg += ` ${settleData.poolsAutoVoided} unfilled pool(s) auto-voided, ${settleData.refundedCount || 0} entry fee(s) refunded.`;
       }
       toast.success(settleMsg);
       setResultsModalOpen(false);
