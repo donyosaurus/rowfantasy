@@ -123,10 +123,12 @@ const Profile = () => {
       const { data, error } = await supabase.functions.invoke('profile-username', {
         body: { new_username: newUsername }
       });
-      if (error) { toast.error(error.message || 'Failed to update username'); return; }
-      if (data.error) {
-        toast.error(data.error);
-        if (data.nextChangeAvailable) toast.info(`Next change available: ${new Date(data.nextChangeAvailable).toLocaleDateString()}`);
+      if (error) {
+        const body = await (error as any).context?.json?.().catch(() => null);
+        toast.error(body?.error || error.message || 'Failed to update username');
+        if (body?.nextChangeAvailable) {
+          toast.info(`Next change available: ${new Date(body.nextChangeAvailable).toLocaleDateString()}`);
+        }
         return;
       }
       toast.success('Username updated successfully!');
