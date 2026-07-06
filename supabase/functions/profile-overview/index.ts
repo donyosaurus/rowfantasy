@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
     // Absent row OR null = NOT excluded = ALLOWED (semantic guardrail).
     const { data: rgSettings } = await supabase
       .from('responsible_gaming')
-      .select('self_exclusion_until')
+      .select('self_exclusion_until, deposit_limit_monthly_cents')
       .eq('user_id', user.id)
       .maybeSingle();
 
