@@ -115,6 +115,9 @@ Deno.serve(async (req) => {
           isActive: profile.is_active,
           selfExclusionUntil: rgSettings?.self_exclusion_until ?? null,
           depositLimitMonthly: Number(profile.deposit_limit_monthly),
+          depositLimitMonthlyCents: rgSettings?.deposit_limit_monthly_cents != null
+            ? Number(rgSettings.deposit_limit_monthly_cents)
+            : null,
         },
         wallet: {
           availableBalance: Number(wallet.available_balance) / 100, // convert cents to dollars
