@@ -198,7 +198,7 @@ const MyEntries = () => {
         }
       }
 
-      const completed = entriesData.filter((e) => e.contest_pools?.status === 'completed');
+      const completed = entriesData.filter((e) => e.contest_pools?.status === 'settled');
       const wins = completed.filter((e) => e.contest_scores?.[0]?.is_winner);
       const totalWinnings = completed.reduce(
         (sum, e) => sum + (e.contest_scores?.[0]?.payout_cents || 0),
@@ -207,7 +207,7 @@ const MyEntries = () => {
 
       setStats({
         totalEntries: entriesData.length,
-        activeEntries: entriesData.filter((e) => e.status === 'active' && e.contest_pools?.status !== 'completed').length,
+        activeEntries: entriesData.filter((e) => e.status === 'active' && !['settled','voided'].includes(e.contest_pools?.status || '')).length,
         totalWinnings: totalWinnings / 100,
         winRate: completed.length > 0 ? wins.length / completed.length * 100 : 0
       });
