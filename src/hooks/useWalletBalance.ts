@@ -35,14 +35,14 @@ export function useWalletBalance(autoload: boolean = true): UseWalletBalanceRetu
   const refetch = useCallback(async () => {
     setState({ status: 'loading' });
 
-    const { data, error } = await supabase.rpc('get_user_wallet_balances' as never);
+    const { data, error } = await supabase.rpc('get_user_wallet_balances');
     if (error) {
       setState({ status: 'error', error: error.message });
       return;
     }
 
-    const raw = data as unknown;
-    const row: any = raw == null ? null : Array.isArray(raw) ? raw[0] : raw;
+    const rows = data ?? [];
+    const row = Array.isArray(rows) ? rows[0] : null;
     if (!row) {
       setState({ status: 'error', error: 'No wallet found' });
       return;
