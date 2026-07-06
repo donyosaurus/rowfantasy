@@ -177,7 +177,8 @@ const Profile = () => {
 
   const canWithdraw = () => {
     if (!profileData) return false;
-    return profileData.profile.isActive && !profileData.profile.selfExclusionUntil && profileData.wallet.availableBalance >= 5;
+    const activeSelfExclusion = profileData.profile.selfExclusionUntil && new Date(profileData.profile.selfExclusionUntil) > new Date();
+    return profileData.profile.isActive && !activeSelfExclusion && profileData.wallet.availableBalance >= 5;
   };
 
   const canChangeUsername = () => {
@@ -395,7 +396,8 @@ const Profile = () => {
                     };
                     const txDisplay = getTxDisplay(tx.type);
                     const TxIcon = txDisplay.icon;
-                    const isPositive = tx.amount > 0;
+                    const DEBIT_TYPES = new Set(['withdrawal','entry_fee','entry_fee_hold','platform_fee','provider_fee','tax']);
+                    const isPositive = !DEBIT_TYPES.has(tx.type);
 
                     return (
                       <Card key={tx.id} className={`rounded-xl overflow-hidden card-hover border-l-4 ${getTxAccentColor(tx.type)}`}>
