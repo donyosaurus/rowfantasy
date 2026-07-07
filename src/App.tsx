@@ -11,7 +11,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Lobby from "./pages/Lobby";
 import RegattaDetail from "./pages/RegattaDetail";
-import ContestDetail from "./pages/ContestDetail";
+
 import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
 import MyEntries from "./pages/MyEntries";
@@ -40,8 +40,6 @@ const App = () => (
             <Route path="/lobby" element={<Lobby />} />
             <Route path="/contests" element={<Lobby />} />
             <Route path="/regatta/:id" element={<RegattaDetail />} />
-            <Route path="/contest/:id" element={<ContestDetail />} />
-            <Route path="/contest/:id/:tierId" element={<ContestDetail />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/my-entries" element={<MyEntries />} />
             <Route path="/admin" element={<Admin />} />
