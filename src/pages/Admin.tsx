@@ -960,6 +960,9 @@ const Admin = () => {
                 </CardContent>
               </Card>
             </TabsContent>
+            <TabsContent value="support" className="space-y-4">
+              <AdminSupportInbox />
+            </TabsContent>
           </Tabs>
         </div>
       </main>
