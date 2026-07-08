@@ -331,6 +331,12 @@ export default function ResponsiblePlay() {
           </Card>
         )}
       </div>
+      <StepUpDialog
+        open={stepUpOpen}
+        purpose="responsible_limits"
+        onVerified={(token) => { setStepUpOpen(false); void submitDepositLimit(token); }}
+        onCancel={() => setStepUpOpen(false)}
+      />
     </LegalLayout>
   );
 }
