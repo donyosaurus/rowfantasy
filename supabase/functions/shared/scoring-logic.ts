@@ -300,7 +300,9 @@ export async function scoreContestPool(
     }
   }
 
-  // Upsert scores
+  // Upsert scores — collect any per-entry write failures so we DO NOT flip pool to
+  // scoring_completed on stale ranks. Settlement must never run on partial writes.
+  const writeErrors: string[] = [];
   for (const score of scores) {
     const { error: upsertError } = await supabase.from("contest_scores").upsert(
       {
@@ -320,6 +322,7 @@ export async function scoreContestPool(
 
     if (upsertError) {
       console.error("[scoring-logic] Upsert error for entry", score.entry_id, upsertError.message);
+      writeErrors.push(`contest_scores upsert failed for entry ${score.entry_id}: ${upsertError.message}`);
     }
 
     // Update entry
@@ -336,11 +339,21 @@ export async function scoreContestPool(
 
     if (entryUpdateError) {
       console.error("[scoring-logic] Entry update error:", score.entry_id, entryUpdateError.message);
+      writeErrors.push(`contest_entries update failed for entry ${score.entry_id}: ${entryUpdateError.message}`);
     }
   }
 
+  // Abort BEFORE flipping pool status if any per-entry write failed.
+  // Settlement must never run on stale/partial ranks.
+  if (writeErrors.length > 0) {
+    throw new Error(
+      `[scoring-logic] Aborting pool ${contestPoolId} — ${writeErrors.length} per-entry write failure(s). ` +
+      `Pool NOT marked scoring_completed. First error: ${writeErrors[0]}`,
+    );
+  }
+
   // Mark pool status
-  const poolStatus = isTieRefund ? "scoring_completed" : "scoring_completed";
+  const poolStatus = "scoring_completed";
   const { error: poolUpdateError } = await supabase
     .from("contest_pools")
     .update({
@@ -352,7 +365,9 @@ export async function scoreContestPool(
 
   if (poolUpdateError) {
     console.error("[scoring-logic] Pool status update error:", poolUpdateError.message);
+    throw new Error(`[scoring-logic] Failed to mark pool ${contestPoolId} scoring_completed: ${poolUpdateError.message}`);
   }
+
 
   // Compliance log
   await supabase.from("compliance_audit_logs").insert({

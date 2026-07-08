@@ -110,6 +110,10 @@ Deno.serve(async (req) => {
 
     if (poolsError) {
       console.error('[compliance-export] Pools query error:', poolsError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch settled pools data' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Query compliance audit logs
@@ -121,7 +125,12 @@ Deno.serve(async (req) => {
 
     if (auditError) {
       console.error('[compliance-export] Audit logs query error:', auditError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch audit logs data' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+
 
     // Aggregate ledger data
     let totalDepositsCents = 0;
@@ -173,15 +182,25 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Generate file hash for integrity verification
+    // Hash covers financials AND contest/audit sections so the signature attests to the full document.
     const reportContent = JSON.stringify({
       date: targetDate,
       deposits: totalDepositsCents,
       withdrawals: totalWithdrawalsCents,
       entryFees: totalEntryFeesCents,
       prizes: totalPrizesAwardedCents,
+      netRevenue: netPlatformRevenueCents,
       users: uniqueUsers.size,
+      transactions: (ledgerEntries || []).length,
+      contest_summary: poolsSummary,
+      audit_events: {
+        total_events: (auditLogs || []).length,
+        by_type: auditByType,
+        by_severity: auditBySeverity,
+        by_state: auditByState,
+      },
     });
+
     const encoder = new TextEncoder();
     const data = encoder.encode(reportContent);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
