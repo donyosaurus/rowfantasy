@@ -228,11 +228,24 @@ Deno.serve(withFnVersion('payments-webhook', async (req) => {
       }
     } else if (webhookEvent.eventType === 'payment.failed') {
       const sessionId = webhookEvent.providerSessionId || webhookEvent.providerTransactionId;
-      
-      await supabase
+
+      // Only flip pending sessions. A 'failed' event arriving after a 'succeeded'
+      // (out-of-order provider delivery) must NOT clobber the credited status —
+      // that would hide a real deposit from reconciliation.
+      const { error: failUpdateErr } = await supabase
         .from('payment_sessions')
-        .update({ status: 'failed' })
-        .eq('provider_session_id', sessionId);
+        .update({ status: 'failed', completed_at: new Date().toISOString() })
+        .eq('provider_session_id', sessionId)
+        .eq('status', 'pending');
+
+      if (failUpdateErr) {
+        console.error('[webhook] payment.failed update error:', failUpdateErr);
+        // Return non-200 so the provider retries — do not silently 200.
+        return new Response(
+          JSON.stringify({ error: 'update_failed' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     return new Response(
