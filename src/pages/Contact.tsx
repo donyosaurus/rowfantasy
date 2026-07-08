@@ -33,6 +33,7 @@ export default function Contact() {
   const [submitted, setSubmitted] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchUserData = async () => {
