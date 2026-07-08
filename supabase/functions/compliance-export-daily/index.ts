@@ -182,15 +182,25 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Generate file hash for integrity verification
+    // Hash covers financials AND contest/audit sections so the signature attests to the full document.
     const reportContent = JSON.stringify({
       date: targetDate,
       deposits: totalDepositsCents,
       withdrawals: totalWithdrawalsCents,
       entryFees: totalEntryFeesCents,
       prizes: totalPrizesAwardedCents,
+      netRevenue: netPlatformRevenueCents,
       users: uniqueUsers.size,
+      transactions: (ledgerEntries || []).length,
+      contest_summary: poolsSummary,
+      audit_events: {
+        total_events: (auditLogs || []).length,
+        by_type: auditByType,
+        by_severity: auditBySeverity,
+        by_state: auditByState,
+      },
     });
+
     const encoder = new TextEncoder();
     const data = encoder.encode(reportContent);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
