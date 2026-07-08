@@ -168,6 +168,49 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Detect status/credit mismatch: sessions from the window whose status is
+    // 'failed' or still 'pending' but which nonetheless have a matching
+    // completed 'deposit' transaction (wallet was credited). Surfaces cases
+    // where a stray payment.failed clobbered a succeeded row, or a session
+    // never got flipped after crediting.
+    const { data: nonSucceeded, error: nsErr } = await supabase
+      .from('payment_sessions')
+      .select('id, provider, status, amount_cents, user_id, created_at')
+      .in('status', ['failed', 'pending'])
+      .gte('created_at', yesterday.toISOString())
+      .lte('created_at', endDate.toISOString());
+
+    if (nsErr) {
+      console.error('[reconciliation] non-succeeded lookup error:', nsErr);
+    } else if (nonSucceeded && nonSucceeded.length > 0) {
+      const ids = nonSucceeded.map((s: any) => s.id);
+      const { data: creditedTxns } = await supabase
+        .from('transactions')
+        .select('reference_id, amount, status, type')
+        .eq('type', 'deposit')
+        .eq('status', 'completed')
+        .in('reference_id', ids);
+
+      const creditedByRef = new Map<string, any>(
+        (creditedTxns ?? []).map((t: any) => [t.reference_id, t])
+      );
+
+      for (const s of nonSucceeded as any[]) {
+        const txn = creditedByRef.get(s.id);
+        if (txn) {
+          discrepancies.push({
+            session_id: s.id,
+            provider: s.provider,
+            issue: 'status_credit_mismatch',
+            session_status: s.status,
+            credited_amount_cents: txn.amount,
+            session_amount_cents: s.amount_cents,
+            user_id: s.user_id,
+          });
+        }
+      }
+    }
+
     // Log all discrepancies
     if (discrepancies.length > 0) {
       console.error('[reconciliation] Found discrepancies:', discrepancies.length);
