@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Shield, Clock, Ban, ExternalLink, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
+import { StepUpDialog } from "@/components/StepUpDialog";
 
 export default function ResponsiblePlay() {
   const [content, setContent] = useState<any>(null);
