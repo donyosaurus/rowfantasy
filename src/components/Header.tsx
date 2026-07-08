@@ -49,6 +49,7 @@ export const Header = () => {
     ...(user ? [
       { to: "/profile", label: "Profile" },
       { to: "/my-entries", label: "My Entries" },
+      { to: "/my-tickets", label: "Support" },
     ] : []),
     ...(isAdmin ? [{ to: "/admin", label: "Admin" }] : []),
   ];
