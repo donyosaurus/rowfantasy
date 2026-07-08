@@ -21,6 +21,7 @@ export default function ResponsiblePlay() {
   const [rgDepositLimitCents, setRgDepositLimitCents] = useState<number | null>(null);
   const [depositLimit, setDepositLimit] = useState<string>("");
   const [selfExclusionDuration, setSelfExclusionDuration] = useState<string>("");
+  const [stepUpOpen, setStepUpOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
