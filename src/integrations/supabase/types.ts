@@ -1377,12 +1377,50 @@ export type Database = {
         }
         Relationships: []
       }
+      support_ticket_replies: {
+        Row: {
+          author_role: string
+          author_user_id: string | null
+          body: string
+          created_at: string
+          id: string
+          ticket_id: string
+        }
+        Insert: {
+          author_role: string
+          author_user_id?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          ticket_id: string
+        }
+        Update: {
+          author_role?: string
+          author_user_id?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_ticket_replies_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_tickets: {
         Row: {
+          admin_last_viewed_at: string | null
           assigned_to: string | null
           created_at: string
           email: string
           id: string
+          last_reply_at: string | null
+          last_reply_by: string | null
           message: string
           metadata: Json | null
           priority: string
@@ -1391,12 +1429,16 @@ export type Database = {
           topic: string
           updated_at: string
           user_id: string | null
+          user_last_viewed_at: string | null
         }
         Insert: {
+          admin_last_viewed_at?: string | null
           assigned_to?: string | null
           created_at?: string
           email: string
           id?: string
+          last_reply_at?: string | null
+          last_reply_by?: string | null
           message: string
           metadata?: Json | null
           priority?: string
@@ -1405,12 +1447,16 @@ export type Database = {
           topic: string
           updated_at?: string
           user_id?: string | null
+          user_last_viewed_at?: string | null
         }
         Update: {
+          admin_last_viewed_at?: string | null
           assigned_to?: string | null
           created_at?: string
           email?: string
           id?: string
+          last_reply_at?: string | null
+          last_reply_by?: string | null
           message?: string
           metadata?: Json | null
           priority?: string
@@ -1419,6 +1465,7 @@ export type Database = {
           topic?: string
           updated_at?: string
           user_id?: string | null
+          user_last_viewed_at?: string | null
         }
         Relationships: []
       }

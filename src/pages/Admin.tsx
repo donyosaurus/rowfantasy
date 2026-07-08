@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Users, DollarSign, Trophy, Shield, Download, Settings, Loader2, Plus, X, Upload, ImageIcon, Layers } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { ContestGroupsManager } from "@/components/admin/ContestGroupsManager";
+import AdminSupportInbox from "@/components/admin/AdminSupportInbox";
 import { LogoPicker } from "@/components/LogoPicker";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
@@ -788,6 +789,7 @@ const Admin = () => {
               <TabsTrigger value="contests">Contests</TabsTrigger>
               <TabsTrigger value="groups">Groups</TabsTrigger>
               <TabsTrigger value="compliance">Compliance Logs</TabsTrigger>
+              <TabsTrigger value="support">Support</TabsTrigger>
             </TabsList>
 
             {/* Users Tab */}
@@ -957,6 +959,9 @@ const Admin = () => {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+            <TabsContent value="support" className="space-y-4">
+              <AdminSupportInbox />
             </TabsContent>
           </Tabs>
         </div>

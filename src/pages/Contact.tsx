@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
@@ -32,6 +33,7 @@ export default function Contact() {
   const [submitted, setSubmitted] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -73,7 +75,12 @@ export default function Contact() {
         description: `Ticket #${data.ticket.id.slice(0, 8)} created. We'll respond within 24 hours.`
       });
 
-      // Reset form
+      if (userProfile) {
+        navigate(`/my-tickets/${data.ticket.id}`);
+        return;
+      }
+
+      // Reset form (anonymous)
       setFormData({
         topic: '',
         subject: '',

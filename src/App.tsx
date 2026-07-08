@@ -21,6 +21,7 @@ import Privacy from "./pages/Privacy";
 import ResponsiblePlay from "./pages/ResponsiblePlay";
 import HelpCenter from "./pages/HelpCenter";
 import Contact from "./pages/Contact";
+import MyTickets from "./pages/MyTickets";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -42,6 +43,8 @@ const App = () => (
             <Route path="/regatta/:id" element={<RegattaDetail />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/my-entries" element={<MyEntries />} />
+            <Route path="/my-tickets" element={<MyTickets />} />
+            <Route path="/my-tickets/:id" element={<MyTickets />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/legal" element={<Legal />} />
             <Route path="/legal/terms" element={<Terms />} />
