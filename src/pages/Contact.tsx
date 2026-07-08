@@ -75,7 +75,12 @@ export default function Contact() {
         description: `Ticket #${data.ticket.id.slice(0, 8)} created. We'll respond within 24 hours.`
       });
 
-      // Reset form
+      if (userProfile) {
+        navigate(`/my-tickets/${data.ticket.id}`);
+        return;
+      }
+
+      // Reset form (anonymous)
       setFormData({
         topic: '',
         subject: '',
