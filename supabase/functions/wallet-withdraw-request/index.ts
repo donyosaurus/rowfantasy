@@ -7,6 +7,7 @@ import { authenticateUser, checkRateLimit } from '../shared/auth-helpers.ts';
 import { performComplianceChecks } from '../shared/compliance-checks.ts';
 import { mapErrorToClient, logSecureError, ERROR_MESSAGES } from '../shared/error-handler.ts';
 import { getCorsHeaders } from '../shared/cors.ts';
+import { requireStepUp } from '../shared/step-up.ts';
 
 Deno.serve(withFnVersion('wallet-withdraw-request', async (req) => {
   const corsHeaders = getCorsHeaders(req);
