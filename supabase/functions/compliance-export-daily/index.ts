@@ -110,6 +110,10 @@ Deno.serve(async (req) => {
 
     if (poolsError) {
       console.error('[compliance-export] Pools query error:', poolsError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch settled pools data' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Query compliance audit logs
@@ -121,7 +125,12 @@ Deno.serve(async (req) => {
 
     if (auditError) {
       console.error('[compliance-export] Audit logs query error:', auditError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch audit logs data' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+
 
     // Aggregate ledger data
     let totalDepositsCents = 0;
