@@ -80,6 +80,7 @@ const Profile = () => {
   const [depositAmount, setDepositAmount] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [stepUpOpen, setStepUpOpen] = useState(false);
   
   const [txTypeFilter, setTxTypeFilter] = useState("all");
   const [txPage, setTxPage] = useState(1);
