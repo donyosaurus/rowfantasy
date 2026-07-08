@@ -53,6 +53,39 @@ export type Database = {
         }
         Relationships: []
       }
+      auth_otp_codes: {
+        Row: {
+          attempts: number
+          code_hash: string
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          purpose: string
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          code_hash: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          purpose: string
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          code_hash?: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          purpose?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       cms_pages: {
         Row: {
           body_md: string
@@ -1314,6 +1347,36 @@ export type Database = {
         }
         Relationships: []
       }
+      step_up_tokens: {
+        Row: {
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          purpose: string
+          token_hash: string
+          user_id: string
+        }
+        Insert: {
+          consumed_at?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          purpose: string
+          token_hash: string
+          user_id: string
+        }
+        Update: {
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          purpose?: string
+          token_hash?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       support_tickets: {
         Row: {
           assigned_to: string | null
@@ -1686,6 +1749,10 @@ export type Database = {
       clone_contest_pool: {
         Args: { p_original_pool_id: string }
         Returns: string
+      }
+      consume_step_up_token: {
+        Args: { _purpose: string; _token_hash: string; _user_id: string }
+        Returns: boolean
       }
       delete_email: {
         Args: { message_id: number; queue_name: string }
