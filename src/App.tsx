@@ -21,6 +21,7 @@ import Privacy from "./pages/Privacy";
 import ResponsiblePlay from "./pages/ResponsiblePlay";
 import HelpCenter from "./pages/HelpCenter";
 import Contact from "./pages/Contact";
+import MyTickets from "./pages/MyTickets";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
