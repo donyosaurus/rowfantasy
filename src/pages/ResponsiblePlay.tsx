@@ -75,32 +75,26 @@ export default function ResponsiblePlay() {
     fetchData();
   }, []);
 
-  const handleDepositLimit = async () => {
-    if (!depositLimit || isNaN(Number(depositLimit))) {
-      toast({
-        title: "Invalid Amount",
-        description: "Please enter a valid deposit limit.",
-        variant: "destructive"
-      });
-      return;
-    }
-
+  const submitDepositLimit = async (stepUpToken?: string) => {
     // P0-C4: backend expects `depositLimit` in CENTS per responsible-limits Zod schema.
     const depositLimitCents = Math.round(Number(depositLimit) * 100);
 
     const { data, error } = await supabase.functions.invoke('responsible-limits', {
       method: 'POST',
-      body: {
-        depositLimit: depositLimitCents,
-      },
+      body: { depositLimit: depositLimitCents },
+      headers: stepUpToken ? { 'x-step-up-token': stepUpToken } : undefined,
     });
 
+    // Backend signals "email OTP needed" via `code: 'step_up_required'`.
+    // supabase.functions.invoke surfaces non-2xx as `error`; the body is on error.context.
     if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update deposit limit.",
-        variant: "destructive"
-      });
+      let errBody: any = null;
+      try { errBody = await (error as any).context?.json?.(); } catch { /* noop */ }
+      if (errBody?.code === 'step_up_required') {
+        setStepUpOpen(true);
+        return;
+      }
+      toast({ title: "Error", description: errBody?.error || "Failed to update deposit limit.", variant: "destructive" });
       return;
     }
 
@@ -116,11 +110,21 @@ export default function ResponsiblePlay() {
     }
 
     setRgDepositLimitCents(depositLimitCents);
-    toast({
-      title: "Limit Updated",
-      description: `Monthly deposit limit set to $${depositLimit}`,
-    });
+    toast({ title: "Limit Updated", description: `Monthly deposit limit set to $${depositLimit}` });
   };
+
+  const handleDepositLimit = async () => {
+    if (!depositLimit || isNaN(Number(depositLimit))) {
+      toast({
+        title: "Invalid Amount",
+        description: "Please enter a valid deposit limit.",
+        variant: "destructive"
+      });
+      return;
+    }
+    await submitDepositLimit();
+  };
+
 
   const handleSelfExclusion = async () => {
     if (!selfExclusionDuration) {
