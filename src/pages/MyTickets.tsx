@@ -143,7 +143,7 @@ export default function MyTickets() {
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
       <main className="flex-1 container mx-auto px-4 py-6 max-w-6xl">
-        <Breadcrumbs items={[{ label: 'Support', href: '/support/help-center' }, { label: 'My Tickets' }]} />
+        <Breadcrumbs items={[{ label: 'Support', path: '/support/help-center' }, { label: 'My Tickets' }]} />
         <div className="flex items-center justify-between mt-4 mb-6">
           <div>
             <h1 className="text-2xl font-heading font-bold">My Support Tickets</h1>
