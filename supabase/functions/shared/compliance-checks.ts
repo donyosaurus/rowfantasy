@@ -132,7 +132,8 @@ export async function performComplianceChecks(
       return result({ allowed: false, reason: 'State not supported or regulations unavailable' });
     }
 
-    if (stateRule.status === 'prohibited' || stateRule.status === 'restricted') {
+    const ALLOWED_STATUSES = new Set(['permitted']);
+    if (!ALLOWED_STATUSES.has(stateRule.status)) {
       await logComplianceEvent(supabase, {
         userId: context.userId,
         eventType: 'state_prohibited',
