@@ -12,14 +12,17 @@ type InvokeResult = { data: any; error: { message: string } | null };
 
 export async function invokeGeoFunction(
   functionName: string,
-  options: { body: Record<string, unknown> }
+  options: { body: Record<string, unknown>; headers?: Record<string, string> }
 ): Promise<InvokeResult> {
   const GEO_PROXY_HOSTS = ['rowfantasy.com', 'www.rowfantasy.com'];
   const isProxiedHost = typeof window !== 'undefined' && GEO_PROXY_HOSTS.includes(window.location.hostname);
   const proxyBase = isProxiedHost ? 'https://rowfantasy.com/api/edge' : null;
 
   if (!proxyBase) {
-    return supabase.functions.invoke(functionName, options) as Promise<InvokeResult>;
+    return supabase.functions.invoke(functionName, {
+      body: options.body,
+      headers: options.headers,
+    }) as Promise<InvokeResult>;
   }
 
   try {
@@ -33,6 +36,7 @@ export async function invokeGeoFunction(
         Authorization: `Bearer ${accessToken}`,
         apikey,
         'Content-Type': 'application/json',
+        ...(options.headers ?? {}),
       },
       body: JSON.stringify(options.body),
     });
