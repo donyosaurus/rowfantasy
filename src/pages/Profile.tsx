@@ -167,10 +167,18 @@ const Profile = () => {
     const amount = parseFloat(withdrawAmount);
     if (!amount || amount < 5 || amount > 500) { toast.error('Withdrawal amount must be between $5 and $500'); return; }
     if (!profileData || profileData.wallet.availableBalance < amount) { toast.error('Insufficient balance'); return; }
+    // Sensitive action → require email-OTP step-up. Dialog handles code send + verify.
+    setStepUpOpen(true);
+  };
+
+  const submitWithdrawWithToken = async (stepUpToken: string) => {
+    setStepUpOpen(false);
+    const amount = parseFloat(withdrawAmount);
     setIsSubmitting(true);
     try {
       const { data, error } = await invokeGeoFunction('wallet-withdraw-request', {
-        body: { amount_cents: Math.floor(amount * 100) }
+        body: { amount_cents: Math.floor(amount * 100) },
+        headers: { 'x-step-up-token': stepUpToken },
       });
       if (error) { toast.error(error.message || 'Failed to request withdrawal'); return; }
       if (data.error) { toast.error(data.error); return; }
@@ -182,6 +190,7 @@ const Profile = () => {
     } catch { toast.error('Failed to request withdrawal'); }
     finally { setIsSubmitting(false); }
   };
+
 
   const canWithdraw = () => {
     if (!profileData) return false;
