@@ -11,6 +11,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { getCorsHeaders } from '../shared/cors.ts';
+import { requireStepUp } from '../shared/step-up.ts';
 
 const limitSchema = z.object({
   depositLimit: z.number().int().positive().optional(), // Monthly limit in cents
@@ -176,6 +177,14 @@ Deno.serve(async (req) => {
         responseExtras.depositLimit = `$${(depositLimit / 100).toFixed(2)}/month`;
         responseExtras.depositLimitEffective = 'immediate';
       } else if (isIncrease) {
+        // Loosening a deposit limit is a sensitive change → require email-OTP step-up.
+        const stepUp = await requireStepUp(adminClient, user.id, 'responsible_limits', req.headers.get('x-step-up-token'));
+        if (!stepUp.ok) {
+          return new Response(
+            JSON.stringify({ error: stepUp.error, code: 'step_up_required' }),
+            { status: stepUp.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
         // Increases go through pending + 24h cooling-off (trigger enforces the 24h floor).
         const effectiveAt = new Date(Date.now() + 24 * 60 * 60 * 1000 + 60_000).toISOString(); // +24h+1min buffer
         const { error } = await supabase

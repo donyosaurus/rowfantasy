@@ -7,6 +7,7 @@ import { authenticateUser, checkRateLimit } from '../shared/auth-helpers.ts';
 import { performComplianceChecks } from '../shared/compliance-checks.ts';
 import { mapErrorToClient, logSecureError, ERROR_MESSAGES } from '../shared/error-handler.ts';
 import { getCorsHeaders } from '../shared/cors.ts';
+import { requireStepUp } from '../shared/step-up.ts';
 
 Deno.serve(withFnVersion('wallet-withdraw-request', async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -47,6 +48,17 @@ Deno.serve(withFnVersion('wallet-withdraw-request', async (req) => {
       return new Response(
         JSON.stringify({ error: ERROR_MESSAGES.RATE_LIMIT }),
         { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // SECURITY: Email-OTP step-up required for withdrawals.
+    // Client must first call otp-request → otp-verify and pass the returned
+    // token via `x-step-up-token`. Consumed single-use.
+    const stepUp = await requireStepUp(supabaseAdmin, userId, 'withdraw', req.headers.get('x-step-up-token'));
+    if (!stepUp.ok) {
+      return new Response(
+        JSON.stringify({ error: stepUp.error, code: 'step_up_required' }),
+        { status: stepUp.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 

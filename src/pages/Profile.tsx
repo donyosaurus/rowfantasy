@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeGeoFunction } from "@/integrations/supabase/geoFunctions";
 import { toast } from "sonner";
+import { StepUpDialog } from "@/components/StepUpDialog";
 
 interface ProfileData {
   profile: {
@@ -79,6 +80,7 @@ const Profile = () => {
   const [depositAmount, setDepositAmount] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [stepUpOpen, setStepUpOpen] = useState(false);
   
   const [txTypeFilter, setTxTypeFilter] = useState("all");
   const [txPage, setTxPage] = useState(1);
@@ -165,10 +167,18 @@ const Profile = () => {
     const amount = parseFloat(withdrawAmount);
     if (!amount || amount < 5 || amount > 500) { toast.error('Withdrawal amount must be between $5 and $500'); return; }
     if (!profileData || profileData.wallet.availableBalance < amount) { toast.error('Insufficient balance'); return; }
+    // Sensitive action → require email-OTP step-up. Dialog handles code send + verify.
+    setStepUpOpen(true);
+  };
+
+  const submitWithdrawWithToken = async (stepUpToken: string) => {
+    setStepUpOpen(false);
+    const amount = parseFloat(withdrawAmount);
     setIsSubmitting(true);
     try {
       const { data, error } = await invokeGeoFunction('wallet-withdraw-request', {
-        body: { amount_cents: Math.floor(amount * 100) }
+        body: { amount_cents: Math.floor(amount * 100) },
+        headers: { 'x-step-up-token': stepUpToken },
       });
       if (error) { toast.error(error.message || 'Failed to request withdrawal'); return; }
       if (data.error) { toast.error(data.error); return; }
@@ -180,6 +190,7 @@ const Profile = () => {
     } catch { toast.error('Failed to request withdrawal'); }
     finally { setIsSubmitting(false); }
   };
+
 
   const canWithdraw = () => {
     if (!profileData) return false;
@@ -564,6 +575,13 @@ const Profile = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <StepUpDialog
+        open={stepUpOpen}
+        purpose="withdraw"
+        onVerified={submitWithdrawWithToken}
+        onCancel={() => setStepUpOpen(false)}
+      />
 
       <Footer />
     </div>
