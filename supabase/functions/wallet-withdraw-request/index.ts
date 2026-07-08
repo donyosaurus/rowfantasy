@@ -50,6 +50,17 @@ Deno.serve(withFnVersion('wallet-withdraw-request', async (req) => {
       );
     }
 
+    // SECURITY: Email-OTP step-up required for withdrawals.
+    // Client must first call otp-request → otp-verify and pass the returned
+    // token via `x-step-up-token`. Consumed single-use.
+    const stepUp = await requireStepUp(supabaseAdmin, userId, 'withdraw', req.headers.get('x-step-up-token'));
+    if (!stepUp.ok) {
+      return new Response(
+        JSON.stringify({ error: stepUp.error, code: 'step_up_required' }),
+        { status: stepUp.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Validate input
     const withdrawSchema = z.object({
       amount_cents: z.number().int().positive().max(100_000_000), // sanity ceiling only; SQL function enforces the actual $5-$500 rule
