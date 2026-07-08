@@ -576,6 +576,13 @@ const Profile = () => {
         </DialogContent>
       </Dialog>
 
+      <StepUpDialog
+        open={stepUpOpen}
+        purpose="withdraw"
+        onVerified={submitWithdrawWithToken}
+        onCancel={() => setStepUpOpen(false)}
+      />
+
       <Footer />
     </div>
   );
