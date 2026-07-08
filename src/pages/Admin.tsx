@@ -789,6 +789,7 @@ const Admin = () => {
               <TabsTrigger value="contests">Contests</TabsTrigger>
               <TabsTrigger value="groups">Groups</TabsTrigger>
               <TabsTrigger value="compliance">Compliance Logs</TabsTrigger>
+              <TabsTrigger value="support">Support</TabsTrigger>
             </TabsList>
 
             {/* Users Tab */}
