@@ -234,12 +234,20 @@ Deno.serve(async (req) => {
         .eq('user_id', user.id);
 
       if (error) {
-        // Trigger rejection → surface as 400 with the DB's message (do not hide as 500).
+        // Trigger rejection → surface as 400 with a SAFE message. Never
+        // forward raw DB messages (may leak constraint/trigger/table names).
         const msg = (error.message || '').toLowerCase();
         const code = (error as any).code;
         if (code === '23514' || msg.includes('self-exclusion') || msg.includes('cooling-off') || msg.includes('cannot be cleared')) {
+          console.error('[responsible-limits] self-exclusion update rejected:', error);
+          let safe = 'Self-exclusion update rejected';
+          if (msg.includes('cannot be cleared') || msg.includes('shorten')) {
+            safe = 'Self-exclusion cannot be cleared or shortened';
+          } else if (msg.includes('cooling-off')) {
+            safe = 'A 24-hour cooling-off period applies to this change';
+          }
           return new Response(
-            JSON.stringify({ error: error.message }),
+            JSON.stringify({ error: safe }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
@@ -268,12 +276,22 @@ Deno.serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error: any) {
-    // Trigger rejections from the deposit-limit path bubble here too — surface as 400.
+    // Trigger rejections from the deposit-limit path bubble here too — surface as 400
+    // with a SAFE, predefined message. Never forward raw DB messages.
     const msg = (error?.message || '').toLowerCase();
     const code = error?.code;
     if (code === '23514' || msg.includes('self-exclusion') || msg.includes('cooling-off') || msg.includes('cannot be cleared') || msg.includes('deposit limit')) {
+      console.error('[responsible-limits] rg update rejected:', error);
+      let safe = 'Responsible gaming update rejected';
+      if (msg.includes('cannot be cleared') || msg.includes('shorten')) {
+        safe = 'Self-exclusion cannot be cleared or shortened';
+      } else if (msg.includes('cooling-off')) {
+        safe = 'A 24-hour cooling-off period applies to this change';
+      } else if (msg.includes('deposit limit')) {
+        safe = 'Deposit limit change rejected';
+      }
       return new Response(
-        JSON.stringify({ error: error.message }),
+        JSON.stringify({ error: safe }),
         { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }

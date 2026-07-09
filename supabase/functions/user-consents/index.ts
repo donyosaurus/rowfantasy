@@ -64,8 +64,10 @@ Deno.serve(async (req) => {
 
     if (upsertErr) {
       console.error('[user-consents] upsert error', upsertErr);
-      const status = upsertErr.code === '23505' ? 409 : 500;
-      return new Response(JSON.stringify({ error: upsertErr.message }), { status, headers });
+      const isDuplicate = upsertErr.code === '23505';
+      const status = isDuplicate ? 409 : 500;
+      const clientMsg = isDuplicate ? 'Consent already recorded' : 'Failed to record consent';
+      return new Response(JSON.stringify({ error: clientMsg }), { status, headers });
     }
 
     console.log('[user-consents] success', { user_id: user.id, doc_slug, version });

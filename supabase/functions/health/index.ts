@@ -31,19 +31,11 @@ Deno.serve(async (req) => {
       if (canaryError) { dbStatus = 'degraded'; }
     } catch { dbStatus = 'error'; }
 
-    const { data: flags, error: flagsError } = await supabase.from('feature_flags').select('key, value');
-
-    if (flagsError) {
-      return new Response(
-        JSON.stringify({ ok: false, db: dbStatus, flags: null, error: 'Failed to fetch flags', timestamp: new Date().toISOString() }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const flagsObj = (flags || []).reduce((acc: any, flag: any) => { acc[flag.key] = flag.value; return acc; }, {});
-
+    // SECURITY: Do NOT return feature flags to unauthenticated callers.
+    // Flags may contain operational configuration; the RLS policy on
+    // feature_flags is authenticated-only and this endpoint has no auth.
     return new Response(
-      JSON.stringify({ ok: dbStatus === 'ok' || dbStatus === 'degraded', db: dbStatus, flags: flagsObj, timestamp: new Date().toISOString() }),
+      JSON.stringify({ ok: dbStatus === 'ok' || dbStatus === 'degraded', db: dbStatus, timestamp: new Date().toISOString() }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error: any) {
