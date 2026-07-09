@@ -12,6 +12,8 @@ interface AuthContextType {
   signUp: (email: string, password: string, fullName: string, username: string, dateOfBirth: string, stateCode?: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<{ error: any }>;
+  updatePassword: (newPassword: string) => Promise<{ error: any }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -163,8 +165,35 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const requestPasswordReset = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      // Do not surface success/failure differently — caller shows identical message
+      // regardless to prevent account enumeration.
+      if (error) console.warn('[requestPasswordReset]', error.message);
+      return { error };
+    } catch (error: any) {
+      return { error };
+    }
+  };
+
+  const updatePassword = async (newPassword: string) => {
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        toast.error(error.message);
+      }
+      return { error };
+    } catch (error: any) {
+      toast.error("An unexpected error occurred");
+      return { error };
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signOut, requestPasswordReset, updatePassword }}>
       {children}
     </AuthContext.Provider>
   );

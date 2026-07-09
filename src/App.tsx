@@ -9,6 +9,8 @@ import { ScrollToTop } from "./components/ScrollToTop";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import Lobby from "./pages/Lobby";
 import RegattaDetail from "./pages/RegattaDetail";
 
@@ -38,6 +40,8 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/lobby" element={<Lobby />} />
             <Route path="/contests" element={<Lobby />} />
             <Route path="/regatta/:id" element={<RegattaDetail />} />
