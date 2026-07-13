@@ -46,7 +46,7 @@ Deno.serve(withFnVersion('payments-webhook', async (req) => {
     const providerType = new URL(req.url).searchParams.get('provider') || 'mock';
 
     // SECURITY: Reject unknown providers (fail-closed). Never fall back to mock.
-    const KNOWN_PROVIDERS = ['mock', 'highrisk', 'ach'] as const;
+    const KNOWN_PROVIDERS = ['mock'] as const;
     if (!(KNOWN_PROVIDERS as readonly string[]).includes(providerType)) {
       console.warn('[webhook] Unknown provider rejected:', providerType, 'from', clientIp);
       return new Response(JSON.stringify({ error: 'invalid' }), {
