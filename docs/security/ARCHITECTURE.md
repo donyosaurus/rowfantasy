@@ -1,5 +1,10 @@
 # RowFantasy Security Documentation
 
+> **Status header (added 2026-07-12):** This describes the security architecture *as designed on
+> 2025-11-01*. Some controls may have drifted and some claims are unverified against current code.
+> The authoritative, current record of security state is `audits/fixes-verified.md`; consult it
+> (and the latest review in `audits/`) before relying on anything here.
+
 ## Overview
 
 This document describes the security architecture and controls implemented in the RowFantasy DFS platform. It covers authentication, authorization, data protection, payment security, and operational safeguards.

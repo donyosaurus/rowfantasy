@@ -1,5 +1,10 @@
 # Phase 5 Technical Summary: Contest Matchmaking, Scoring & Settlement
 
+> **Status header (added 2026-07-12):** Historical design doc (2025-11-01). Table/status names here
+> (e.g. `contest_instances`, status `completed`) may NOT match the current schema (see
+> `contest_pools` and the real status vocabulary in CLAUDE.md). Kept for design context only —
+> verify against current migrations before relying on any schema detail.
+
 ## Overview
 Phase 5 implements the full contest lifecycle for RowFantasy, including automated matchmaking, multi-pool management, scoring calculations, automated settlement, and real-time leaderboards. All operations comply with skill-based fantasy contest regulations.
 

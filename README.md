@@ -1,4 +1,16 @@
-# Welcome to your Lovable project
+# RowFantasy
+
+Real-money daily fantasy sports platform (rowing). Pre-launch. React + Vite frontend, Supabase
+backend (edge functions + Postgres). The entire codebase is owned by Lovable and two-way-synced
+via this GitHub repo.
+
+**Before working here, read:**
+- `CLAUDE.md` — collaboration rules, how changes are made, verification bar.
+- `OPERATOR.md` — infra, cron, geofencing, user-data lifecycle, system accounts.
+- `audits/fixes-verified.md` — the authoritative, current record of security/fix state.
+- `docs/security/` and `docs/` — reference docs (each carries a "last verified" header).
+
+---
 
 ## Project info
 

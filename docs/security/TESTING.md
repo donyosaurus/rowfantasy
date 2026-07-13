@@ -1,5 +1,9 @@
 # RowFantasy Security Testing Checklist
 
+> **Status header (added 2026-07-12):** Useful pre-launch test procedures, but written 2025-11-01 —
+> some endpoint names/paths may have drifted (verify against `supabase/functions/`). Current
+> verified state lives in `audits/fixes-verified.md`.
+
 ## Pre-Launch Security Validation
 
 This checklist must be completed and all tests must pass before enabling `real_money_enabled` flag.
