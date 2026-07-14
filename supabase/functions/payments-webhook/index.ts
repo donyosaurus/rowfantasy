@@ -21,7 +21,12 @@ Deno.serve(withFnVersion('payments-webhook', async (req) => {
     });
   }
 
-  const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown';
+  // SECURITY (P0-C9): Only trust the platform-set cf-connecting-ip header.
+  // x-forwarded-for's first hop is client-spoofable. See wallet-deposit:144.
+  // Deliberate fail-open to 'unknown' bucket: failing closed would hard-drop
+  // all provider webhooks if the header assumption ever broke, and an
+  // attacker cannot reach the 'unknown' bucket through the platform edge.
+  const clientIp = req.headers.get('cf-connecting-ip') || 'unknown';
 
   // SECURITY: Database-backed rate limit check
   const supabaseForRateLimit = createClient(
@@ -56,8 +61,6 @@ Deno.serve(withFnVersion('payments-webhook', async (req) => {
     }
 
     // SECURITY: Reject mock provider in production unless explicitly allowed.
-    // MockProviderAdapter.verifyWebhook always returns true, so it must never
-    // be reachable in prod environments.
     if (providerType === 'mock' && Deno.env.get('ALLOW_MOCK_WEBHOOKS') !== 'true') {
       console.warn('[webhook] Mock provider rejected (ALLOW_MOCK_WEBHOOKS not set) from', clientIp);
       return new Response(JSON.stringify({ error: 'invalid' }), {
@@ -66,66 +69,86 @@ Deno.serve(withFnVersion('payments-webhook', async (req) => {
       });
     }
 
-
-    // SECURITY: Validate timestamp (max 5 minutes old)
+    // SECURITY: Validate timestamp (max 5 minutes old) — MUST stay before signature check.
     if (!isTimestampValid(timestamp, 300)) {
       console.warn('[webhook] Invalid timestamp from', clientIp);
-      return new Response(JSON.stringify({ error: 'invalid' }), { 
-        status: 401, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      return new Response(JSON.stringify({ error: 'invalid' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // SECURITY: Check for replay attack
+    // SECURITY: Verify signature BEFORE any webhook_dedup read/write.
+    // Failed deliveries must not leave dedup rows that would 409-block legitimate retries.
+    const rawPayload = await req.text();
+    const provider = getPaymentProvider(providerType as any);
+    const isValid = await provider.verifyWebhook({
+      signature,
+      payload: rawPayload,
+      timestamp,
+    });
+
+    if (!isValid) {
+      console.warn('[webhook] Invalid signature from', clientIp);
+      return new Response(JSON.stringify({ error: 'invalid' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Replay check AFTER signature verification.
     const { data: existing } = await supabase
       .from('webhook_dedup')
       .select('id')
       .eq('id', webhookId)
       .maybeSingle();
-      
+
     if (existing) {
       console.warn('[webhook] Replay attack detected:', webhookId, 'from', clientIp);
-      return new Response(JSON.stringify({ error: 'invalid' }), { 
-        status: 409, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
-    }
-
-    // Store webhook for deduplication
-    await supabase.from('webhook_dedup').insert({ 
-      id: webhookId, 
-      provider: providerType, 
-      event_type: 'pending', 
-      ip_address: clientIp 
-    });
-
-    const rawPayload = await req.text();
-    const provider = getPaymentProvider(providerType as any);
-    
-    // SECURITY: Verify signature with constant-time comparison
-    const isValid = await provider.verifyWebhook({ 
-      signature, 
-      payload: rawPayload, 
-      timestamp 
-    });
-    
-    if (!isValid) {
-      console.warn('[webhook] Invalid signature from', clientIp);
-      return new Response(JSON.stringify({ error: 'invalid' }), { 
-        status: 401, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      return new Response(JSON.stringify({ error: 'invalid' }), {
+        status: 409,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     const webhookEvent = await provider.handleWebhook(rawPayload);
-    
-    // Update event type
-    await supabase
-      .from('webhook_dedup')
-      .update({ event_type: webhookEvent.eventType })
-      .eq('id', webhookId);
 
     console.log('[webhook] Processing event:', webhookEvent.eventType);
+
+    // Insert the dedup row only on 200 exit paths (immediately before returning).
+    // webhook_dedup.ip_address is Postgres inet — 'unknown' is not a valid inet,
+    // so pass NULL. Treat unique-violation (23505) as benign concurrent duplicate.
+    // Any other insert error is logged but does NOT flip a credited deposit into
+    // a retry loop — the RPC's session-status idempotency makes a missing dedup
+    // row safe.
+    const recordDedup = async (finalEventType: string) => {
+      const { error: dedupErr } = await supabase.from('webhook_dedup').insert({
+        id: webhookId,
+        provider: providerType,
+        event_type: finalEventType,
+        ip_address: clientIp === 'unknown' ? null : clientIp,
+      });
+      if (dedupErr) {
+        const code = (dedupErr as any).code;
+        if (code === '23505') {
+          console.warn('[webhook] Concurrent duplicate delivery for', webhookId);
+        } else {
+          console.error('[webhook] webhook_dedup insert failed (non-fatal):', {
+            code,
+            message: (dedupErr as any).message,
+            webhook_id: webhookId,
+          });
+        }
+      }
+    };
+
+    const ok200 = async (finalEventType: string) => {
+      await recordDedup(finalEventType);
+      return new Response(
+        JSON.stringify({ success: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    };
 
     // Handle different event types
     if (webhookEvent.eventType === 'payment.succeeded') {
@@ -149,9 +172,6 @@ Deno.serve(withFnVersion('payments-webhook', async (req) => {
         'invalid_amount',
       ]);
 
-      // Helper: insert a deposit_webhook_rejected compliance row. For critical
-      // reasons, an insert failure must NOT be silently 200'd — re-throw to 500
-      // so the provider retries.
       const logRejection = async (
         reason: string,
         extraMetadata: Record<string, unknown> = {},
@@ -183,55 +203,49 @@ Deno.serve(withFnVersion('payments-webhook', async (req) => {
       };
 
       if (!session) {
-        // Audit missing session so a real signed success for an unknown session
-        // is not silently dropped. Still return 200 (idempotent no-op).
+        // Unknown session — audit but treat as idempotent no-op (200).
         await logRejection('session_not_found', { provider_session_id: sessionId });
-      } else {
-        // Edge-side amount validation — fail-closed before invoking the RPC.
-        if (
-          !Number.isSafeInteger(webhookEvent.amountCents) ||
-          (webhookEvent.amountCents as number) <= 0
-        ) {
-          console.warn('[webhook] Invalid event amount rejected:', webhookEvent.amountCents);
-          await logRejection('invalid_amount', { session_id: session.id });
-          return new Response(
-            JSON.stringify({ success: true }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-          );
-        }
-
-        const { data: rpcData, error: rpcError } = await supabase.rpc(
-          'process_webhook_deposit_atomic',
-          {
-            _session_id: session.id,
-            _webhook_id: webhookId,
-            _provider: providerType,
-            _event_amount_cents: webhookEvent.amountCents,
-          },
-        );
-
-        if (rpcError) {
-          console.error('[webhook] process_webhook_deposit_atomic error:', rpcError);
-          throw rpcError;
-        }
-
-        const result = Array.isArray(rpcData) ? rpcData[0] : rpcData;
-        console.log('[webhook] deposit credit result:', result);
-
-        // Log non-trivial failure reasons. already_processed is benign idempotent replay.
-        if (result && result.credited === false && result.reason !== 'already_processed') {
-          await logRejection(result.reason, { session_id: session.id });
-        }
-        // Idempotent no-op for already_processed / session_not_found / wallet_not_found:
-
-        // still return 200 so the provider does not retry.
+        return await ok200(webhookEvent.eventType);
       }
+
+      // Edge-side amount validation — fail-closed before invoking the RPC.
+      if (
+        !Number.isSafeInteger(webhookEvent.amountCents) ||
+        (webhookEvent.amountCents as number) <= 0
+      ) {
+        console.warn('[webhook] Invalid event amount rejected:', webhookEvent.amountCents);
+        await logRejection('invalid_amount', { session_id: session.id });
+        return await ok200(webhookEvent.eventType);
+      }
+
+      const { data: rpcData, error: rpcError } = await supabase.rpc(
+        'process_webhook_deposit_atomic',
+        {
+          _session_id: session.id,
+          _webhook_id: webhookId,
+          _provider: providerType,
+          _event_amount_cents: webhookEvent.amountCents,
+        },
+      );
+
+      if (rpcError) {
+        console.error('[webhook] process_webhook_deposit_atomic error:', rpcError);
+        throw rpcError;
+      }
+
+      const result = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+      console.log('[webhook] deposit credit result:', result);
+
+      if (result && result.credited === false && result.reason !== 'already_processed') {
+        await logRejection(result.reason, { session_id: session.id });
+      }
+
+      return await ok200(webhookEvent.eventType);
     } else if (webhookEvent.eventType === 'payment.failed') {
       const sessionId = webhookEvent.providerSessionId || webhookEvent.providerTransactionId;
 
-      // Only flip pending sessions. A 'failed' event arriving after a 'succeeded'
-      // (out-of-order provider delivery) must NOT clobber the credited status —
-      // that would hide a real deposit from reconciliation.
+      // Only flip pending sessions. A 'failed' after a 'succeeded' must NOT
+      // clobber the credited status.
       const { error: failUpdateErr } = await supabase
         .from('payment_sessions')
         .update({ status: 'failed', completed_at: new Date().toISOString() })
@@ -240,24 +254,24 @@ Deno.serve(withFnVersion('payments-webhook', async (req) => {
 
       if (failUpdateErr) {
         console.error('[webhook] payment.failed update error:', failUpdateErr);
-        // Return non-200 so the provider retries — do not silently 200.
+        // Non-200 so provider retries — do not write dedup row.
         return new Response(
-          JSON.stringify({ error: 'update_failed' }),
+          JSON.stringify({ error: 'invalid' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+
+      return await ok200(webhookEvent.eventType);
     }
 
-    return new Response(
-      JSON.stringify({ success: true }), 
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-    
+    // Unhandled event type — record dedup so provider does not retry forever.
+    return await ok200(webhookEvent.eventType);
+
   } catch (error: any) {
     console.error('[webhook] Error:', error);
     // Always return generic error for security
     return new Response(
-      JSON.stringify({ error: 'invalid' }), 
+      JSON.stringify({ error: 'invalid' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
