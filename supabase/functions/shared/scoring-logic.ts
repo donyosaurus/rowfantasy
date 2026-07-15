@@ -359,20 +359,27 @@ export async function scoreContestPool(
     );
   }
 
-  // Mark pool status
+  // Mark pool status — precondition guards against racing settle/void clobbering.
   const poolStatus = "scoring_completed";
-  const { error: poolUpdateError } = await supabase
+  const { data: updatedPools, error: poolUpdateError } = await supabase
     .from("contest_pools")
     .update({
       status: poolStatus,
       winner_ids: isTieRefund ? [] : winnerIds,
-      // Store tie_refund flag in pool metadata if needed by settlement
     })
-    .eq("id", contestPoolId);
+    .eq("id", contestPoolId)
+    .not("status", "in", "(settled,voided,cancelled)")
+    .select("id");
 
   if (poolUpdateError) {
     console.error("[scoring-logic] Pool status update error:", poolUpdateError.message);
     throw new Error(`[scoring-logic] Failed to mark pool ${contestPoolId} scoring_completed: ${poolUpdateError.message}`);
+  }
+
+  if (!updatedPools || updatedPools.length === 0) {
+    throw new Error(
+      `[scoring-logic] Pool ${contestPoolId} reached a terminal status mid-scoring (settled/voided/cancelled) — refusing to clobber`,
+    );
   }
 
 
