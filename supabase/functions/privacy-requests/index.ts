@@ -70,14 +70,17 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Log to compliance audit
-      await supabase.from('compliance_audit_logs').insert({
+      // Log to compliance audit (service-role — RLS restricts writes to admins).
+      const { error: auditErr } = await supabaseAdmin.from('compliance_audit_logs').insert({
         user_id: user.id,
         event_type: 'privacy_request_submitted',
         description: `User submitted ${body.type} request`,
         severity: 'info',
         metadata: { request_id: request.id, type: body.type }
       });
+      if (auditErr) {
+        console.error('[privacy-requests] compliance_audit_logs insert FAILED', auditErr);
+      }
 
       return new Response(
         JSON.stringify({ request }),
