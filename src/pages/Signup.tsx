@@ -209,7 +209,7 @@ const Signup = () => {
                   maxLength={20}
                 />
                 <p className="text-xs text-muted-foreground">
-                  3-20 characters, letters, numbers, and underscores only
+                  3-20 characters, lowercase letters, numbers, and underscores only
                 </p>
               </div>
               
