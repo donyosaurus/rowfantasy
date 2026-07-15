@@ -18,19 +18,21 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers });
     }
 
-    // Parse and validate body (doc_slug, version as string)
+    // Parse and validate body (doc_slug, version as integer). consented_at is server-set.
+    const ALLOWED_SLUGS = new Set(['terms', 'privacy', 'legal', 'responsible-play']);
     const body = await req.json().catch(() => ({} as any));
     const doc_slug = typeof body.doc_slug === 'string' ? body.doc_slug.trim() : '';
     const rawVersion = body.version;
     const version = typeof rawVersion === 'number'
       ? rawVersion
       : (typeof rawVersion === 'string' && rawVersion.trim() !== '' ? Number(rawVersion) : NaN);
-    const consented_at = typeof body.consented_at === 'string' ? body.consented_at : new Date().toISOString();
+    // IGNORE any client-supplied consented_at — evidence integrity requires server time.
+    const consented_at = new Date().toISOString();
 
     console.log('[user-consents] request', { method: req.method, doc_slug, version });
 
-    if (!doc_slug || !Number.isInteger(version) || version < 0) {
-      console.warn('[user-consents] 400 invalid body', { doc_slug_present: !!doc_slug, version });
+    if (!doc_slug || !ALLOWED_SLUGS.has(doc_slug) || !Number.isInteger(version) || version < 0) {
+      console.warn('[user-consents] 400 invalid body', { doc_slug_present: !!doc_slug, doc_slug, version });
       return new Response(JSON.stringify({ error: "Bad request" }), { status: 400, headers });
     }
 
@@ -47,7 +49,8 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers });
     }
 
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+    // P0-C9: cf-connecting-ip is Cloudflare's authoritative client IP; do not use x-forwarded-for.
+    const ip = req.headers.get("cf-connecting-ip");
     const user_agent = req.headers.get("user-agent") ?? null;
 
     // Idempotent upsert: ignore duplicates
