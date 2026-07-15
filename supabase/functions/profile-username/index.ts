@@ -130,8 +130,8 @@ Deno.serve(async (req) => {
       throw updateError;
     }
 
-    // Log to compliance audit
-    await supabase
+    // Log to compliance audit (service-role — RLS restricts writes to admins).
+    const { error: auditErr } = await supabaseAdmin
       .from('compliance_audit_logs')
       .insert({
         user_id: user.id,
@@ -140,6 +140,9 @@ Deno.serve(async (req) => {
         severity: 'info',
         metadata: { old_username: oldUsername, new_username: username },
       });
+    if (auditErr) {
+      console.error('[profile-username] compliance_audit_logs insert FAILED', auditErr);
+    }
 
     return new Response(
       JSON.stringify({ 
