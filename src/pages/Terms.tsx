@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { supabase } from "@/integrations/supabase/client";
 import { AlertCircle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 export default function Terms() {
   const [content, setContent] = useState<any>(null);
