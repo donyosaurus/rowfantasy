@@ -103,6 +103,13 @@ export async function scoreContestPool(
 ): Promise<{ entriesScored: number; winnerId?: string; isTieRefund?: boolean }> {
   console.log("[scoring-logic] Scoring pool:", contestPoolId);
 
+  // Hard guard: refuse to score without race results (prevents zero-scoring locked pools)
+  if (!results || results.length === 0) {
+    throw new Error(
+      `[scoring-logic] Refusing to score pool ${contestPoolId}: empty results array`,
+    );
+  }
+
   // Fetch pool + template
   const { data: pool, error: poolError } = await supabase
     .from("contest_pools")
@@ -119,7 +126,7 @@ export async function scoreContestPool(
     .from("contest_entries")
     .select("*")
     .eq("pool_id", contestPoolId)
-    .in("status", ["active", "confirmed", "scored"]);
+    .in("status", ["active", "scored"]);
 
   if (entriesError) {
     throw new Error(`Failed to fetch entries: ${entriesError.message}`);
@@ -352,20 +359,27 @@ export async function scoreContestPool(
     );
   }
 
-  // Mark pool status
+  // Mark pool status — precondition guards against racing settle/void clobbering.
   const poolStatus = "scoring_completed";
-  const { error: poolUpdateError } = await supabase
+  const { data: updatedPools, error: poolUpdateError } = await supabase
     .from("contest_pools")
     .update({
       status: poolStatus,
       winner_ids: isTieRefund ? [] : winnerIds,
-      // Store tie_refund flag in pool metadata if needed by settlement
     })
-    .eq("id", contestPoolId);
+    .eq("id", contestPoolId)
+    .not("status", "in", "(settled,voided,cancelled)")
+    .select("id");
 
   if (poolUpdateError) {
     console.error("[scoring-logic] Pool status update error:", poolUpdateError.message);
     throw new Error(`[scoring-logic] Failed to mark pool ${contestPoolId} scoring_completed: ${poolUpdateError.message}`);
+  }
+
+  if (!updatedPools || updatedPools.length === 0) {
+    throw new Error(
+      `[scoring-logic] Pool ${contestPoolId} reached a terminal status mid-scoring (settled/voided/cancelled) — refusing to clobber`,
+    );
   }
 
 
