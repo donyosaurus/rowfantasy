@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { supabase } from "@/integrations/supabase/client";
 import { AlertCircle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 export default function Terms() {
   const [content, setContent] = useState<any>(null);
@@ -16,6 +18,7 @@ export default function Terms() {
   const [userState, setUserState] = useState<string | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [userConsent, setUserConsent] = useState<any>(null);
+  const { signOut } = useAuth();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -66,14 +69,10 @@ export default function Terms() {
         }
 
 
-        // Log view
-        supabase.from('compliance_audit_logs').insert({
-          user_id: user.id,
-          event_type: 'legal_view',
-          description: 'Viewed terms of use',
-          severity: 'info',
-          metadata: { doc_slug: 'terms' }
-        });
+        // Log view (fire-and-forget; page render must not block)
+        supabase.functions.invoke('compliance-log-view', {
+          body: { doc_slug: 'terms' },
+        }).catch(console.error);
       }
 
       setLoading(false);
@@ -83,8 +82,14 @@ export default function Terms() {
   }, []);
 
   const handleConsent = async (accepted: boolean) => {
-    if (!accepted || !content?.page) {
-      // User declined - handle appropriately (log out, show warning, etc.)
+    if (!accepted) {
+      // Operator policy: continued use requires accepting the updated Terms.
+      setShowConsentModal(false);
+      toast.error("You must accept the updated Terms of Use to continue using RowFantasy. You have been signed out.");
+      await signOut();
+      return;
+    }
+    if (!content?.page) {
       setShowConsentModal(false);
       return;
     }

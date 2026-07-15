@@ -103,8 +103,8 @@ const Signup = () => {
       return;
     }
     
-    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-      toast.error("Username can only contain letters, numbers, and underscores");
+    if (!/^[a-z0-9_]+$/.test(username)) {
+      toast.error("Username can only contain lowercase letters, numbers, and underscores");
       return;
     }
     
@@ -209,7 +209,7 @@ const Signup = () => {
                   maxLength={20}
                 />
                 <p className="text-xs text-muted-foreground">
-                  3-20 characters, letters, numbers, and underscores only
+                  3-20 characters, lowercase letters, numbers, and underscores only
                 </p>
               </div>
               

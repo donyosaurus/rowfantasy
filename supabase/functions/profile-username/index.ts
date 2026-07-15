@@ -23,6 +23,8 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
       global: { headers: { Authorization: authHeader } },
     });
+    // Service-role for admin-only writes (compliance_audit_logs).
+    const supabaseAdmin = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
@@ -128,8 +130,8 @@ Deno.serve(async (req) => {
       throw updateError;
     }
 
-    // Log to compliance audit
-    await supabase
+    // Log to compliance audit (service-role — RLS restricts writes to admins).
+    const { error: auditErr } = await supabaseAdmin
       .from('compliance_audit_logs')
       .insert({
         user_id: user.id,
@@ -138,6 +140,9 @@ Deno.serve(async (req) => {
         severity: 'info',
         metadata: { old_username: oldUsername, new_username: username },
       });
+    if (auditErr) {
+      console.error('[profile-username] compliance_audit_logs insert FAILED', auditErr);
+    }
 
     return new Response(
       JSON.stringify({ 

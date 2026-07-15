@@ -71,15 +71,12 @@ export default function Legal() {
     fetchUserState();
     fetchVersions();
 
-    // Log page view
+    // Log page view (fire-and-forget)
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
-        supabase.from('compliance_audit_logs').insert({
-          user_id: user.id,
-          event_type: 'legal_view',
-          description: 'Viewed legal hub',
-          severity: 'info'
-        });
+        supabase.functions.invoke('compliance-log-view', {
+          body: { doc_slug: 'legal' },
+        }).catch(console.error);
       }
     });
   }, []);

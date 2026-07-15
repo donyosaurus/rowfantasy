@@ -1,3 +1,5 @@
+// DB twin: public.check_username_valid (migration 20260716_username_enforcement).
+// Keep this list in sync with the SQL enforcement function.
 const BLOCKED_WORDS = [
   'fuck', 'shit', 'ass', 'damn', 'bitch', 'bastard', 'dick', 'cock', 'pussy',
   'cunt', 'whore', 'slut', 'fag', 'faggot', 'nigger', 'nigga', 'retard',

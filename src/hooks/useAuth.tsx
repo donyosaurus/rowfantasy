@@ -51,8 +51,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signUp = async (email: string, password: string, fullName: string, username: string, dateOfBirth: string, stateCode?: string) => {
     try {
+      // Normalize once — the DB stores lowercase and the server trigger enforces it.
+      const normalizedUsername = username.trim().toLowerCase();
+
       // Check for inappropriate username
-      const usernameError = validateUsernameContent(username);
+      const usernameError = validateUsernameContent(normalizedUsername);
       if (usernameError) {
         toast.error(usernameError);
         return { error: { message: usernameError } };
@@ -62,7 +65,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const { data: existingUser, error: checkError } = await supabase
         .from('profiles')
         .select('username')
-        .eq('username', username)
+        .eq('username', normalizedUsername)
         .maybeSingle();
 
       if (checkError) {
@@ -93,7 +96,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         options: {
           data: {
             full_name: fullName,
-            username: username,
+            username: normalizedUsername,
             date_of_birth: dateOfBirth,
             state_code: stateCode,
           },
