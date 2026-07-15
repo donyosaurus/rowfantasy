@@ -177,7 +177,7 @@ const Profile = () => {
     setIsSubmitting(true);
     try {
       const { data, error } = await invokeGeoFunction('wallet-withdraw-request', {
-        body: { amount_cents: Math.floor(amount * 100) },
+        body: { amount_cents: Math.round(amount * 100) },
         headers: { 'x-step-up-token': stepUpToken },
       });
       if (error) { toast.error(error.message || 'Failed to request withdrawal'); return; }
