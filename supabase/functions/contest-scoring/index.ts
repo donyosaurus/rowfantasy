@@ -57,7 +57,7 @@ async function scoreSinglePool(
       return { success: true, poolId: contestPoolId, skipped: true, skipReason: 'Already scored' };
     }
 
-    const validScoringStatuses = ['results_entered', 'locked', 'settling'];
+    const validScoringStatuses = ['results_entered'];
     if (!validScoringStatuses.includes(pool.status) && !forceRescore) {
       return { success: true, poolId: contestPoolId, skipped: true, skipReason: `Status '${pool.status}' not ready` };
     }
