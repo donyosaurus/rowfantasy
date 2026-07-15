@@ -69,14 +69,10 @@ export default function Terms() {
         }
 
 
-        // Log view
-        supabase.from('compliance_audit_logs').insert({
-          user_id: user.id,
-          event_type: 'legal_view',
-          description: 'Viewed terms of use',
-          severity: 'info',
-          metadata: { doc_slug: 'terms' }
-        });
+        // Log view (fire-and-forget; page render must not block)
+        supabase.functions.invoke('compliance-log-view', {
+          body: { doc_slug: 'terms' },
+        }).catch(console.error);
       }
 
       setLoading(false);
