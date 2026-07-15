@@ -82,8 +82,14 @@ export default function Terms() {
   }, []);
 
   const handleConsent = async (accepted: boolean) => {
-    if (!accepted || !content?.page) {
-      // User declined - handle appropriately (log out, show warning, etc.)
+    if (!accepted) {
+      // Operator policy: continued use requires accepting the updated Terms.
+      setShowConsentModal(false);
+      toast.error("You must accept the updated Terms of Use to continue using RowFantasy. You have been signed out.");
+      await signOut();
+      return;
+    }
+    if (!content?.page) {
       setShowConsentModal(false);
       return;
     }
