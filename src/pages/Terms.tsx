@@ -18,6 +18,7 @@ export default function Terms() {
   const [userState, setUserState] = useState<string | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [userConsent, setUserConsent] = useState<any>(null);
+  const { signOut } = useAuth();
 
   useEffect(() => {
     const fetchData = async () => {
