@@ -180,7 +180,7 @@ const Admin = () => {
       }
       const txWithUser = (txData || []).map((t: any) => ({ ...t, profiles: { username: usernameById.get(t.user_id) || null } }));
       setTransactions(txWithUser);
-      const { data: poolsData } = await supabase.from("contest_pools").select("*, contest_templates!inner(regatta_name)").order("created_at", { ascending: false }).limit(50);
+      const { data: poolsData } = await supabase.from("contest_pools").select("id, contest_template_id, created_at, current_entries, entry_fee_cents, entry_tiers, lock_time, max_entries, payout_structure, prize_pool_cents, prize_structure, settled_at, status, tier_id, tier_name, allow_overflow, void_unfilled_on_settle, contest_templates!inner(regatta_name)").order("created_at", { ascending: false }).limit(50);
       setContests(poolsData || []);
       const { data: logsData } = await supabase.from("compliance_audit_logs").select("*").order("created_at", { ascending: false }).limit(100);
       setComplianceLogs(logsData || []);
