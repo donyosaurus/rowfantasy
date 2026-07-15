@@ -103,8 +103,8 @@ const Signup = () => {
       return;
     }
     
-    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-      toast.error("Username can only contain letters, numbers, and underscores");
+    if (!/^[a-z0-9_]+$/.test(username)) {
+      toast.error("Username can only contain lowercase letters, numbers, and underscores");
       return;
     }
     
