@@ -34,14 +34,10 @@ export default function Privacy() {
           setRequests(requestsData.requests);
         }
 
-        // Log view
-        supabase.from('compliance_audit_logs').insert({
-          user_id: user.id,
-          event_type: 'legal_view',
-          description: 'Viewed privacy policy',
-          severity: 'info',
-          metadata: { doc_slug: 'privacy' }
-        });
+        // Log view (fire-and-forget)
+        supabase.functions.invoke('compliance-log-view', {
+          body: { doc_slug: 'privacy' },
+        }).catch(console.error);
       }
 
       setLoading(false);
