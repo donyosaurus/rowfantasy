@@ -103,6 +103,13 @@ export async function scoreContestPool(
 ): Promise<{ entriesScored: number; winnerId?: string; isTieRefund?: boolean }> {
   console.log("[scoring-logic] Scoring pool:", contestPoolId);
 
+  // Hard guard: refuse to score without race results (prevents zero-scoring locked pools)
+  if (!results || results.length === 0) {
+    throw new Error(
+      `[scoring-logic] Refusing to score pool ${contestPoolId}: empty results array`,
+    );
+  }
+
   // Fetch pool + template
   const { data: pool, error: poolError } = await supabase
     .from("contest_pools")
@@ -119,7 +126,7 @@ export async function scoreContestPool(
     .from("contest_entries")
     .select("*")
     .eq("pool_id", contestPoolId)
-    .in("status", ["active", "confirmed", "scored"]);
+    .in("status", ["active", "scored"]);
 
   if (entriesError) {
     throw new Error(`Failed to fetch entries: ${entriesError.message}`);
