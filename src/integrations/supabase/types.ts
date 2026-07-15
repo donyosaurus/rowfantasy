@@ -1791,6 +1791,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      check_username_valid: { Args: { _username: string }; Returns: undefined }
       cleanup_old_rate_limits: { Args: never; Returns: undefined }
       cleanup_old_webhooks: { Args: never; Returns: undefined }
       clone_contest_pool: {
