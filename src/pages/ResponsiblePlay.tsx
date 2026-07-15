@@ -59,14 +59,10 @@ export default function ResponsiblePlay() {
         setRgDepositLimitCents(rgData?.deposit_limit_monthly_cents ?? null);
 
 
-        // Log view
-        supabase.from('compliance_audit_logs').insert({
-          user_id: user.id,
-          event_type: 'legal_view',
-          description: 'Viewed responsible play',
-          severity: 'info',
-          metadata: { doc_slug: 'responsible-play' }
-        });
+        // Log view (fire-and-forget)
+        supabase.functions.invoke('compliance-log-view', {
+          body: { doc_slug: 'responsible-play' },
+        }).catch(console.error);
       }
 
       setLoading(false);
