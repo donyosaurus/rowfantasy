@@ -17,7 +17,7 @@ scan() {
   local hits
   hits=$(git grep -nIE "$pattern" -- \
     ':!scripts/check-secrets.sh' \
-    ':!package-lock.json' ':!bun.lockb' \
+    ':!package-lock.json' ':!bun.lockb' ':!bun.lock' \
     2>/dev/null || true)
   if [[ -n "$hits" ]]; then
     echo "❌ $label:"
@@ -27,14 +27,23 @@ scan() {
 }
 
 # Supabase service_role JWT: legacy JWTs carry the role claim in the payload.
-# eyJ...service_role... appears when the base64 payload is present in cleartext.
-scan "Supabase JWT with service_role claim" 'eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]*c2VydmljZV9yb2xl[A-Za-z0-9_-]*\.'
+# "service_role" can start at any byte offset within the payload, so its base64
+# encoding takes one of three phase-shifted forms depending on offset mod 3.
+# Matching only the phase-0 form (c2VydmljZV9yb2xl) misses real keys whose ref
+# length lands the claim at a non-zero phase (this project's key is phase 1).
+# All three invariant fragments are matched below. The anon/publishable key
+# (role=anon) does NOT contain any of these fragments, so .env stays clean.
+scan "Supabase JWT with service_role claim" 'eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]*(c2VydmljZV9yb2xl|cnZpY2Vfcm9s|ZXJ2aWNlX3Jv)[A-Za-z0-9_-]*\.'
 # Supabase new-format secret keys.
 scan "Supabase secret key (sb_secret_)" 'sb_secret_[A-Za-z0-9_-]{10,}'
 # Common provider secrets.
 scan "Stripe-style secret key" 'sk_(live|test)_[A-Za-z0-9]{10,}'
 scan "AWS access key id" 'AKIA[0-9A-Z]{16}'
-scan "Private key block" '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----'
+scan "Private key block" '-----BEGIN (RSA |EC |OPENSSH |PGP )?PRIVATE KEY-----'
+scan "GitHub token" 'gh[posru]_[A-Za-z0-9]{20,}'
+scan "Google API key" 'AIza[0-9A-Za-z_-]{30,}'
+scan "Slack token" 'xox[baprs]-[A-Za-z0-9-]{10,}'
+scan "OpenAI/project secret key" 'sk-(proj-)?[A-Za-z0-9_-]{20,}'
 # Explicit assignment of a service role key to a variable in tracked config.
 scan "SERVICE_ROLE key assignment with literal value" 'SERVICE_ROLE(_KEY)?\s*[:=]\s*["'"'"']?eyJ'
 

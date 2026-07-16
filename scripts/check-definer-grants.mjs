@@ -50,6 +50,12 @@ const GUARDED_FUNCTIONS = [
   'soft_delete_user_account',
   'increment_pool_entries',
   'clone_contest_pool',
+  'calculate_pool_scores',
+  'enqueue_email',
+  'read_email_batch',
+  'delete_email',
+  'move_to_dlq',
+  'auto_lock_expired_contests',
 ];
 
 const FORBIDDEN_ROLES = ['public', 'anon', 'authenticated'];
@@ -67,30 +73,68 @@ const parseRoles = (roleList) =>
 const buildGrantState = (files) => {
   // fn name -> Set of roles with an outstanding explicit EXECUTE grant
   const state = new Map(GUARDED_FUNCTIONS.map((fn) => [fn, new Set()]));
+  // fn name -> whether the function currently exists (per migration replay)
+  const exists = new Map(GUARDED_FUNCTIONS.map((fn) => [fn, false]));
   const history = [];
 
+  // Statement-level regexes; all matched against the same source and sorted by
+  // offset so CREATE/DROP/GRANT/REVOKE replay in true file order. A migration
+  // that does DROP + CREATE (without a following REVOKE FROM PUBLIC) leaves
+  // the function with the Postgres-default EXECUTE grant to PUBLIC — modeled
+  // here by adding 'public' to the role set on fresh CREATE.
   const grantRe =
     /\bGRANT\s+(?:EXECUTE|ALL)(?:\s+PRIVILEGES)?\s+ON\s+FUNCTION\s+(?:public\.)?([a-z_][a-z0-9_]*)\s*(?:\([^)]*\))?\s+TO\s+([^;]+);/gi;
   const revokeRe =
     /\bREVOKE\s+(?:EXECUTE|ALL)(?:\s+PRIVILEGES)?\s+ON\s+FUNCTION\s+(?:public\.)?([a-z_][a-z0-9_]*)\s*(?:\([^)]*\))?\s+FROM\s+([^;]+);/gi;
+  const dropRe =
+    /\bDROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?(?:public\.)?([a-z_][a-z0-9_]*)\s*(?:\([^)]*\))?/gi;
+  const createRe =
+    /\bCREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(?:public\.)?([a-z_][a-z0-9_]*)\s*\(/gi;
+
+  const collect = (sql, re, kind) => {
+    const out = [];
+    for (const m of sql.matchAll(re)) {
+      out.push({ index: m.index, kind, match: m });
+    }
+    return out;
+  };
 
   for (const file of files) {
     const sql = stripComments(readFileSync(join(MIGRATIONS_DIR, file), 'utf8'));
+    const events = [
+      ...collect(sql, grantRe, 'GRANT'),
+      ...collect(sql, revokeRe, 'REVOKE'),
+      ...collect(sql, dropRe, 'DROP'),
+      ...collect(sql, createRe, 'CREATE'),
+    ].sort((a, b) => a.index - b.index);
 
-    for (const match of sql.matchAll(grantRe)) {
-      const [, fn, roleList] = match;
+    for (const ev of events) {
+      const fn = ev.match[1];
       if (!state.has(fn)) continue;
-      for (const role of parseRoles(roleList)) {
-        state.get(fn).add(role);
-        history.push({ file, fn, action: 'GRANT', role });
-      }
-    }
-    for (const match of sql.matchAll(revokeRe)) {
-      const [, fn, roleList] = match;
-      if (!state.has(fn)) continue;
-      for (const role of parseRoles(roleList)) {
-        state.get(fn).delete(role);
-        history.push({ file, fn, action: 'REVOKE', role });
+      if (ev.kind === 'DROP') {
+        exists.set(fn, false);
+        state.get(fn).clear();
+        history.push({ file, fn, action: 'DROP' });
+      } else if (ev.kind === 'CREATE') {
+        // Fresh CREATE (or CREATE-after-DROP) resets ACL to default: EXECUTE
+        // to PUBLIC. CREATE OR REPLACE of an existing fn preserves the ACL.
+        if (!exists.get(fn)) {
+          exists.set(fn, true);
+          state.get(fn).add('public');
+          history.push({ file, fn, action: 'GRANT', role: 'public' });
+        }
+      } else if (ev.kind === 'GRANT') {
+        const roleList = ev.match[2];
+        for (const role of parseRoles(roleList)) {
+          state.get(fn).add(role);
+          history.push({ file, fn, action: 'GRANT', role });
+        }
+      } else if (ev.kind === 'REVOKE') {
+        const roleList = ev.match[2];
+        for (const role of parseRoles(roleList)) {
+          state.get(fn).delete(role);
+          history.push({ file, fn, action: 'REVOKE', role });
+        }
       }
     }
   }
