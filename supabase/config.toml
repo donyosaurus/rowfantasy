@@ -1,7 +1,70 @@
 project_id = "nutshvnnrwrpieirvjbc"
 
 [functions]
+  # verify_jwt = false — authenticated by non-JWT means or public content; MUST stay reachable
+  # without a Supabase user JWT. (false is strictly safe: the function self-authenticates.)
+  [functions.payments-webhook]
+    verify_jwt = false        # payment-provider webhook: HMAC signature, no Supabase JWT
   [functions.auth-email-hook]
-    verify_jwt = false
+    verify_jwt = false        # Supabase auth hook: hook secret, no user JWT
+  [functions.auto-lock-contests]
+    verify_jwt = false        # external scheduler: x-cron-secret header, no JWT
+  [functions.auto-void-unfilled-pools]
+    verify_jwt = false        # external scheduler: x-cron-secret header, no JWT
+  [functions.cms-get]
+    verify_jwt = false        # public content (legal/CMS pages, incl. logged-out)
+  [functions.health]
+    verify_jwt = false        # public health check
+  [functions.help-articles]
+    verify_jwt = false        # public content
+  [functions.legal-state-banner]
+    verify_jwt = false        # public content (geo banner)
+
+  # verify_jwt = true — require a Supabase JWT; every caller (frontend/admin, or pg_cron with
+  # the vault service_role key) already sends one, and each fn also calls getUser internally.
   [functions.process-email-queue]
+    verify_jwt = true         # pg_cron via net.http_post with vault service_role key (unchanged)
+  [functions.wallet-deposit]
+    verify_jwt = true
+  [functions.wallet-withdraw-request]
+    verify_jwt = true
+  [functions.wallet-transactions]
+    verify_jwt = true
+  [functions.profile-overview]
+    verify_jwt = true
+  [functions.profile-username]
+    verify_jwt = true
+  [functions.contest-matchmaking]
+    verify_jwt = true
+  [functions.contest-scoring]
+    verify_jwt = true
+  [functions.contest-settle]
+    verify_jwt = true
+  [functions.admin-create-contest]
+    verify_jwt = true
+  [functions.admin-contest-results]
+    verify_jwt = true
+  [functions.admin-contest-void]
+    verify_jwt = true
+  [functions.admin-contest-resize]
+    verify_jwt = true
+  [functions.responsible-limits]
+    verify_jwt = true
+  [functions.user-consents]
+    verify_jwt = true
+  [functions.support-tickets]
+    verify_jwt = true
+  [functions.support-ticket-reply]
+    verify_jwt = true
+  [functions.privacy-requests]
+    verify_jwt = true
+  [functions.compliance-log-view]
+    verify_jwt = true
+  [functions.compliance-export-daily]
+    verify_jwt = true
+  [functions.payments-reconciliation]
+    verify_jwt = true
+  [functions.otp-request]
+    verify_jwt = true
+  [functions.otp-verify]
     verify_jwt = true
