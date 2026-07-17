@@ -24,6 +24,7 @@ import ResponsiblePlay from "./pages/ResponsiblePlay";
 import HelpCenter from "./pages/HelpCenter";
 import Contact from "./pages/Contact";
 import MyTickets from "./pages/MyTickets";
+import OAuthConsent from "./pages/OAuthConsent";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -56,6 +57,8 @@ const App = () => (
             <Route path="/legal/responsible-play" element={<ResponsiblePlay />} />
             <Route path="/support/help-center" element={<HelpCenter />} />
             <Route path="/support/contact" element={<Contact />} />
+            <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
+            
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
