@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "sdk_version": "0.23.0",
+  "path": "/functions/v1/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://nutshvnnrwrpieirvjbc.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "rowfantasy-mcp",
+      "version": "0.1.0",
+      "title": "RowFantasy"
+    },
+    "tools": [
+      {
+        "name": "list_open_contest_pools",
+        "title": "List open contest pools",
+        "description": "Return RowFantasy contest pools that are currently open for entry, with entry fee, prize pool, and lock time.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 50,
+              "description": "Maximum pools to return. Defaults to 20."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_wallet_balance",
+        "title": "Get wallet balance",
+        "description": "Return the signed-in RowFantasy user's wallet balances (available, pending, lifetime deposits/withdrawals/winnings) in integer cents.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_my_entries",
+        "title": "List my contest entries",
+        "description": "Return the signed-in RowFantasy user's contest entries with status, entry fee, payout, and rank.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "active",
+                "settled",
+                "scored",
+                "withdrawn",
+                "refunded",
+                "voided"
+              ],
+              "description": "Filter by entry status."
+            },
+            "limit": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 100,
+              "description": "Maximum entries to return. Defaults to 25."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_my_profile",
+        "title": "Get my profile",
+        "description": "Return the signed-in RowFantasy user's public profile (username, full name, state).",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
