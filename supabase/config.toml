@@ -19,6 +19,8 @@ project_id = "nutshvnnrwrpieirvjbc"
     verify_jwt = false        # public content
   [functions.legal-state-banner]
     verify_jwt = false        # public content (geo banner)
+  [functions.mcp]
+    verify_jwt = false        # MCP server: bearer tokens verified in-code via OAuth issuer discovery
 
   # verify_jwt = true — require a Supabase JWT; every caller (frontend/admin, or pg_cron with
   # the vault service_role key) already sends one, and each fn also calls getUser internally.

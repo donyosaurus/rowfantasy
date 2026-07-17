@@ -17,21 +17,27 @@ const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Redirect if already logged in. Sanitize `from` to prevent open-redirect (GHSA-2w69-qvjg-hvjx mitigation).
+  // Redirect if already logged in. Accept `?next=` (used by the OAuth consent route)
+  // or router state `from`. Sanitize both to prevent open-redirect
+  // (GHSA-2w69-qvjg-hvjx mitigation): must be a same-origin relative path.
+  const isSafeInternalPath = (p: unknown): p is string =>
+    typeof p === 'string' &&
+    p.startsWith('/') &&
+    !p.startsWith('//') &&
+    !p.toLowerCase().startsWith('javascript:');
+
   useEffect(() => {
     if (user) {
+      const nextParam = new URLSearchParams(location.search).get('next');
       const rawFrom = (location.state as any)?.from;
-      const from =
-        typeof rawFrom === 'string' &&
-        rawFrom.startsWith('/') &&
-        !rawFrom.startsWith('//') &&
-        !rawFrom.includes(':') &&
-        !rawFrom.toLowerCase().startsWith('javascript:')
+      const target = isSafeInternalPath(nextParam)
+        ? nextParam
+        : isSafeInternalPath(rawFrom)
           ? rawFrom
           : '/';
-      navigate(from);
+      navigate(target);
     }
-  }, [user, navigate, location.state]);
+  }, [user, navigate, location.state, location.search]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
