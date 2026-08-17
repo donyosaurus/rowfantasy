@@ -1,0 +1,1 @@
+DELETE FROM public.license_registry;
