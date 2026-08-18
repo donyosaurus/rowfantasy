@@ -151,6 +151,8 @@ export async function scoreContestPool(
   }
 
   const scores: EntryScore[] = [];
+  // Picks referencing a crew with no race result: hard error, nothing gets written.
+  const unmatchedPicks: Array<{ entryId: string; crewId: string; eventId?: string }> = [];
 
   for (const entry of entries) {
     let picks: EntryPick[] = [];
@@ -203,15 +205,8 @@ export async function scoreContestPool(
           margin_error: marginError,
         });
       } else {
-        console.warn("[scoring-logic] No result for crew:", pick.crewId);
-        crewScores.push({
-          crew_id: pick.crewId,
-          event_id: pick.event_id,
-          predicted_margin: pick.predictedMargin,
-          finish_order: null,
-          finish_points: 0,
-          margin_error: 0,
-        });
+        console.error("[scoring-logic] No result for crew:", pick.crewId, "entry:", entry.id);
+        unmatchedPicks.push({ entryId: entry.id, crewId: pick.crewId, eventId: pick.event_id });
       }
     }
 
@@ -226,6 +221,19 @@ export async function scoreContestPool(
       crew_scores: crewScores,
     });
   }
+
+  // Hard abort BEFORE any write: a picked crew with no race result means the
+  // results set is incomplete (scratched/DNS crews must still get a finish order).
+  if (unmatchedPicks.length > 0) {
+    const list = unmatchedPicks
+      .map((u) => `entry ${u.entryId} → crew ${u.crewId}${u.eventId ? ` (event ${u.eventId})` : ""}`)
+      .join("; ");
+    throw new Error(
+      `[scoring-logic] Refusing to score pool ${contestPoolId}: ${unmatchedPicks.length} pick(s) reference crews with no result: ${list}`,
+    );
+  }
+
+
 
   // All-zero detection
   const allZero = scores.every((s) => s.total_points === 0);

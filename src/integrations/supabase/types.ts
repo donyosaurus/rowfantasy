@@ -843,63 +843,6 @@ export type Database = {
           },
         ]
       }
-      match_queue: {
-        Row: {
-          contest_template_id: string
-          entry_fee_cents: number
-          id: string
-          joined_at: string
-          matched_at: string | null
-          picks: Json
-          pool_id: string | null
-          state_code: string
-          status: string
-          tier_id: string
-          user_id: string
-        }
-        Insert: {
-          contest_template_id: string
-          entry_fee_cents: number
-          id?: string
-          joined_at?: string
-          matched_at?: string | null
-          picks: Json
-          pool_id?: string | null
-          state_code: string
-          status?: string
-          tier_id: string
-          user_id: string
-        }
-        Update: {
-          contest_template_id?: string
-          entry_fee_cents?: number
-          id?: string
-          joined_at?: string
-          matched_at?: string | null
-          picks?: Json
-          pool_id?: string | null
-          state_code?: string
-          status?: string
-          tier_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "match_queue_contest_template_id_fkey"
-            columns: ["contest_template_id"]
-            isOneToOne: false
-            referencedRelation: "contest_templates"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "match_queue_pool_id_fkey"
-            columns: ["pool_id"]
-            isOneToOne: false
-            referencedRelation: "contest_pools"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       payment_discrepancies: {
         Row: {
           actual_cents: number | null
@@ -1113,65 +1056,6 @@ export type Database = {
         }
         Relationships: []
       }
-      race_results_imports: {
-        Row: {
-          admin_id: string
-          contest_template_id: string
-          created_at: string
-          errors: Json | null
-          file_hash: string | null
-          id: string
-          idempotency_key: string | null
-          import_date: string
-          import_run_id: string | null
-          metadata: Json | null
-          regatta_name: string
-          results_data: Json
-          rows_processed: number
-          status: string
-        }
-        Insert: {
-          admin_id: string
-          contest_template_id: string
-          created_at?: string
-          errors?: Json | null
-          file_hash?: string | null
-          id?: string
-          idempotency_key?: string | null
-          import_date?: string
-          import_run_id?: string | null
-          metadata?: Json | null
-          regatta_name: string
-          results_data: Json
-          rows_processed?: number
-          status?: string
-        }
-        Update: {
-          admin_id?: string
-          contest_template_id?: string
-          created_at?: string
-          errors?: Json | null
-          file_hash?: string | null
-          id?: string
-          idempotency_key?: string | null
-          import_date?: string
-          import_run_id?: string | null
-          metadata?: Json | null
-          regatta_name?: string
-          results_data?: Json
-          rows_processed?: number
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "race_results_imports_contest_template_id_fkey"
-            columns: ["contest_template_id"]
-            isOneToOne: false
-            referencedRelation: "contest_templates"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       rate_limits: {
         Row: {
           created_at: string
@@ -1233,59 +1117,6 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: true
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      scoring_jobs: {
-        Row: {
-          attempts: number
-          completed_at: string | null
-          contest_template_id: string
-          created_at: string
-          id: string
-          import_id: string
-          last_error: string | null
-          picked_up_at: string | null
-          pool_id: string
-          race_results: Json
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          attempts?: number
-          completed_at?: string | null
-          contest_template_id: string
-          created_at?: string
-          id?: string
-          import_id: string
-          last_error?: string | null
-          picked_up_at?: string | null
-          pool_id: string
-          race_results: Json
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          attempts?: number
-          completed_at?: string | null
-          contest_template_id?: string
-          created_at?: string
-          id?: string
-          import_id?: string
-          last_error?: string | null
-          picked_up_at?: string | null
-          pool_id?: string
-          race_results?: Json
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "scoring_jobs_import_id_fkey"
-            columns: ["import_id"]
-            isOneToOne: false
-            referencedRelation: "race_results_imports"
             referencedColumns: ["id"]
           },
         ]
@@ -1870,14 +1701,6 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
-      }
-      import_race_results_atomic: {
-        Args: {
-          _admin_user_id: string
-          _idempotency_key: string
-          _import_payload: Json
-        }
-        Returns: Json
       }
       increment_pool_entries: {
         Args: { p_pool_id: string }
