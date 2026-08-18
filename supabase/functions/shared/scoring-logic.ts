@@ -205,15 +205,8 @@ export async function scoreContestPool(
           margin_error: marginError,
         });
       } else {
-        console.warn("[scoring-logic] No result for crew:", pick.crewId);
-        crewScores.push({
-          crew_id: pick.crewId,
-          event_id: pick.event_id,
-          predicted_margin: pick.predictedMargin,
-          finish_order: null,
-          finish_points: 0,
-          margin_error: 0,
-        });
+        console.error("[scoring-logic] No result for crew:", pick.crewId, "entry:", entry.id);
+        unmatchedPicks.push({ entryId: entry.id, crewId: pick.crewId, eventId: pick.event_id });
       }
     }
 
