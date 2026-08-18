@@ -222,6 +222,19 @@ export async function scoreContestPool(
     });
   }
 
+  // Hard abort BEFORE any write: a picked crew with no race result means the
+  // results set is incomplete (scratched/DNS crews must still get a finish order).
+  if (unmatchedPicks.length > 0) {
+    const list = unmatchedPicks
+      .map((u) => `entry ${u.entryId} → crew ${u.crewId}${u.eventId ? ` (event ${u.eventId})` : ""}`)
+      .join("; ");
+    throw new Error(
+      `[scoring-logic] Refusing to score pool ${contestPoolId}: ${unmatchedPicks.length} pick(s) reference crews with no result: ${list}`,
+    );
+  }
+
+
+
   // All-zero detection
   const allZero = scores.every((s) => s.total_points === 0);
   if (allZero && scores.length > 0) {
