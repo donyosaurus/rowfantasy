@@ -151,6 +151,8 @@ export async function scoreContestPool(
   }
 
   const scores: EntryScore[] = [];
+  // Picks referencing a crew with no race result: hard error, nothing gets written.
+  const unmatchedPicks: Array<{ entryId: string; crewId: string; eventId?: string }> = [];
 
   for (const entry of entries) {
     let picks: EntryPick[] = [];
