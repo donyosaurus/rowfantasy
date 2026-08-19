@@ -34,6 +34,8 @@ const GUARDED_FUNCTIONS = [
   'settle_pool_payouts',
   'admin_resize_contest_pool_atomic',
   'admin_create_contest',
+  'admin_create_contest_v2',
+  'admin_update_race_results_v2',
   'admin_void_contest',
   'admin_update_race_results',
   'admin_override_responsible_gaming',
