@@ -161,6 +161,44 @@ export type Database = {
         }
         Relationships: []
       }
+      contest_competitors: {
+        Row: {
+          competitor_key: string
+          competitor_type: string
+          created_at: string
+          id: string
+          logo_url: string | null
+          name: string
+          template_id: string
+        }
+        Insert: {
+          competitor_key: string
+          competitor_type?: string
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          name: string
+          template_id: string
+        }
+        Update: {
+          competitor_key?: string
+          competitor_type?: string
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          name?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contest_competitors_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "contest_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contest_entries: {
         Row: {
           contest_template_id: string
@@ -378,6 +416,130 @@ export type Database = {
           },
         ]
       }
+      contest_race_entries: {
+        Row: {
+          competitor_id: string
+          created_at: string
+          race_id: string
+          seed_time_ms: number | null
+        }
+        Insert: {
+          competitor_id: string
+          created_at?: string
+          race_id: string
+          seed_time_ms?: number | null
+        }
+        Update: {
+          competitor_id?: string
+          created_at?: string
+          race_id?: string
+          seed_time_ms?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contest_race_entries_competitor_id_fkey"
+            columns: ["competitor_id"]
+            isOneToOne: false
+            referencedRelation: "contest_competitors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contest_race_entries_race_id_fkey"
+            columns: ["race_id"]
+            isOneToOne: false
+            referencedRelation: "contest_races"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contest_race_results: {
+        Row: {
+          competitor_id: string
+          place: number | null
+          posted_at: string
+          race_id: string
+          status: string
+          time_ms: number | null
+          updated_at: string
+        }
+        Insert: {
+          competitor_id: string
+          place?: number | null
+          posted_at?: string
+          race_id: string
+          status?: string
+          time_ms?: number | null
+          updated_at?: string
+        }
+        Update: {
+          competitor_id?: string
+          place?: number | null
+          posted_at?: string
+          race_id?: string
+          status?: string
+          time_ms?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contest_race_results_race_id_competitor_id_fkey"
+            columns: ["race_id", "competitor_id"]
+            isOneToOne: true
+            referencedRelation: "contest_race_entries"
+            referencedColumns: ["race_id", "competitor_id"]
+          },
+        ]
+      }
+      contest_races: {
+        Row: {
+          created_at: string
+          distance: string | null
+          division: string | null
+          event_class: string | null
+          id: string
+          name: string
+          race_key: string
+          race_order: number
+          round: string | null
+          scheduled_at: string | null
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          distance?: string | null
+          division?: string | null
+          event_class?: string | null
+          id?: string
+          name: string
+          race_key: string
+          race_order?: number
+          round?: string | null
+          scheduled_at?: string | null
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          distance?: string | null
+          division?: string | null
+          event_class?: string | null
+          id?: string
+          name?: string
+          race_key?: string
+          race_order?: number
+          round?: string | null
+          scheduled_at?: string | null
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contest_races_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "contest_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contest_scores: {
         Row: {
           created_at: string
@@ -390,6 +552,8 @@ export type Database = {
           payout_cents: number | null
           pool_id: string | null
           rank: number | null
+          score_value: number | null
+          tiebreak_value: number | null
           total_points: number
           updated_at: string
           user_id: string
@@ -405,6 +569,8 @@ export type Database = {
           payout_cents?: number | null
           pool_id?: string | null
           rank?: number | null
+          score_value?: number | null
+          tiebreak_value?: number | null
           total_points?: number
           updated_at?: string
           user_id: string
@@ -420,6 +586,8 @@ export type Database = {
           payout_cents?: number | null
           pool_id?: string | null
           rank?: number | null
+          score_value?: number | null
+          tiebreak_value?: number | null
           total_points?: number
           updated_at?: string
           user_id?: string
@@ -456,8 +624,13 @@ export type Database = {
           lock_time: string
           max_picks: number
           min_picks: number
+          name: string | null
+          primitive: string
           regatta_name: string
           results: Json | null
+          roster_mode: string
+          scoring_config: Json | null
+          sport: string
           status: string
           updated_at: string
         }
@@ -475,8 +648,13 @@ export type Database = {
           lock_time: string
           max_picks?: number
           min_picks?: number
+          name?: string | null
+          primitive?: string
           regatta_name: string
           results?: Json | null
+          roster_mode?: string
+          scoring_config?: Json | null
+          sport?: string
           status?: string
           updated_at?: string
         }
@@ -494,8 +672,13 @@ export type Database = {
           lock_time?: string
           max_picks?: number
           min_picks?: number
+          name?: string | null
+          primitive?: string
           regatta_name?: string
           results?: Json | null
+          roster_mode?: string
+          scoring_config?: Json | null
+          sport?: string
           status?: string
           updated_at?: string
         }
@@ -1533,6 +1716,33 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_create_contest_v2: {
+        Args: {
+          _admin_user_id?: string
+          p_allow_overflow?: boolean
+          p_card_banner_url?: string
+          p_competitors: Json
+          p_contest_group_id?: string
+          p_draft_banner_url?: string
+          p_entry_fee_cents: number
+          p_entry_tiers?: Json
+          p_gender_category: string
+          p_lock_time: string
+          p_max_entries: number
+          p_max_picks?: number
+          p_min_picks?: number
+          p_name: string
+          p_payout_structure?: Json
+          p_primitive?: string
+          p_race_entries: Json
+          p_races: Json
+          p_roster_mode?: string
+          p_scoring_config?: Json
+          p_sport: string
+          p_void_unfilled_on_settle?: boolean
+        }
+        Returns: Json
+      }
       admin_list_wallet_balances: {
         Args: { _admin_user_id: string }
         Returns: {
@@ -1572,6 +1782,10 @@ export type Database = {
           p_contest_pool_id: string
           p_results: Json
         }
+        Returns: Json
+      }
+      admin_update_race_results_v2: {
+        Args: { _admin_user_id: string; p_results: Json; p_template_id: string }
         Returns: Json
       }
       apply_pending_responsible_gaming_limit: {
@@ -1665,6 +1879,7 @@ export type Database = {
           reason: string
         }[]
       }
+      format_race_time_ms: { Args: { _ms: number }; Returns: string }
       get_pool_entrants: {
         Args: { p_pool_id: string }
         Returns: {
@@ -1734,6 +1949,7 @@ export type Database = {
         }
         Returns: number
       }
+      parse_race_time_ms: { Args: { _t: string }; Returns: number }
       process_deposit_atomic: {
         Args: {
           _amount_cents: number
