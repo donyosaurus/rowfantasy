@@ -669,15 +669,20 @@ async function scoreConfiguredPool(
   const raceKeyById = new Map<string, string>(races.map((r: any) => [r.id, r.race_key]));
   const compKeyById = new Map<string, string>((competitors || []).map((c: any) => [c.id, c.competitor_key]));
 
+  // Pin statistics to THIS template: ignore any race entry/result whose competitor
+  // belongs to a different template (the schema permits it via race_id alone).
+  const templateRaceEntries = (raceEntries || []).filter((re: any) => compKeyById.has(re.competitor_id));
+  const templateRaceResults = (raceResults || []).filter((rr: any) => compKeyById.has(rr.competitor_id));
+
   // fieldSize = number of ENTERED competitors per race (not the number of results)
   const fieldSizeByRaceId = new Map<string, number>();
-  for (const re of raceEntries || []) {
+  for (const re of templateRaceEntries) {
     fieldSizeByRaceId.set(re.race_id, (fieldSizeByRaceId.get(re.race_id) ?? 0) + 1);
   }
 
   // Per-race winner / second / slowest over OK finishers
   const okByRace = new Map<string, any[]>();
-  for (const rr of raceResults || []) {
+  for (const rr of templateRaceResults) {
     if (rr.status !== "OK") continue;
     if (!okByRace.has(rr.race_id)) okByRace.set(rr.race_id, []);
     okByRace.get(rr.race_id)!.push(rr);
@@ -700,16 +705,16 @@ async function scoreConfiguredPool(
     });
   }
 
-  // Result integrity: place must fit in the field
+  // Result integrity: place must fit in the field and OK rows must have a place
   const resultsByKey: Record<string, RaceResultV2> = {};
-  for (const rr of raceResults || []) {
+  for (const rr of templateRaceResults) {
     const raceKey = raceKeyById.get(rr.race_id);
     const competitorKey = compKeyById.get(rr.competitor_id);
     if (!raceKey || !competitorKey) continue;
     const fieldSize = fieldSizeByRaceId.get(rr.race_id) ?? 0;
-    if (rr.status === "OK" && rr.place !== null && rr.place > fieldSize) {
+    if (rr.status === "OK" && (rr.place === null || rr.place < 1 || rr.place > fieldSize)) {
       throw new Error(
-        `[scoring-logic] Refusing to score pool ${contestPoolId}: race ${raceKey} result for ${competitorKey} has place ${rr.place} > field size ${fieldSize}`,
+        `[scoring-logic] Refusing to score pool ${contestPoolId}: race ${raceKey} result for ${competitorKey} has invalid place ${rr.place} (field size ${fieldSize})`,
       );
     }
     const stats = raceStats.get(rr.race_id)!;
