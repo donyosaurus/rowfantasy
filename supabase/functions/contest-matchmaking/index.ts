@@ -58,12 +58,13 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
           z.object({
             crewId: z.string(),
             event_id: z.string(),
-            predictedMargin: z.number(),
+            predictedMargin: z.number().optional(),
           }),
         )
         .min(1)
         .max(10),
     });
+
 
     const body = enterSchema.parse(await req.json());
 
