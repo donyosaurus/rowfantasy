@@ -15,6 +15,22 @@ const RequestSchema = z.object({
   results: z.array(ResultItemSchema).min(1),
 });
 
+// v2 (multi-sport) shape — keyed by template + race_key/competitor_key
+const ResultItemV2Schema = z.object({
+  race_key: z.string().min(1),
+  competitor_key: z.string().min(1),
+  place: z.number().int().min(1).max(10000).optional(),
+  time_ms: z.number().int().min(0).max(1000000000).optional(),
+  finish_time: z.string().optional(),
+  status: z.enum(['OK', 'DNF', 'DNS', 'DSQ', 'PENDING']).optional(),
+}).strict();
+
+const RequestV2Schema = z.object({
+  contestTemplateId: z.string().uuid(),
+  results: z.array(ResultItemV2Schema).min(1),
+}).strict();
+
+
 Deno.serve(withFnVersion('admin-contest-results', async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
