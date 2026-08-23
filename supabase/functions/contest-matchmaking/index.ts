@@ -186,6 +186,9 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
         all_pools_full: { status: 409, message: "This contest is full." },
         invalid_pool_fee: { status: 500, message: "Invalid contest configuration." },
         insufficient_balance: { status: 402, message: "Insufficient balance." },
+        roster_mode_unsupported: { status: 400, message: "This contest type is not yet supported." },
+        invalid_scoring_config: { status: 500, message: "Invalid contest configuration." },
+
       };
 
       const mapped = errorMap[entry.reason] ?? { status: 400, message: ERROR_MESSAGES.INTERNAL_ERROR };
