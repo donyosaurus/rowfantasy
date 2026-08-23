@@ -1,4 +1,25 @@
 // Shared Scoring Logic - Extracted for direct use without HTTP calls
+//
+// Two paths:
+//   * LEGACY  (contest_templates.scoring_config IS NULL) — unchanged behavior:
+//     reads contest_pool_crews results passed in by the caller, FINISH_POINTS
+//     100/75/60/45/30/15/10, predicted-margin tiebreak.
+//   * V2      (scoring_config present) — configurable placement scoring, reads
+//     contest_races / contest_competitors / contest_race_entries / contest_race_results.
+//
+// scoring_config presets (frontend sends these in a later phase):
+//   classic            = {primitive:'placement', points_table:{"1":100,"2":75,"3":60,"4":45,"5":30,"6":15,"7":10},
+//                         direction:'high', dnf_policy:'zero', tiebreak:'margin_error'}
+//                        Default for every sport — same game as today's rowing contest.
+//                        Margin error is SUMMED over picks (not normalized), exactly like legacy.
+//   low_score          = {primitive:'placement', points_table:{}, direction:'low',
+//                         dnf_policy:'field_plus_one', tiebreak:'aggregate_time'}
+//                        With direction 'low', a missing points_table key means points = place.
+//   classic_total_time = classic + tiebreak:'aggregate_time' — admin option for
+//                        same-distance slates only (enforced in admin-create-contest).
+// Fixed-roster rule: direction 'low' OR tiebreak 'aggregate_time' requires min_picks === max_picks.
+
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 export const FINISH_POINTS: Record<number, number> = {
   1: 100,
@@ -89,6 +110,172 @@ interface CrewScore {
   finish_order: number | null;
   finish_points: number;
   margin_error: number;
+  status?: string;
+  time_ms?: number | null;
+  multiplier?: number;
+}
+
+// ---------------------------------------------------------------------------
+// V2 (configurable) scoring types
+// ---------------------------------------------------------------------------
+
+export const ScoringConfigSchema = z.object({
+  primitive: z.literal("placement"),
+  points_table: z.record(z.string(), z.number().int().min(0).max(100000)),
+  race_multipliers: z.record(z.string(), z.number().int().min(1).max(100)).optional(),
+  direction: z.enum(["high", "low"]),
+  dnf_policy: z.enum(["zero", "field_plus_one"]),
+  tiebreak: z.enum(["margin_error", "aggregate_time", "none"]),
+  penalty_pct: z.number().min(0).max(100).optional(),
+}).strict().superRefine((c, ctx) => {
+  if (c.direction === "high" && c.dnf_policy !== "zero") {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "direction high requires dnf_policy zero" });
+  }
+  if (c.direction === "low" && c.dnf_policy !== "field_plus_one") {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "direction low requires dnf_policy field_plus_one" });
+  }
+  if (c.direction === "low" && c.race_multipliers) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "race_multipliers not allowed with direction low" });
+  }
+});
+
+export type ScoringConfig = z.infer<typeof ScoringConfigSchema>;
+
+export type RaceResultV2 = {
+  raceKey: string;
+  competitorKey: string;
+  place: number | null;
+  timeMs: number | null;
+  status: "OK" | "DNF" | "DNS" | "DSQ" | "PENDING";
+  fieldSize: number;
+  raceWinnerTimeMs: number | null;
+  raceSecondTimeMs: number | null;
+  raceSlowestTimeMs: number | null;
+};
+
+const DEFAULT_PENALTY_PCT = 10;
+
+/**
+ * Score one entry's picks under a placement scoring_config.
+ * Throws (message fragment) on an unmatched / unusable pick — caller aggregates
+ * and refuses to write anything.
+ */
+export function reducePlacement(
+  picks: EntryPick[],
+  resultsByKey: Record<string, RaceResultV2>,
+  cfg: ScoringConfig,
+): { totalPoints: number; tiebreakValue: number; crewScores: CrewScore[] } {
+  let totalPoints = 0;
+  let marginErrorSum = 0;
+  let aggregateMs = 0;
+  const crewScores: CrewScore[] = [];
+
+  for (const pick of picks) {
+    const raceKey = pick.event_id ?? "";
+    const key = `${raceKey}|${pick.crewId}`;
+    const result = resultsByKey[key];
+
+    if (!result) {
+      throw new Error(`crew ${pick.crewId} (race ${raceKey}) has no result`);
+    }
+    if (result.status === "PENDING") {
+      throw new Error(`crew ${pick.crewId} (race ${raceKey}) result is PENDING`);
+    }
+    if (result.status === "OK" && (result.place === null || result.place < 1)) {
+      throw new Error(`crew ${pick.crewId} (race ${raceKey}) is OK with no valid place`);
+    }
+
+    const multiplier = cfg.race_multipliers?.[raceKey] ?? 1;
+    let points = 0;
+
+    if (result.status === "OK") {
+      const tablePoints = cfg.points_table[String(result.place)];
+      const base = tablePoints ?? (cfg.direction === "low" ? (result.place as number) : 0);
+      points = base * multiplier;
+    } else {
+      // DNF / DNS / DSQ
+      if (cfg.dnf_policy === "zero") {
+        points = 0;
+      } else {
+        const fallbackPlace = result.fieldSize + 1;
+        points = (cfg.points_table[String(fallbackPlace)] ?? fallbackPlace) * multiplier;
+      }
+    }
+
+    totalPoints += points;
+
+    let signedMargin = 0;
+    let marginError = 0;
+
+    if (cfg.tiebreak === "margin_error") {
+      const predicted = pick.predictedMargin;
+      if (typeof predicted !== "number" || !Number.isFinite(predicted)) {
+        throw new Error(`crew ${pick.crewId} (race ${raceKey}) has no predicted margin`);
+      }
+      const w = result.raceWinnerTimeMs;
+      const s = result.raceSecondTimeMs;
+      let gap = 0;
+      if (w !== null && s !== null && w !== 0 && s !== 0) {
+        // Legacy precision: times truncate to centiseconds before differencing.
+        gap = (Math.trunc(s / 10) - Math.trunc(w / 10)) / 100;
+        gap = Math.abs(gap);
+      }
+      signedMargin = result.place === 1 ? gap : -gap;
+      marginError = Math.abs(predicted - signedMargin);
+      marginErrorSum += marginError;
+    } else if (cfg.tiebreak === "aggregate_time") {
+      if (result.raceSlowestTimeMs === null) {
+        throw new Error(
+          `race ${raceKey} has no finisher times (aggregate_time tiebreak requires times)`,
+        );
+      }
+      if (result.status === "OK" && result.timeMs !== null && result.timeMs > 0) {
+        aggregateMs += result.timeMs;
+      } else {
+        const pct = cfg.penalty_pct ?? DEFAULT_PENALTY_PCT;
+        aggregateMs += Math.round(result.raceSlowestTimeMs * (1 + pct / 100));
+      }
+    }
+
+    crewScores.push({
+      crew_id: pick.crewId,
+      event_id: raceKey,
+      predicted_margin: pick.predictedMargin,
+      actual_margin: signedMargin,
+      finish_order: result.place,
+      finish_points: points,
+      margin_error: marginError,
+      status: result.status,
+      time_ms: result.timeMs,
+      multiplier,
+    });
+  }
+
+  let tiebreakValue = 0;
+  if (cfg.tiebreak === "margin_error") {
+    tiebreakValue = Math.round(marginErrorSum * 100) / 100;
+  } else if (cfg.tiebreak === "aggregate_time") {
+    tiebreakValue = aggregateMs; // integer milliseconds
+  }
+
+  return { totalPoints, tiebreakValue, crewScores };
+}
+
+function parseEntryPicks(entry: any): EntryPick[] {
+  let rawPicks: any[] = [];
+  if (Array.isArray(entry.picks)) {
+    rawPicks = entry.picks;
+  } else if (entry.picks && typeof entry.picks === "object" && Array.isArray((entry.picks as any).crews)) {
+    rawPicks = (entry.picks as any).crews;
+  }
+  return rawPicks.map((p: any) => {
+    if (typeof p === "string") return { crewId: p, predictedMargin: NaN } as EntryPick;
+    return {
+      crewId: String(p.crewId || p.crew_id || p.id || ""),
+      event_id: p.event_id,
+      predictedMargin: p.predictedMargin ?? p.predicted_margin ?? NaN,
+    };
+  });
 }
 
 /**
@@ -103,13 +290,6 @@ export async function scoreContestPool(
 ): Promise<{ entriesScored: number; winnerId?: string; isTieRefund?: boolean }> {
   console.log("[scoring-logic] Scoring pool:", contestPoolId);
 
-  // Hard guard: refuse to score without race results (prevents zero-scoring locked pools)
-  if (!results || results.length === 0) {
-    throw new Error(
-      `[scoring-logic] Refusing to score pool ${contestPoolId}: empty results array`,
-    );
-  }
-
   // Fetch pool + template
   const { data: pool, error: poolError } = await supabase
     .from("contest_pools")
@@ -119,6 +299,31 @@ export async function scoreContestPool(
 
   if (poolError || !pool) {
     throw new Error(`Contest pool not found: ${poolError?.message}`);
+  }
+
+  const cfg = pool.contest_templates?.scoring_config ?? null;
+
+  if (cfg === null) {
+    return await scoreLegacyPool(supabase, contestPoolId, results, pool);
+  }
+
+  return await scoreConfiguredPool(supabase, contestPoolId, pool, cfg);
+}
+
+// ---------------------------------------------------------------------------
+// LEGACY PATH — unchanged behavior (scoring_config IS NULL)
+// ---------------------------------------------------------------------------
+async function scoreLegacyPool(
+  supabase: any,
+  contestPoolId: string,
+  results: RaceResult[],
+  pool: any,
+): Promise<{ entriesScored: number; winnerId?: string; isTieRefund?: boolean }> {
+  // Hard guard: refuse to score without race results (prevents zero-scoring locked pools)
+  if (!results || results.length === 0) {
+    throw new Error(
+      `[scoring-logic] Refusing to score pool ${contestPoolId}: empty results array`,
+    );
   }
 
   // Fetch all active entries for this pool
@@ -407,6 +612,333 @@ export async function scoreContestPool(
   });
 
   console.log("[scoring-logic] Done. Entries scored:", scores.length, "Winners:", winnerIds, "TieRefund:", isTieRefund);
+
+  return { entriesScored: scores.length, winnerId: winnerIds[0], isTieRefund };
+}
+
+// ---------------------------------------------------------------------------
+// V2 PATH — configurable placement scoring (scoring_config present)
+// ---------------------------------------------------------------------------
+async function scoreConfiguredPool(
+  supabase: any,
+  contestPoolId: string,
+  pool: any,
+  rawCfg: unknown,
+): Promise<{ entriesScored: number; winnerId?: string; isTieRefund?: boolean }> {
+  const parsed = ScoringConfigSchema.safeParse(rawCfg);
+  if (!parsed.success) {
+    throw new Error(
+      `[scoring-logic] Refusing to score pool ${contestPoolId}: invalid scoring_config: ${
+        JSON.stringify(parsed.error.flatten())
+      }`,
+    );
+  }
+  const cfg = parsed.data;
+  const template = pool.contest_templates;
+  const templateId = pool.contest_template_id;
+
+  // ---- load the new-path result graph (no PostgREST FK embedding) ----
+  const { data: races, error: racesErr } = await supabase
+    .from("contest_races")
+    .select("id, race_key")
+    .eq("template_id", templateId);
+  if (racesErr) throw new Error(`Failed to fetch races: ${racesErr.message}`);
+  if (!races || races.length === 0) {
+    throw new Error(`[scoring-logic] Refusing to score pool ${contestPoolId}: template has no races`);
+  }
+
+  const { data: competitors, error: compErr } = await supabase
+    .from("contest_competitors")
+    .select("id, competitor_key")
+    .eq("template_id", templateId);
+  if (compErr) throw new Error(`Failed to fetch competitors: ${compErr.message}`);
+
+  const raceIds = races.map((r: any) => r.id);
+  const { data: raceEntries, error: reErr } = await supabase
+    .from("contest_race_entries")
+    .select("race_id, competitor_id")
+    .in("race_id", raceIds);
+  if (reErr) throw new Error(`Failed to fetch race entries: ${reErr.message}`);
+
+  const { data: raceResults, error: rrErr } = await supabase
+    .from("contest_race_results")
+    .select("race_id, competitor_id, place, time_ms, status")
+    .in("race_id", raceIds);
+  if (rrErr) throw new Error(`Failed to fetch race results: ${rrErr.message}`);
+
+  const raceKeyById = new Map<string, string>(races.map((r: any) => [r.id, r.race_key]));
+  const compKeyById = new Map<string, string>((competitors || []).map((c: any) => [c.id, c.competitor_key]));
+
+  // fieldSize = number of ENTERED competitors per race (not the number of results)
+  const fieldSizeByRaceId = new Map<string, number>();
+  for (const re of raceEntries || []) {
+    fieldSizeByRaceId.set(re.race_id, (fieldSizeByRaceId.get(re.race_id) ?? 0) + 1);
+  }
+
+  // Per-race winner / second / slowest over OK finishers
+  const okByRace = new Map<string, any[]>();
+  for (const rr of raceResults || []) {
+    if (rr.status !== "OK") continue;
+    if (!okByRace.has(rr.race_id)) okByRace.set(rr.race_id, []);
+    okByRace.get(rr.race_id)!.push(rr);
+  }
+
+  const raceStats = new Map<string, { winner: number | null; second: number | null; slowest: number | null }>();
+  for (const raceId of raceIds) {
+    const ok = (okByRace.get(raceId) || []).slice().sort((a: any, b: any) => {
+      const pa = a.place ?? Number.MAX_SAFE_INTEGER;
+      const pb = b.place ?? Number.MAX_SAFE_INTEGER;
+      if (pa !== pb) return pa - pb;
+      return (a.time_ms ?? Number.MAX_SAFE_INTEGER) - (b.time_ms ?? Number.MAX_SAFE_INTEGER);
+    });
+    const times = ok.map((r: any) => (r.time_ms === null ? null : Number(r.time_ms)))
+      .filter((t: number | null): t is number => t !== null && t > 0);
+    raceStats.set(raceId, {
+      winner: ok[0] && ok[0].time_ms !== null ? Number(ok[0].time_ms) : null,
+      second: ok[1] && ok[1].time_ms !== null ? Number(ok[1].time_ms) : null,
+      slowest: times.length > 0 ? Math.max(...times) : null,
+    });
+  }
+
+  // Result integrity: place must fit in the field
+  const resultsByKey: Record<string, RaceResultV2> = {};
+  for (const rr of raceResults || []) {
+    const raceKey = raceKeyById.get(rr.race_id);
+    const competitorKey = compKeyById.get(rr.competitor_id);
+    if (!raceKey || !competitorKey) continue;
+    const fieldSize = fieldSizeByRaceId.get(rr.race_id) ?? 0;
+    if (rr.status === "OK" && rr.place !== null && rr.place > fieldSize) {
+      throw new Error(
+        `[scoring-logic] Refusing to score pool ${contestPoolId}: race ${raceKey} result for ${competitorKey} has place ${rr.place} > field size ${fieldSize}`,
+      );
+    }
+    const stats = raceStats.get(rr.race_id)!;
+    resultsByKey[`${raceKey}|${competitorKey}`] = {
+      raceKey,
+      competitorKey,
+      place: rr.place === null ? null : Number(rr.place),
+      timeMs: rr.time_ms === null ? null : Number(rr.time_ms),
+      status: rr.status,
+      fieldSize,
+      raceWinnerTimeMs: stats.winner,
+      raceSecondTimeMs: stats.second,
+      raceSlowestTimeMs: stats.slowest,
+    };
+  }
+
+  // ---- entries ----
+  const { data: entries, error: entriesError } = await supabase
+    .from("contest_entries")
+    .select("*")
+    .eq("pool_id", contestPoolId)
+    .in("status", ["active", "scored"]);
+
+  if (entriesError) throw new Error(`Failed to fetch entries: ${entriesError.message}`);
+  if (!entries || entries.length === 0) {
+    console.log("[scoring-logic] No entries to score for pool:", contestPoolId);
+    return { entriesScored: 0 };
+  }
+
+  const fixedRosterRequired = cfg.direction === "low" || cfg.tiebreak === "aggregate_time";
+  const minPicks = template?.min_picks ?? null;
+  const maxPicks = template?.max_picks ?? null;
+  if (fixedRosterRequired && (minPicks === null || maxPicks === null || minPicks !== maxPicks)) {
+    throw new Error(
+      `[scoring-logic] Refusing to score pool ${contestPoolId}: fixed roster violated (expected ${minPicks} picks)`,
+    );
+  }
+
+  const scores: Array<EntryScore & { tiebreak_cmp: number; tiebreak_persist: number; margin_bonus: number }> = [];
+  const failures: string[] = [];
+
+  for (const entry of entries) {
+    const picks = parseEntryPicks(entry);
+
+    if (fixedRosterRequired && picks.length !== minPicks) {
+      throw new Error(
+        `[scoring-logic] Refusing to score pool ${contestPoolId}: fixed roster violated (expected ${minPicks} picks)`,
+      );
+    }
+
+    try {
+      const { totalPoints, tiebreakValue, crewScores } = reducePlacement(picks, resultsByKey, cfg);
+
+      const tiebreakPersist = cfg.tiebreak === "aggregate_time"
+        ? Math.round(tiebreakValue) / 1000
+        : tiebreakValue;
+      const marginBonus = cfg.tiebreak === "aggregate_time"
+        ? Math.round(tiebreakValue / 10) / 100
+        : tiebreakValue;
+
+      scores.push({
+        entry_id: entry.id,
+        user_id: entry.user_id,
+        total_points: totalPoints,
+        margin_error: tiebreakPersist,
+        crew_scores: crewScores,
+        tiebreak_cmp: tiebreakValue,
+        tiebreak_persist: Math.round(tiebreakPersist * 1000) / 1000,
+        margin_bonus: marginBonus,
+      });
+    } catch (e: any) {
+      failures.push(`entry ${entry.id} → ${e.message}`);
+    }
+  }
+
+  if (failures.length > 0) {
+    throw new Error(
+      `[scoring-logic] Refusing to score pool ${contestPoolId}: ${failures.length} pick(s) could not be scored: ${failures.join("; ")}`,
+    );
+  }
+
+  // Bounds check BEFORE any write
+  for (const s of scores) {
+    if (!Number.isFinite(s.total_points) || Math.abs(s.total_points) > 2147483647) {
+      throw new Error(`[scoring-logic] Refusing to score pool ${contestPoolId}: total_points out of int32 range`);
+    }
+    if (!Number.isFinite(s.tiebreak_persist) || Math.abs(s.tiebreak_persist) >= 100000000) {
+      throw new Error(`[scoring-logic] Refusing to score pool ${contestPoolId}: tiebreak value out of numeric(10,2) range`);
+    }
+  }
+
+  // Sort: direction-aware on integer points, then tiebreak ascending
+  scores.sort((a, b) => {
+    if (a.total_points !== b.total_points) {
+      return cfg.direction === "low"
+        ? a.total_points - b.total_points
+        : b.total_points - a.total_points;
+    }
+    return a.tiebreak_cmp - b.tiebreak_cmp;
+  });
+
+  const isH2H = pool.max_entries <= 2;
+
+  for (let i = 0; i < scores.length; i++) {
+    if (i === 0) {
+      scores[i].rank = 1;
+      scores[i].is_tiebreak_resolved = false;
+    } else {
+      const prev = scores[i - 1];
+      const curr = scores[i];
+      if (prev.total_points === curr.total_points && prev.tiebreak_cmp === curr.tiebreak_cmp) {
+        scores[i].rank = prev.rank;
+        scores[i].is_tiebreak_resolved = false;
+      } else if (prev.total_points === curr.total_points) {
+        scores[i].rank = i + 1;
+        scores[i].is_tiebreak_resolved = true;
+      } else {
+        scores[i].rank = i + 1;
+        scores[i].is_tiebreak_resolved = false;
+      }
+    }
+  }
+
+  const winnerIds = scores.filter((s) => s.rank === 1).map((s) => s.user_id);
+  let isTieRefund = false;
+
+  if (isH2H && scores.length === 2) {
+    const a = scores[0];
+    const b = scores[1];
+    const isTrueTie = a.total_points === b.total_points && a.tiebreak_cmp === b.tiebreak_cmp;
+    if (isTrueTie) {
+      console.log("[scoring-logic] H2H TRUE TIE detected — settlement will issue refunds");
+      isTieRefund = true;
+      for (const score of scores) {
+        score.is_winner = false;
+        score.rank = 1;
+        score.is_tie_refund = true;
+      }
+    } else {
+      for (const score of scores) score.is_winner = score.rank === 1;
+    }
+  } else {
+    for (const score of scores) score.is_winner = score.rank === 1;
+  }
+
+  const writeErrors: string[] = [];
+  for (const score of scores) {
+    const { error: upsertError } = await supabase.from("contest_scores").upsert(
+      {
+        entry_id: score.entry_id,
+        pool_id: contestPoolId,
+        user_id: score.user_id,
+        total_points: score.total_points,
+        margin_bonus: score.margin_bonus,
+        rank: score.rank,
+        is_tiebreak_resolved: score.is_tiebreak_resolved ?? false,
+        is_winner: score.is_winner ?? false,
+        crew_scores: score.crew_scores,
+        score_value: score.total_points,
+        tiebreak_value: score.tiebreak_persist,
+      },
+      { onConflict: "entry_id" },
+    );
+
+    if (upsertError) {
+      console.error("[scoring-logic] Upsert error for entry", score.entry_id, upsertError.message);
+      writeErrors.push(`contest_scores upsert failed for entry ${score.entry_id}: ${upsertError.message}`);
+    }
+
+    const { error: entryUpdateError } = await supabase
+      .from("contest_entries")
+      .update({
+        total_points: score.total_points,
+        margin_error: score.tiebreak_persist,
+        rank: score.rank,
+        status: "active",
+      })
+      .eq("id", score.entry_id);
+
+    if (entryUpdateError) {
+      console.error("[scoring-logic] Entry update error:", score.entry_id, entryUpdateError.message);
+      writeErrors.push(`contest_entries update failed for entry ${score.entry_id}: ${entryUpdateError.message}`);
+    }
+  }
+
+  if (writeErrors.length > 0) {
+    throw new Error(
+      `[scoring-logic] Aborting pool ${contestPoolId} — ${writeErrors.length} per-entry write failure(s). ` +
+      `Pool NOT marked scoring_completed. First error: ${writeErrors[0]}`,
+    );
+  }
+
+  const { data: updatedPools, error: poolUpdateError } = await supabase
+    .from("contest_pools")
+    .update({
+      status: "scoring_completed",
+      winner_ids: isTieRefund ? [] : winnerIds,
+    })
+    .eq("id", contestPoolId)
+    .not("status", "in", "(settled,voided,cancelled)")
+    .select("id");
+
+  if (poolUpdateError) {
+    throw new Error(`[scoring-logic] Failed to mark pool ${contestPoolId} scoring_completed: ${poolUpdateError.message}`);
+  }
+  if (!updatedPools || updatedPools.length === 0) {
+    throw new Error(
+      `[scoring-logic] Pool ${contestPoolId} reached a terminal status mid-scoring (settled/voided/cancelled) — refusing to clobber`,
+    );
+  }
+
+  await supabase.from("compliance_audit_logs").insert({
+    event_type: "contest_scored",
+    severity: "info",
+    description: `Scored: ${template?.name || template?.regatta_name || "Contest"} — pool ${contestPoolId}${isTieRefund ? " (H2H TIE REFUND)" : ""}`,
+    metadata: {
+      contest_pool_id: contestPoolId,
+      entries_scored: scores.length,
+      winner_ids: isTieRefund ? [] : winnerIds,
+      top_score: scores[0]?.total_points,
+      top_tiebreak: scores[0]?.tiebreak_persist,
+      scoring_primitive: cfg.primitive,
+      direction: cfg.direction,
+      tiebreak: cfg.tiebreak,
+      is_tie_refund: isTieRefund,
+    },
+  });
+
+  console.log("[scoring-logic] Done (v2). Entries scored:", scores.length, "Winners:", winnerIds, "TieRefund:", isTieRefund);
 
   return { entriesScored: scores.length, winnerId: winnerIds[0], isTieRefund };
 }

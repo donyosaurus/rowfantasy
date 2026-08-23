@@ -58,12 +58,13 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
           z.object({
             crewId: z.string(),
             event_id: z.string(),
-            predictedMargin: z.number(),
+            predictedMargin: z.number().optional(),
           }),
         )
         .min(1)
         .max(10),
     });
+
 
     const body = enterSchema.parse(await req.json());
 
@@ -84,7 +85,7 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
     // Fetch template name for success message (and pre-RPC sanity check)
     const { data: template, error: templateError } = await auth.supabase
       .from("contest_templates")
-      .select("regatta_name")
+      .select("regatta_name, scoring_config")
       .eq("id", body.contestTemplateId)
       .single();
 
@@ -94,6 +95,20 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Legacy templates (scoring_config NULL) keep today's required-margin contract.
+    // New-path templates require a margin only when the tiebreak is margin_error.
+    const scoringConfig = (template as any).scoring_config ?? null;
+    const needsMargin = scoringConfig === null ||
+      (typeof scoringConfig === "object" && (scoringConfig as any)?.tiebreak === "margin_error");
+
+    if (needsMargin && body.picks.some((p) => !Number.isFinite(p.predictedMargin as number))) {
+      return new Response(
+        JSON.stringify({ error: "Predicted margin is required for this contest." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
 
     const stateCode = body.stateCode || req.headers.get("x-user-state") || "";
     // P0-C9 (2026-05-21): cf-connecting-ip is the trusted client IP source at Supabase Edge Functions.
@@ -171,6 +186,9 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
         all_pools_full: { status: 409, message: "This contest is full." },
         invalid_pool_fee: { status: 500, message: "Invalid contest configuration." },
         insufficient_balance: { status: 402, message: "Insufficient balance." },
+        roster_mode_unsupported: { status: 400, message: "This contest type is not yet supported." },
+        invalid_scoring_config: { status: 500, message: "Invalid contest configuration." },
+
       };
 
       const mapped = errorMap[entry.reason] ?? { status: 400, message: ERROR_MESSAGES.INTERNAL_ERROR };

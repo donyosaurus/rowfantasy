@@ -39,7 +39,7 @@ async function scoreSinglePool(
   try {
     const { data: pool, error: poolError } = await supabaseAdmin
       .from('contest_pools')
-      .select('status')
+      .select('status, contest_templates(scoring_config)')
       .eq('id', contestPoolId)
       .single();
 
@@ -62,6 +62,20 @@ async function scoreSinglePool(
       return { success: true, poolId: contestPoolId, skipped: true, skipReason: `Status '${pool.status}' not ready` };
     }
 
+    const poolScoringConfig = (pool as any).contest_templates?.scoring_config ?? null;
+
+    if (poolScoringConfig !== null) {
+      // New path: scoring-logic loads contest_races/competitors/entries/results itself.
+      const scoringResult = await scoreContestPool(supabaseAdmin, contestPoolId, []);
+      return {
+        success: true,
+        poolId: contestPoolId,
+        entriesScored: scoringResult.entriesScored,
+        winnerId: scoringResult.winnerId,
+        isTieRefund: scoringResult.isTieRefund,
+      };
+    }
+
     // Fetch crew results
     const { data: crews, error: crewsError } = await supabaseAdmin
       .from('contest_pool_crews')
@@ -71,6 +85,7 @@ async function scoreSinglePool(
     if (crewsError || !crews || crews.length === 0) {
       return { success: false, poolId: contestPoolId, error: 'No crew results found' };
     }
+
 
     // Group crews by event_id
     const eventGroups = new Map<string, PoolCrew[]>();
@@ -198,39 +213,50 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Copy crew results to siblings missing them
-    const { data: sourceCrews } = await supabaseAdmin
-      .from('contest_pool_crews')
-      .select('crew_id, event_id, crew_name, manual_finish_order, manual_result_time')
-      .eq('contest_pool_id', contestPoolId);
+    // Legacy templates only: copy crew results to siblings missing them.
+    const { data: templateRow } = await supabaseAdmin
+      .from('contest_templates')
+      .select('scoring_config')
+      .eq('id', requestedPool.contest_template_id)
+      .single();
+    const templateScoringConfig = templateRow?.scoring_config ?? null;
 
-    if (sourceCrews && sourceCrews.length > 0) {
-      const hasResults = sourceCrews.some((c: any) => c.manual_finish_order !== null);
-      if (hasResults) {
-        for (const sib of siblingPools || []) {
-          if (sib.id === contestPoolId) continue;
-          const { data: sibCrews } = await supabaseAdmin
-            .from('contest_pool_crews')
-            .select('crew_id, manual_finish_order')
-            .eq('contest_pool_id', sib.id);
-          const sibHasResults = sibCrews?.some((c: any) => c.manual_finish_order !== null);
-          if (!sibHasResults && sibCrews && sibCrews.length > 0) {
-            console.log('[scoring] Copying results to sibling', sib.id);
-            for (const src of sourceCrews) {
-              await supabaseAdmin
-                .from('contest_pool_crews')
-                .update({ manual_finish_order: src.manual_finish_order, manual_result_time: src.manual_result_time })
-                .eq('contest_pool_id', sib.id)
-                .eq('crew_id', src.crew_id);
-            }
-            if (sib.status === 'locked' || sib.status === 'open') {
-              await supabaseAdmin.from('contest_pools').update({ status: 'results_entered' }).eq('id', sib.id);
-              sib.status = 'results_entered';
+    if (templateScoringConfig === null) {
+      // Copy crew results to siblings missing them
+      const { data: sourceCrews } = await supabaseAdmin
+        .from('contest_pool_crews')
+        .select('crew_id, event_id, crew_name, manual_finish_order, manual_result_time')
+        .eq('contest_pool_id', contestPoolId);
+
+      if (sourceCrews && sourceCrews.length > 0) {
+        const hasResults = sourceCrews.some((c: any) => c.manual_finish_order !== null);
+        if (hasResults) {
+          for (const sib of siblingPools || []) {
+            if (sib.id === contestPoolId) continue;
+            const { data: sibCrews } = await supabaseAdmin
+              .from('contest_pool_crews')
+              .select('crew_id, manual_finish_order')
+              .eq('contest_pool_id', sib.id);
+            const sibHasResults = sibCrews?.some((c: any) => c.manual_finish_order !== null);
+            if (!sibHasResults && sibCrews && sibCrews.length > 0) {
+              console.log('[scoring] Copying results to sibling', sib.id);
+              for (const src of sourceCrews) {
+                await supabaseAdmin
+                  .from('contest_pool_crews')
+                  .update({ manual_finish_order: src.manual_finish_order, manual_result_time: src.manual_result_time })
+                  .eq('contest_pool_id', sib.id)
+                  .eq('crew_id', src.crew_id);
+              }
+              if (sib.status === 'locked' || sib.status === 'open') {
+                await supabaseAdmin.from('contest_pools').update({ status: 'results_entered' }).eq('id', sib.id);
+                sib.status = 'results_entered';
+              }
             }
           }
         }
       }
     }
+
 
     // Filter to scorable pools
     const scorableStatuses = ['results_entered', 'locked', 'settling', 'scoring_completed'];
