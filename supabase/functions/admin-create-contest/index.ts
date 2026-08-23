@@ -245,8 +245,8 @@ Deno.serve(withFnVersion('admin-create-contest', async (req) => {
         p_primitive: v2.primitive ?? 'placement',
         p_roster_mode: v2.rosterMode ?? 'per_race',
         p_scoring_config: v2.scoringConfig ?? null,
-        p_min_picks: v2.minPicks ?? null,
-        p_max_picks: v2.maxPicks ?? null,
+        p_min_picks: v2.minPicks ?? 2,
+        p_max_picks: v2.maxPicks ?? 4,
         _admin_user_id: user.id,
       });
 
