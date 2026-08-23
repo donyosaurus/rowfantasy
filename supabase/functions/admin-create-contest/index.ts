@@ -145,8 +145,134 @@ Deno.serve(withFnVersion('admin-create-contest', async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const body: CreateContestRequest = await req.json();
+    const rawBody: any = await req.json();
+
+    const hasCrews = rawBody && typeof rawBody === 'object' && rawBody.crews !== undefined;
+    const hasRaces = rawBody && typeof rawBody === 'object' && rawBody.races !== undefined;
+
+    if (hasCrews && hasRaces) {
+      return new Response(JSON.stringify({ error: 'Provide either crews (v1) or races (v2), not both' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // ---- v2 path ----
+    if (hasRaces) {
+      const parsed = CreateContestV2Schema.safeParse(rawBody);
+      if (!parsed.success) {
+        return new Response(JSON.stringify({ error: 'Invalid input', details: parsed.error.flatten() }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const v2 = parsed.data;
+
+      if (v2.primitive !== undefined && v2.primitive !== 'placement') {
+        return new Response(JSON.stringify({ error: "primitive must be 'placement'" }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (v2.rosterMode !== undefined && v2.rosterMode !== 'per_race') {
+        return new Response(JSON.stringify({ error: "rosterMode must be 'per_race'" }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const lockDate = new Date(v2.lockTime);
+      if (isNaN(lockDate.getTime())) {
+        return new Response(JSON.stringify({ error: 'Invalid lock time format' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (lockDate <= new Date()) {
+        return new Response(JSON.stringify({ error: 'Lock time must be in the future' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (v2.entryFeeCents > 0 && v2.races.length < 2) {
+        return new Response(JSON.stringify({ error: 'Paid contests require at least 2 races' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const cfg = v2.scoringConfig;
+      if (cfg) {
+        const fixedRosterRequired = cfg.direction === 'low' || cfg.tiebreak === 'aggregate_time';
+        if (fixedRosterRequired) {
+          if (
+            typeof v2.minPicks !== 'number' || typeof v2.maxPicks !== 'number' ||
+            v2.minPicks !== v2.maxPicks
+          ) {
+            return new Response(
+              JSON.stringify({ error: 'fixed roster size required for low-score / aggregate-time contests' }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+            );
+          }
+        }
+
+        if (cfg.tiebreak === 'aggregate_time') {
+          const classes = v2.races.map((r) => (typeof r.event_class === 'string' ? r.event_class.trim() : ''));
+          const allPresent = classes.every((c) => c.length > 0);
+          const allSame = new Set(classes).size === 1;
+          if (!allPresent || !allSame) {
+            return new Response(
+              JSON.stringify({ error: 'total-time tiebreak requires all races to share event_class' }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+            );
+          }
+        }
+      }
+
+      console.log('Creating contest (v2):', { name: v2.name, sport: v2.sport, admin: user.id });
+
+      const { data: v2Data, error: v2Error } = await supabaseAdmin.rpc('admin_create_contest_v2', {
+        p_name: v2.name,
+        p_sport: v2.sport,
+        p_gender_category: v2.genderCategory,
+        p_lock_time: v2.lockTime,
+        p_races: v2.races,
+        p_competitors: v2.competitors,
+        p_race_entries: v2.raceEntries,
+        p_entry_fee_cents: v2.entryFeeCents,
+        p_max_entries: v2.maxEntries,
+        p_payout_structure: v2.payouts ?? null,
+        p_entry_tiers: v2.entryTiers ?? null,
+        p_allow_overflow: v2.allowOverflow ?? false,
+        p_void_unfilled_on_settle: v2.voidUnfilledOnSettle ?? false,
+        p_card_banner_url: v2.cardBannerUrl ?? null,
+        p_draft_banner_url: v2.draftBannerUrl ?? null,
+        p_contest_group_id: v2.contestGroupId ?? null,
+        p_primitive: v2.primitive ?? 'placement',
+        p_roster_mode: v2.rosterMode ?? 'per_race',
+        p_scoring_config: v2.scoringConfig ?? null,
+        p_min_picks: v2.minPicks ?? null,
+        p_max_picks: v2.maxPicks ?? null,
+        _admin_user_id: user.id,
+      });
+
+      if (v2Error) {
+        console.error('Error creating contest (v2):', v2Error);
+        return new Response(JSON.stringify({ error: 'Failed to create contest' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      await supabaseAdmin.from('compliance_audit_logs').insert({
+        admin_id: user.id,
+        event_type: 'contest_created',
+        description: `Admin created contest: ${v2.name}`,
+        severity: 'info',
+        metadata: { contest: v2Data, sport: v2.sport },
+      });
+
+      return new Response(JSON.stringify(v2Data ?? { success: true }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const body: CreateContestRequest = rawBody as CreateContestRequest;
     const validationError = validateRequest(body);
+
     if (validationError) {
       return new Response(JSON.stringify({ error: validationError }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
