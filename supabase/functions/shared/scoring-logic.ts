@@ -240,7 +240,7 @@ export function reducePlacement(
     crewScores.push({
       crew_id: pick.crewId,
       event_id: raceKey,
-      predicted_margin: pick.predictedMargin,
+      predicted_margin: Number.isFinite(pick.predictedMargin) ? pick.predictedMargin : null,
       actual_margin: signedMargin,
       finish_order: result.place,
       finish_points: points,
