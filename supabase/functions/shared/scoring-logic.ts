@@ -105,7 +105,7 @@ interface EntryScore {
 interface CrewScore {
   crew_id: string;
   event_id?: string;
-  predicted_margin: number;
+  predicted_margin: number | null;
   actual_margin?: number;
   finish_order: number | null;
   finish_points: number;
