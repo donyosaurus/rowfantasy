@@ -2,6 +2,58 @@ import { withFnVersion } from '../shared/fn-version.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { requireAdmin } from '../shared/auth-helpers.ts';
 import { getCorsHeaders } from '../shared/cors.ts';
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
+import { ScoringConfigSchema } from '../shared/scoring-logic.ts';
+
+// ---- v2 (multi-sport) request shape ----
+const RaceSchema = z.object({
+  race_key: z.string().min(1),
+  name: z.string().optional(),
+  race_order: z.number().int().optional(),
+  event_class: z.string().nullable().optional(),
+  division: z.string().nullable().optional(),
+  round: z.string().nullable().optional(),
+  distance: z.string().nullable().optional(),
+  scheduled_at: z.string().nullable().optional(),
+}).strict();
+
+const CompetitorSchema = z.object({
+  competitor_key: z.string().min(1),
+  name: z.string().optional(),
+  logo_url: z.string().nullable().optional(),
+  competitor_type: z.string().optional(),
+}).strict();
+
+const RaceEntrySchema = z.object({
+  race_key: z.string().min(1),
+  competitor_key: z.string().min(1),
+  seed_time_ms: z.number().int().nullable().optional(),
+}).strict();
+
+const CreateContestV2Schema = z.object({
+  name: z.string().min(1),
+  sport: z.string().min(1),
+  genderCategory: z.enum(["Men's", "Women's", "Mixed", "Open"]),
+  lockTime: z.string().min(1),
+  races: z.array(RaceSchema).min(1),
+  competitors: z.array(CompetitorSchema).min(2),
+  raceEntries: z.array(RaceEntrySchema).min(2),
+  entryFeeCents: z.number().int().nonnegative(),
+  maxEntries: z.number().int().min(2),
+  payouts: z.record(z.string(), z.number().int().positive()).optional(),
+  entryTiers: z.array(z.any()).nullable().optional(),
+  allowOverflow: z.boolean().optional(),
+  voidUnfilledOnSettle: z.boolean().optional(),
+  cardBannerUrl: z.string().nullable().optional(),
+  draftBannerUrl: z.string().nullable().optional(),
+  contestGroupId: z.string().uuid().nullable().optional(),
+  primitive: z.string().optional(),
+  rosterMode: z.string().optional(),
+  scoringConfig: ScoringConfigSchema.optional(),
+  minPicks: z.number().int().optional(),
+  maxPicks: z.number().int().optional(),
+}).strict();
+
 
 interface CrewInput {
   crew_name: string;
