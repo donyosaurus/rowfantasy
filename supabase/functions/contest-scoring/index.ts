@@ -39,7 +39,7 @@ async function scoreSinglePool(
   try {
     const { data: pool, error: poolError } = await supabaseAdmin
       .from('contest_pools')
-      .select('status')
+      .select('status, contest_templates(scoring_config)')
       .eq('id', contestPoolId)
       .single();
 
@@ -62,6 +62,20 @@ async function scoreSinglePool(
       return { success: true, poolId: contestPoolId, skipped: true, skipReason: `Status '${pool.status}' not ready` };
     }
 
+    const poolScoringConfig = (pool as any).contest_templates?.scoring_config ?? null;
+
+    if (poolScoringConfig !== null) {
+      // New path: scoring-logic loads contest_races/competitors/entries/results itself.
+      const scoringResult = await scoreContestPool(supabaseAdmin, contestPoolId, []);
+      return {
+        success: true,
+        poolId: contestPoolId,
+        entriesScored: scoringResult.entriesScored,
+        winnerId: scoringResult.winnerId,
+        isTieRefund: scoringResult.isTieRefund,
+      };
+    }
+
     // Fetch crew results
     const { data: crews, error: crewsError } = await supabaseAdmin
       .from('contest_pool_crews')
@@ -71,6 +85,7 @@ async function scoreSinglePool(
     if (crewsError || !crews || crews.length === 0) {
       return { success: false, poolId: contestPoolId, error: 'No crew results found' };
     }
+
 
     // Group crews by event_id
     const eventGroups = new Map<string, PoolCrew[]>();
