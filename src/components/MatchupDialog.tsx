@@ -199,6 +199,7 @@ export function MatchupDialog({
               isLocked={isLocked}
               isCompleted={isCompleted}
               lockTime={lockTime}
+              tiebreak={tiebreak}
             />
           ) : (
             <MultiEntryLayout
@@ -207,6 +208,7 @@ export function MatchupDialog({
               crewMap={crewMap}
               isLocked={isLocked}
               isCompleted={isCompleted}
+              tiebreak={tiebreak}
             />
           )
         ) : entrants.length === 1 && isH2H ? (
