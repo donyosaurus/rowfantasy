@@ -16,9 +16,11 @@ interface DraftPicksListProps {
   events: string[];
   maxPicks: number;
   onRemove: (crewId: string) => void;
+  /** Sport-aware noun for the empty-slot copy. Defaults to rowing wording. */
+  competitorNoun?: string;
 }
 
-export function DraftPicksList({ picks, events, maxPicks, onRemove }: DraftPicksListProps) {
+export function DraftPicksList({ picks, events, maxPicks, onRemove, competitorNoun = "crew" }: DraftPicksListProps) {
   const pickedEventIds = new Set(picks.map((p) => p.eventId));
   const allComplete = picks.length >= maxPicks;
 
@@ -68,7 +70,7 @@ export function DraftPicksList({ picks, events, maxPicks, onRemove }: DraftPicks
               className="flex items-center gap-3 px-3 py-2 rounded-lg border-2 border-dashed border-border text-sm text-muted-foreground"
             >
               <div className="w-8 h-8 rounded-full border-2 border-dashed border-border flex-shrink-0" />
-              <span>Select a crew for {eventId}</span>
+              <span>Select a {competitorNoun} for {eventId}</span>
             </div>
           ))}
       </div>
