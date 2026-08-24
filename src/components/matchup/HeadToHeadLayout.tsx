@@ -136,9 +136,13 @@ function EntrantColumn({
               {points ?? "—"}
               <span className="text-sm font-normal text-muted-foreground ml-1">pts</span>
             </p>
-            <p className="text-xs text-muted-foreground font-body mt-0.5">
-              Margin: ±{marginError != null ? Number(marginError).toFixed(1) : "—"}s
-            </p>
+            {tiebreak !== "none" && (
+              <p className="text-xs text-muted-foreground font-body mt-0.5">
+                {tiebreak === "aggregate_time"
+                  ? `Total time: ${marginError != null ? formatSecondsAsTime(Number(marginError)) : "—"}`
+                  : `Margin: ±${marginError != null ? Number(marginError).toFixed(1) : "—"}s`}
+              </p>
+            )}
           </div>
           {payout != null && payout > 0 && (
             <div className="mt-2 flex items-center justify-center gap-1.5">
