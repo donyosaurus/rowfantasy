@@ -20,6 +20,18 @@ import myEntriesBg from "@/assets/my-entries-bg.jpg";
 import { CrewLogo } from "@/components/CrewLogo";
 import { toast } from "sonner";
 import { formatCents, formatDollars } from "@/lib/formatCurrency";
+import { formatSecondsAsTime } from "@/lib/utils";
+
+/**
+ * Templates with a null scoring_config, or a margin_error tiebreak, keep today's copy.
+ * aggregate_time renders a formatted total time; none hides the line.
+ */
+function tiebreakOf(scoringConfig: unknown): "margin_error" | "aggregate_time" | "none" {
+  if (!scoringConfig || typeof scoringConfig !== "object") return "margin_error";
+  const tb = (scoringConfig as { tiebreak?: string }).tiebreak;
+  if (tb === "aggregate_time" || tb === "none") return tb;
+  return "margin_error";
+}
 
 interface PickNew {
   crewId: string;
@@ -40,6 +52,7 @@ interface Entry {
   contest_templates: {
     regatta_name: string;
     lock_time: string;
+    scoring_config?: unknown | null;
   };
   contest_pools: {
     status: string;
