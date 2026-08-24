@@ -165,6 +165,7 @@ export function HeadToHeadLayout({
   isLocked,
   isCompleted,
   lockTime,
+  tiebreak = "margin_error",
 }: HeadToHeadLayoutProps) {
   // Ensure current user is on the left
   const sorted = [...entrants].sort((a, b) => {
