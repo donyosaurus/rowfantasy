@@ -329,12 +329,14 @@ const RegattaDetail = () => {
       return;
     }
     if (!id || !contestPool) return;
-    if (crewPicks.size < minPicks) { toast.error(`Please select at least ${minPicks} crews`); return; }
-    for (const [crewId, margin] of crewPicks) {
-      if (margin <= 0) {
-        const crew = contestPool.contest_pool_crews.find((c) => c.crew_id === crewId);
-        toast.error(`Please enter a valid margin for ${crew?.crew_name || crewId}`);
-        return;
+    if (crewPicks.size < minPicks) { toast.error(`Please select at least ${minPicks} ${t.competitors}`); return; }
+    if (needsMargin) {
+      for (const [crewId, margin] of crewPicks) {
+        if (margin <= 0) {
+          const crew = contestPool.contest_pool_crews.find((c) => c.crew_id === crewId);
+          toast.error(`Please enter a valid margin for ${crew?.crew_name || crewId}`);
+          return;
+        }
       }
     }
     const selectedDivisions = new Set<string>();
@@ -342,7 +344,7 @@ const RegattaDetail = () => {
       const crew = contestPool.contest_pool_crews.find((c) => c.crew_id === crewId);
       if (crew) selectedDivisions.add(crew.event_id);
     }
-    if (selectedDivisions.size < 2) { toast.error("You must select crews from at least 2 different events"); return; }
+    if (selectedDivisions.size < 2) { toast.error(`You must select ${t.competitors} from at least 2 different ${t.events}`); return; }
     if (hasTiers && !selectedTier) { toast.error("Please select an entry tier"); return; }
     // (Wave 1 #6) Fail-closed: refuse submit if balance read errored.
     if (wallet.status === 'error') {
