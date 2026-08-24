@@ -625,6 +625,7 @@ const MyEntries = () => {
           maxEntries={matchupEntry.contest_pools?.max_entries || 0}
           currentEntries={matchupEntry.contest_pools?.current_entries || 0}
           payoutStructure={matchupEntry.contest_pools?.payout_structure || null}
+          scoringConfig={matchupEntry.contest_templates?.scoring_config ?? null}
         />
       )}
 
