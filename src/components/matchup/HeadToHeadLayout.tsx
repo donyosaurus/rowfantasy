@@ -229,6 +229,7 @@ export function HeadToHeadLayout({
           showPicks={canSeePicks(left)}
           isCompleted={isCompleted}
           side="left"
+          tiebreak={tiebreak}
         />
 
         {/* VS Divider */}
@@ -252,6 +253,7 @@ export function HeadToHeadLayout({
           showPicks={canSeePicks(right)}
           isCompleted={isCompleted}
           side="right"
+          tiebreak={tiebreak}
         />
       </div>
 
