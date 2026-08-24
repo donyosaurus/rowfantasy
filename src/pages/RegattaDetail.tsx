@@ -99,7 +99,10 @@ const RegattaDetail = () => {
   const [allTemplatePools, setAllTemplatePools] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [crewPicks, setCrewPicks] = useState<Map<string, number>>(new Map());
+  // Picks are keyed by the composite `${crew_id}::${event_id}` — a v2 competitor can
+  // appear in more than one race, so crew_id alone is not a unique pick identity.
+  const [crewPicks, setCrewPicks] = useState<Map<string, { crewId: string; eventId: string; margin: number }>>(new Map());
+
   const [submitting, setSubmitting] = useState(false);
   const [scoringOpen, setScoringOpen] = useState(false);
   const [prizePoolOpen, setPrizePoolOpen] = useState(false);
