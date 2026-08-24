@@ -548,7 +548,8 @@ const Admin = () => {
       contestType: "classic",
       sport: "rowing",
       eventClass: "",
-
+      minPicks: "2",
+      maxPicks: "4",
     });
     setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
   };
