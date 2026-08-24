@@ -359,7 +359,8 @@ const RegattaDetail = () => {
     setSubmitting(true);
     const picks = Array.from(crewPicks.entries()).map(([crewId, margin]) => {
       const crew = contestPool.contest_pool_crews.find((c) => c.crew_id === crewId);
-      return { crewId, event_id: crew?.event_id ?? "", predictedMargin: margin };
+      const base = { crewId, event_id: crew?.event_id ?? "" };
+      return needsMargin ? { ...base, predictedMargin: margin } : base;
     });
 
     try {
