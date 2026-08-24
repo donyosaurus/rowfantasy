@@ -754,10 +754,59 @@ const Admin = () => {
       if (!ok) return;
     }
 
+    // ---- v2 (multi-sport engine) body ----
+    const isV2 = createForm.contestType !== "classic" || createForm.sport !== "rowing";
+    let v2Body: any = null;
+    if (isV2) {
+      const typeDef = CONTEST_TYPES.find(t => t.key === createForm.contestType)!;
+      const scoringConfig = getScoringPreset(createForm.contestType);
+      const raceKeys = Array.from(new Set(createForm.crews.map(c => c.event_id)));
+      if (raceKeys.length < 2 && entryFeeCents > 0) { toast.error("Paid contests require at least 2 races"); return; }
+      const eventClass = createForm.eventClass.trim();
+      if (typeDef.requiresEventClass && !eventClass) {
+        toast.error("Total Time contests require an event class (all races must share it)"); return;
+      }
+      const rosterSize = raceKeys.length;
+      v2Body = {
+        name: createForm.regattaName.trim(),
+        sport: createForm.sport,
+        genderCategory: createForm.genderCategory,
+        lockTime: lockDate.toISOString(),
+        races: raceKeys.map((key, i) => ({
+          race_key: key,
+          name: key,
+          race_order: i + 1,
+          event_class: eventClass || null,
+        })),
+        competitors: Array.from(
+          new Map(createForm.crews.map(c => [c.crew_id, {
+            competitor_key: c.crew_id,
+            name: c.crew_name,
+            logo_url: c.logo_url ?? null,
+          }])).values()
+        ),
+        raceEntries: createForm.crews.map(c => ({ race_key: c.event_id, competitor_key: c.crew_id })),
+        entryFeeCents,
+        maxEntries,
+        payouts,
+        entryTiers: entryTiersPayload,
+        allowOverflow: createForm.allowOverflow,
+        voidUnfilledOnSettle: createForm.voidUnfilledOnSettle,
+        cardBannerUrl: createForm.cardBannerUrl.trim() || null,
+        draftBannerUrl: createForm.draftBannerUrl.trim() || null,
+        contestGroupId: (createForm.contestGroupId && createForm.contestGroupId !== "none") ? createForm.contestGroupId : null,
+        primitive: "placement",
+        rosterMode: "per_race",
+        scoringConfig,
+        minPicks: typeDef.fixedRoster ? rosterSize : Math.min(2, rosterSize),
+        maxPicks: rosterSize,
+      };
+    }
+
     setCreatingContest(true);
     try {
       const { data, error } = await supabase.functions.invoke("admin-create-contest", {
-        body: {
+        body: v2Body ?? {
           regattaName: createForm.regattaName.trim(),
           genderCategory: createForm.genderCategory,
           entryFeeCents,
@@ -773,6 +822,7 @@ const Admin = () => {
           voidUnfilledOnSettle: createForm.voidUnfilledOnSettle,
         }
       });
+
       if (error) throw error;
       toast.success(`Contest created successfully!`);
       setCreateModalOpen(false);
