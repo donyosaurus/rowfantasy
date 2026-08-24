@@ -522,6 +522,7 @@ const RegattaDetail = () => {
                     events={divisions}
                     maxPicks={maxPicks}
                     onRemove={toggleCrewSelection}
+                    competitorNoun={t.competitor}
                   />
 
                    <div className="mt-4">
