@@ -514,7 +514,16 @@ const MyEntries = () => {
             <div className="flex flex-wrap items-center gap-4 text-sm pt-3 border-t text-muted-foreground">
               <span className="font-heading font-bold text-foreground">Rank: #{score.rank}</span>
               <span>{score.total_points} pts</span>
-              {score.margin_bonus > 0 && <span className="text-muted-foreground">Margin error: {score.margin_bonus.toFixed(1)}s</span>}
+              {(() => {
+                const tb = tiebreakOf(entry.contest_templates?.scoring_config);
+                if (tb === "none") return null;
+                if (tb === "aggregate_time") {
+                  return <span className="text-muted-foreground">Total time: {formatSecondsAsTime(score.margin_bonus)}</span>;
+                }
+                return score.margin_bonus > 0
+                  ? <span className="text-muted-foreground">Margin error: {score.margin_bonus.toFixed(1)}s</span>
+                  : null;
+              })()}
             </div>
           )}
         </CardContent>
