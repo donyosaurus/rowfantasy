@@ -791,7 +791,8 @@ const Admin = () => {
       const rosterSize = raceKeys.length;
       const minPicks = parseInt(createForm.minPicks, 10);
       const maxPicks = parseInt(createForm.maxPicks, 10);
-      if (isNaN(minPicks) || isNaN(maxPicks) || minPicks < 2 || maxPicks < minPicks || maxPicks > rosterSize) {
+      const effectiveMax = createForm.contestType === "classic_total_time" ? minPicks : maxPicks;
+      if (isNaN(minPicks) || isNaN(effectiveMax) || minPicks < 2 || effectiveMax < minPicks || effectiveMax > rosterSize) {
         toast.error(`Picks must satisfy 2 ≤ Min picks ≤ Max picks ≤ number of races (${rosterSize})`); return;
       }
       v2Body = {
@@ -826,7 +827,7 @@ const Admin = () => {
         rosterMode: "per_race",
         scoringConfig,
         minPicks,
-        maxPicks,
+        maxPicks: effectiveMax,
       };
     }
 
@@ -1391,7 +1392,7 @@ const Admin = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Contest Type *</Label>
-                  <Select value={createForm.contestType} onValueChange={(value) => setCreateForm(prev => ({ ...prev, contestType: value as ContestTypeKey }))}>
+                  <Select value={createForm.contestType} onValueChange={(value) => setCreateForm(prev => ({ ...prev, contestType: value as ContestTypeKey, maxPicks: value === "classic_total_time" ? prev.minPicks : prev.maxPicks }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {CONTEST_TYPES.map(t => <SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>)}
