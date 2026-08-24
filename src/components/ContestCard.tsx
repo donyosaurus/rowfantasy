@@ -4,7 +4,7 @@ import { formatCents } from "@/lib/formatCurrency";
 import { Trophy } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
-type GenderCategory = "Men's" | "Women's";
+type GenderCategory = "Men's" | "Women's" | "Mixed" | "Open";
 
 interface EntryTier {
   name: string;
@@ -28,6 +28,7 @@ interface ContestCardProps {
   entryTiers?: EntryTier[] | null;
   bannerUrl?: string | null;
   events?: string[];
+  sport?: string | null;
 }
 
 const CARD_GRADIENTS = [
@@ -111,7 +112,9 @@ export const ContestCard = ({
   entryTiers = null,
   bannerUrl = null,
   events = [],
+  sport = null,
 }: ContestCardProps) => {
+  const showSportBadge = !!sport && sport !== "rowing";
   const hasTiers = entryTiers && entryTiers.length > 0;
   const hasPayoutStructure = payoutStructure && Object.keys(payoutStructure).length > 0;
   const totalPrizes = hasPayoutStructure
