@@ -217,6 +217,11 @@ const RegattaDetail = () => {
   const displayName = template?.name || template?.regatta_name || "";
   // Legacy templates (null scoring_config) always need a margin prediction.
   const needsMargin = !scoringConfig || scoringConfig.tiebreak === "margin_error";
+  const scoringPointsRows: [string, number][] = Object.entries(
+    scoringConfig?.points_table && Object.keys(scoringConfig.points_table).length > 0
+      ? scoringConfig.points_table
+      : (FINISH_POINTS as unknown as Record<string, number>)
+  ).sort((a, b) => Number(a[0]) - Number(b[0]));
 
   const toggleCrewSelection = (crewId: string) => {
     const clickedCrew = contestPool?.contest_pool_crews.find((c) => c.crew_id === crewId);
