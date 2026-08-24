@@ -281,13 +281,32 @@ const Admin = () => {
 
   const submitResults = async () => {
     if (!selectedContest) return;
-    const invalidEntries = resultsForm.filter(r => !r.finish_order);
-    if (invalidEntries.length > 0) { toast.error("Please enter finish order for all crews"); return; }
+    const finished = resultsForm.filter(r => (r.status ?? "OK") === "OK");
+    if (finished.some(r => !r.finish_order)) { toast.error("Please enter a finish place for every finisher"); return; }
     setSubmittingResults(true);
     try {
-      const results = resultsForm.map(r => ({ crew_id: r.crew_id, finish_order: parseInt(r.finish_order), finish_time: r.finish_time || null }));
-      const { error: resultsError } = await supabase.functions.invoke("admin-contest-results", { body: { contestPoolId: selectedContest.id, results } });
-      if (resultsError) throw new Error(`Saving results failed: ${resultsError.message}`);
+      if (resultsV2) {
+        const v2Results = resultsForm.map(r => {
+          const status = r.status || "OK";
+          const ms = parseRaceTimeToMs(r.finish_time || "");
+          const row: any = { race_key: r.race_key, competitor_key: r.competitor_key, status };
+          if (status === "OK") row.place = parseInt(r.finish_order, 10);
+          if (ms != null) row.time_ms = ms;
+          return row;
+        });
+        if (resultsForm.some(r => r.finish_time && parseRaceTimeToMs(r.finish_time) == null)) {
+          throw new Error("Invalid time format — use M:SS.cc");
+        }
+        const { error: v2Error } = await supabase.functions.invoke("admin-contest-results", {
+          body: { contestTemplateId: selectedContest.contest_template_id, results: v2Results },
+        });
+        if (v2Error) throw new Error(`Saving results failed: ${v2Error.message}`);
+      } else {
+        const results = resultsForm.map(r => ({ crew_id: r.crew_id, finish_order: parseInt(r.finish_order), finish_time: r.finish_time || null }));
+        const { error: resultsError } = await supabase.functions.invoke("admin-contest-results", { body: { contestPoolId: selectedContest.id, results } });
+        if (resultsError) throw new Error(`Saving results failed: ${resultsError.message}`);
+      }
+
       toast.success("Results saved. Calculating scores...");
       const { data: scoringData, error: scoringError } = await supabase.functions.invoke("contest-scoring", { body: { contestPoolId: selectedContest.id } });
       if (scoringError) throw new Error(`Scoring failed: ${scoringError.message}`);
