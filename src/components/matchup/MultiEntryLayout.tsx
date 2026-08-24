@@ -187,6 +187,7 @@ export function MultiEntryLayout({
   crewMap,
   isLocked,
   isCompleted,
+  tiebreak = "margin_error",
 }: MultiEntryLayoutProps) {
   return (
     <div className="p-4 space-y-2">
@@ -197,7 +198,9 @@ export function MultiEntryLayout({
           <span className="w-8 mr-3" />
           <span className="flex-1">Player</span>
           <span className="w-10 text-right mr-3">Pts</span>
-          <span className="w-12 text-right mr-3">Margin</span>
+          {tiebreak !== "none" && (
+            <span className="w-12 text-right mr-3">{tiebreak === "aggregate_time" ? "Time" : "Margin"}</span>
+          )}
           <span className="w-14 text-right mr-3">Payout</span>
           <span className="w-4" />
         </div>
@@ -210,6 +213,7 @@ export function MultiEntryLayout({
           crewMap={crewMap}
           isLocked={isLocked}
           isCompleted={isCompleted}
+          tiebreak={tiebreak}
         />
       ))}
     </div>
