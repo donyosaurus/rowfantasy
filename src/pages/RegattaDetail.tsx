@@ -270,9 +270,10 @@ const RegattaDetail = () => {
 
   const allMarginsValid = useMemo(() => {
     if (!needsMargin) return true;
-    for (const [, margin] of crewPicks) {
-      if (margin === undefined || margin <= 0) return false;
+    for (const [, pick] of crewPicks) {
+      if (!(pick.margin > 0)) return false;
     }
+
     return true;
   }, [crewPicks, needsMargin]);
 
