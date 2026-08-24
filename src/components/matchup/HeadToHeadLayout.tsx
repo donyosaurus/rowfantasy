@@ -1,8 +1,9 @@
 import { Trophy, Lock, CheckCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatCents } from "@/lib/formatCurrency";
+import { formatSecondsAsTime } from "@/lib/utils";
 import { CrewLogo } from "@/components/CrewLogo";
-import type { EntrantRow, CrewInfo, ParsedPick } from "./types";
+import type { EntrantRow, CrewInfo, ParsedPick, Tiebreak } from "./types";
 import { parsePicks, getEntrantData, formatEventId } from "./utils";
 
 interface HeadToHeadLayoutProps {
@@ -12,6 +13,7 @@ interface HeadToHeadLayoutProps {
   isLocked: boolean;
   isCompleted: boolean;
   lockTime: string;
+  tiebreak?: Tiebreak;
 }
 
 function EntrantColumn({
@@ -21,6 +23,7 @@ function EntrantColumn({
   showPicks,
   isCompleted,
   side,
+  tiebreak = "margin_error",
 }: {
   entrant: EntrantRow;
   isCurrentUser: boolean;
@@ -28,6 +31,7 @@ function EntrantColumn({
   showPicks: boolean;
   isCompleted: boolean;
   side: "left" | "right";
+  tiebreak?: Tiebreak;
 }) {
   const { points, marginError, payout, isWinner } = getEntrantData(entrant);
 
