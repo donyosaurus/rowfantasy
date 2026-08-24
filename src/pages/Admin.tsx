@@ -23,12 +23,24 @@ import { toast } from "sonner";
 import { getCircleFlagUrl } from "@/data/countryFlags";
 import { getCollegeLogoUrl } from "@/data/collegeLogos";
 import { formatCents, formatDollars } from "@/lib/formatCurrency";
+import {
+  CONTEST_TYPES,
+  SPORT_OPTIONS,
+  getScoringPreset,
+  parseRaceTimeToMs,
+  formatMsAsRaceTime,
+  type ContestTypeKey,
+} from "@/lib/contest-config";
 
 interface CrewResult {
   crew_id: string;
   crew_name: string;
   finish_order: string;
   finish_time: string;
+  /** v2 (engine) fields — present only for multi-sport contests. */
+  race_key?: string;
+  competitor_key?: string;
+  status?: string;
 }
 
 interface PoolCrew {
@@ -72,7 +84,11 @@ interface CreateContestForm {
   cardBannerUrl: string;
   draftBannerUrl: string;
   contestGroupId: string;
+  contestType: ContestTypeKey;
+  sport: string;
+  eventClass: string;
 }
+
 
 const CARD_GRADIENTS = [
   'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)',
@@ -109,6 +125,8 @@ const Admin = () => {
   const [poolCrews, setPoolCrews] = useState<PoolCrew[]>([]);
   const [resultsForm, setResultsForm] = useState<CrewResult[]>([]);
   const [loadingCrews, setLoadingCrews] = useState(false);
+  const [resultsV2, setResultsV2] = useState(false);
+
   const [submittingResults, setSubmittingResults] = useState(false);
   const [settlingPoolId, setSettlingPoolId] = useState<string | null>(null);
   const [scoringPoolId, setScoringPoolId] = useState<string | null>(null);
@@ -139,6 +157,10 @@ const Admin = () => {
     cardBannerUrl: "",
     draftBannerUrl: "",
     contestGroupId: "",
+    contestType: "classic",
+    sport: "rowing",
+    eventClass: "",
+
   });
   const [newCrewInput, setNewCrewInput] = useState<NewCrew>({
     crew_name: "",
@@ -180,7 +202,7 @@ const Admin = () => {
       }
       const txWithUser = (txData || []).map((t: any) => ({ ...t, profiles: { username: usernameById.get(t.user_id) || null } }));
       setTransactions(txWithUser);
-      const { data: poolsData } = await supabase.from("contest_pools").select("id, contest_template_id, created_at, current_entries, entry_fee_cents, entry_tiers, lock_time, max_entries, payout_structure, prize_pool_cents, prize_structure, settled_at, status, tier_id, tier_name, allow_overflow, void_unfilled_on_settle, contest_templates!inner(regatta_name)").order("created_at", { ascending: false }).limit(50);
+      const { data: poolsData } = await supabase.from("contest_pools").select("id, contest_template_id, created_at, current_entries, entry_fee_cents, entry_tiers, lock_time, max_entries, payout_structure, prize_pool_cents, prize_structure, settled_at, status, tier_id, tier_name, allow_overflow, void_unfilled_on_settle, contest_templates!inner(regatta_name, sport, scoring_config)").order("created_at", { ascending: false }).limit(50);
       setContests(poolsData || []);
       const { data: logsData } = await supabase.from("compliance_audit_logs").select("*").order("created_at", { ascending: false }).limit(100);
       setComplianceLogs(logsData || []);
@@ -198,27 +220,93 @@ const Admin = () => {
     setSelectedContest(contest);
     setResultsModalOpen(true);
     setLoadingCrews(true);
+    const isV2 = !!contest?.contest_templates?.scoring_config;
+    setResultsV2(isV2);
     try {
+      if (isV2) {
+        const templateId = contest.contest_template_id;
+        const [racesRes, compsRes] = await Promise.all([
+          supabase.from("contest_races").select("id, race_key, race_order").eq("template_id", templateId).order("race_order", { ascending: true }),
+          supabase.from("contest_competitors").select("id, competitor_key, name").eq("template_id", templateId),
+        ]);
+        if (racesRes.error) throw racesRes.error;
+        if (compsRes.error) throw compsRes.error;
+        const races = racesRes.data || [];
+        const comps = compsRes.data || [];
+        const raceIds = races.map((r) => r.id);
+        const [entriesRes, resultsRes] = await Promise.all([
+          supabase.from("contest_race_entries").select("race_id, competitor_id").in("race_id", raceIds),
+          supabase.from("contest_race_results").select("race_id, competitor_id, place, time_ms, status").in("race_id", raceIds),
+        ]);
+        if (entriesRes.error) throw entriesRes.error;
+        if (resultsRes.error) throw resultsRes.error;
+        const raceById = new Map(races.map((r) => [r.id, r]));
+        const compById = new Map(comps.map((c) => [c.id, c]));
+        const orderIdx = new Map(races.map((r, i) => [r.id, i]));
+        const existing = new Map(
+          (resultsRes.data || []).map((r: any) => [`${r.race_id}::${r.competitor_id}`, r])
+        );
+        const rows: CrewResult[] = (entriesRes.data || [])
+          .slice()
+          .sort((a: any, b: any) => (orderIdx.get(a.race_id) ?? 0) - (orderIdx.get(b.race_id) ?? 0))
+          .map((e: any) => {
+            const race = raceById.get(e.race_id);
+            const comp = compById.get(e.competitor_id);
+            const prev: any = existing.get(`${e.race_id}::${e.competitor_id}`);
+            return {
+              crew_id: `${race?.race_key ?? ""}::${comp?.competitor_key ?? ""}`,
+              crew_name: comp?.name ?? comp?.competitor_key ?? "",
+              race_key: race?.race_key ?? "",
+              competitor_key: comp?.competitor_key ?? "",
+              finish_order: prev?.place != null ? String(prev.place) : "",
+              finish_time: prev?.time_ms != null ? formatMsAsRaceTime(prev.time_ms) : "",
+              status: prev?.status ?? "OK",
+            };
+          });
+        setPoolCrews([]);
+        setResultsForm(rows);
+        return;
+      }
       const { data: crews, error } = await supabase.from("contest_pool_crews").select("id, crew_id, crew_name, manual_finish_order, manual_result_time").eq("contest_pool_id", contest.id);
       if (error) throw error;
       setPoolCrews(crews || []);
       setResultsForm((crews || []).map(crew => ({ crew_id: crew.crew_id, crew_name: crew.crew_name, finish_order: crew.manual_finish_order?.toString() || "", finish_time: crew.manual_result_time || "" })));
-    } catch (error) { console.error("Error loading crews:", error); toast.error("Failed to load crews"); } finally { setLoadingCrews(false); }
+    } catch (error) { console.error("Error loading crews:", error); toast.error("Failed to load contest lineup"); } finally { setLoadingCrews(false); }
   };
 
-  const updateResultForm = (crewId: string, field: "finish_order" | "finish_time", value: string) => {
+  const updateResultForm = (crewId: string, field: "finish_order" | "finish_time" | "status", value: string) => {
     setResultsForm(prev => prev.map(r => r.crew_id === crewId ? { ...r, [field]: value } : r));
   };
 
+
   const submitResults = async () => {
     if (!selectedContest) return;
-    const invalidEntries = resultsForm.filter(r => !r.finish_order);
-    if (invalidEntries.length > 0) { toast.error("Please enter finish order for all crews"); return; }
+    const finished = resultsForm.filter(r => (r.status ?? "OK") === "OK");
+    if (finished.some(r => !r.finish_order)) { toast.error("Please enter a finish place for every finisher"); return; }
     setSubmittingResults(true);
     try {
-      const results = resultsForm.map(r => ({ crew_id: r.crew_id, finish_order: parseInt(r.finish_order), finish_time: r.finish_time || null }));
-      const { error: resultsError } = await supabase.functions.invoke("admin-contest-results", { body: { contestPoolId: selectedContest.id, results } });
-      if (resultsError) throw new Error(`Saving results failed: ${resultsError.message}`);
+      if (resultsV2) {
+        const v2Results = resultsForm.map(r => {
+          const status = r.status || "OK";
+          const ms = parseRaceTimeToMs(r.finish_time || "");
+          const row: any = { race_key: r.race_key, competitor_key: r.competitor_key, status };
+          if (status === "OK") row.place = parseInt(r.finish_order, 10);
+          if (ms != null) row.time_ms = ms;
+          return row;
+        });
+        if (resultsForm.some(r => r.finish_time && parseRaceTimeToMs(r.finish_time) == null)) {
+          throw new Error("Invalid time format — use M:SS.cc");
+        }
+        const { error: v2Error } = await supabase.functions.invoke("admin-contest-results", {
+          body: { contestTemplateId: selectedContest.contest_template_id, results: v2Results },
+        });
+        if (v2Error) throw new Error(`Saving results failed: ${v2Error.message}`);
+      } else {
+        const results = resultsForm.map(r => ({ crew_id: r.crew_id, finish_order: parseInt(r.finish_order), finish_time: r.finish_time || null }));
+        const { error: resultsError } = await supabase.functions.invoke("admin-contest-results", { body: { contestPoolId: selectedContest.id, results } });
+        if (resultsError) throw new Error(`Saving results failed: ${resultsError.message}`);
+      }
+
       toast.success("Results saved. Calculating scores...");
       const { data: scoringData, error: scoringError } = await supabase.functions.invoke("contest-scoring", { body: { contestPoolId: selectedContest.id } });
       if (scoringError) throw new Error(`Scoring failed: ${scoringError.message}`);
@@ -454,6 +542,10 @@ const Admin = () => {
       cardBannerUrl: "",
       draftBannerUrl: "",
       contestGroupId: "",
+      contestType: "classic",
+      sport: "rowing",
+      eventClass: "",
+
     });
     setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
   };
@@ -662,10 +754,61 @@ const Admin = () => {
       if (!ok) return;
     }
 
+    // ---- v2 (multi-sport engine) body ----
+    const isV2 = createForm.contestType !== "classic" || createForm.sport !== "rowing";
+    if (!isV2 && createForm.genderCategory === "Open") { toast.error("'Open' is only available for multi-sport contests"); return; }
+    let v2Body: any = null;
+
+    if (isV2) {
+      const typeDef = CONTEST_TYPES.find(t => t.key === createForm.contestType)!;
+      const scoringConfig = getScoringPreset(createForm.contestType);
+      const raceKeys = Array.from(new Set(createForm.crews.map(c => c.event_id)));
+      if (raceKeys.length < 2 && entryFeeCents > 0) { toast.error("Paid contests require at least 2 races"); return; }
+      const eventClass = createForm.eventClass.trim();
+      if (typeDef.requiresEventClass && !eventClass) {
+        toast.error("Total Time contests require an event class (all races must share it)"); return;
+      }
+      const rosterSize = raceKeys.length;
+      v2Body = {
+        name: createForm.regattaName.trim(),
+        sport: createForm.sport,
+        genderCategory: createForm.genderCategory,
+        lockTime: lockDate.toISOString(),
+        races: raceKeys.map((key, i) => ({
+          race_key: key,
+          name: key,
+          race_order: i + 1,
+          event_class: eventClass || null,
+        })),
+        competitors: Array.from(
+          new Map(createForm.crews.map(c => [c.crew_id, {
+            competitor_key: c.crew_id,
+            name: c.crew_name,
+            logo_url: c.logo_url ?? null,
+          }])).values()
+        ),
+        raceEntries: createForm.crews.map(c => ({ race_key: c.event_id, competitor_key: c.crew_id })),
+        entryFeeCents,
+        maxEntries,
+        payouts,
+        entryTiers: entryTiersPayload,
+        allowOverflow: createForm.allowOverflow,
+        voidUnfilledOnSettle: createForm.voidUnfilledOnSettle,
+        cardBannerUrl: createForm.cardBannerUrl.trim() || null,
+        draftBannerUrl: createForm.draftBannerUrl.trim() || null,
+        contestGroupId: (createForm.contestGroupId && createForm.contestGroupId !== "none") ? createForm.contestGroupId : null,
+        primitive: "placement",
+        rosterMode: "per_race",
+        scoringConfig,
+        minPicks: typeDef.fixedRoster ? rosterSize : Math.min(2, rosterSize),
+        maxPicks: rosterSize,
+      };
+    }
+
     setCreatingContest(true);
     try {
       const { data, error } = await supabase.functions.invoke("admin-create-contest", {
-        body: {
+        body: v2Body ?? {
           regattaName: createForm.regattaName.trim(),
           genderCategory: createForm.genderCategory,
           entryFeeCents,
@@ -681,6 +824,7 @@ const Admin = () => {
           voidUnfilledOnSettle: createForm.voidUnfilledOnSettle,
         }
       });
+
       if (error) throw error;
       toast.success(`Contest created successfully!`);
       setCreateModalOpen(false);
@@ -981,12 +1125,27 @@ const Admin = () => {
                 <>
                   <div className="grid gap-4">
                     {resultsForm.map((crew) => (
-                      <div key={crew.crew_id} className="grid grid-cols-3 gap-3 items-center p-3 border rounded-lg">
-                        <div><Label className="text-sm font-medium">{crew.crew_name}</Label><p className="text-xs text-muted-foreground">ID: {crew.crew_id}</p></div>
-                        <div><Label htmlFor={`order-${crew.crew_id}`} className="text-xs">Finish Order</Label><Input id={`order-${crew.crew_id}`} type="number" min="1" placeholder="1, 2, 3..." value={crew.finish_order} onChange={(e) => updateResultForm(crew.crew_id, "finish_order", e.target.value)} /></div>
-                        <div><Label htmlFor={`time-${crew.crew_id}`} className="text-xs">Finish Time</Label><Input id={`time-${crew.crew_id}`} type="text" placeholder="05:30.50" value={crew.finish_time} onChange={(e) => updateResultForm(crew.crew_id, "finish_time", e.target.value)} /></div>
+                      <div key={crew.crew_id} className={`grid ${resultsV2 ? "grid-cols-4" : "grid-cols-3"} gap-3 items-center p-3 border rounded-lg`}>
+                        <div>
+                          <Label className="text-sm font-medium">{crew.crew_name}</Label>
+                          <p className="text-xs text-muted-foreground">{resultsV2 ? `${crew.race_key} • ${crew.competitor_key}` : `ID: ${crew.crew_id}`}</p>
+                        </div>
+                        <div><Label htmlFor={`order-${crew.crew_id}`} className="text-xs">{resultsV2 ? "Place" : "Finish Order"}</Label><Input id={`order-${crew.crew_id}`} type="number" min="1" placeholder="1, 2, 3..." value={crew.finish_order} disabled={resultsV2 && (crew.status ?? "OK") !== "OK"} onChange={(e) => updateResultForm(crew.crew_id, "finish_order", e.target.value)} /></div>
+                        <div><Label htmlFor={`time-${crew.crew_id}`} className="text-xs">Finish Time</Label><Input id={`time-${crew.crew_id}`} type="text" placeholder={resultsV2 ? "5:30.50" : "05:30.50"} value={crew.finish_time} onChange={(e) => updateResultForm(crew.crew_id, "finish_time", e.target.value)} /></div>
+                        {resultsV2 && (
+                          <div>
+                            <Label className="text-xs">Status</Label>
+                            <Select value={crew.status ?? "OK"} onValueChange={(v) => updateResultForm(crew.crew_id, "status", v)}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {["OK", "DNF", "DNS", "DSQ", "PENDING"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
                     ))}
+
                   </div>
                   <div className="flex justify-end gap-3 pt-4 border-t">
                     <Button variant="outline" onClick={() => setResultsModalOpen(false)}>Cancel</Button>
@@ -1203,13 +1362,49 @@ const Admin = () => {
                   </Select>
                 </div>
               )}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Contest Type *</Label>
+                  <Select value={createForm.contestType} onValueChange={(value) => setCreateForm(prev => ({ ...prev, contestType: value as ContestTypeKey }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CONTEST_TYPES.map(t => <SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {CONTEST_TYPES.find(t => t.key === createForm.contestType)?.subtitle}
+                  </p>
+                </div>
+                <div>
+                  <Label>Sport *</Label>
+                  <Select value={createForm.sport} onValueChange={(value) => setCreateForm(prev => ({ ...prev, sport: value }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {SPORT_OPTIONS.map(s => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {CONTEST_TYPES.find(t => t.key === createForm.contestType)?.requiresEventClass && (
+                <div>
+                  <Label htmlFor="eventClass">Event Class *</Label>
+                  <Input id="eventClass" placeholder="e.g., 2000m Eight" value={createForm.eventClass} onChange={(e) => setCreateForm(prev => ({ ...prev, eventClass: e.target.value }))} />
+                  <p className="text-xs text-muted-foreground mt-1">All races share this class — required for the total-time tiebreak.</p>
+                </div>
+              )}
               <div>
                 <Label htmlFor="genderCategory">Gender Category *</Label>
                 <Select value={createForm.genderCategory} onValueChange={(value) => setCreateForm(prev => ({ ...prev, genderCategory: value }))}>
                   <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                  <SelectContent><SelectItem value="Men's">Men's</SelectItem><SelectItem value="Women's">Women's</SelectItem><SelectItem value="Mixed">Mixed</SelectItem></SelectContent>
+                  <SelectContent>
+                    <SelectItem value="Men's">Men's</SelectItem>
+                    <SelectItem value="Women's">Women's</SelectItem>
+                    <SelectItem value="Mixed">Mixed</SelectItem>
+                    {(createForm.contestType !== "classic" || createForm.sport !== "rowing") && <SelectItem value="Open">Open</SelectItem>}
+                  </SelectContent>
                 </Select>
               </div>
+
               <div>
                 <Label htmlFor="lockTime">Lock Time *</Label>
                 <Input id="lockTime" type="datetime-local" value={createForm.lockTime} onChange={(e) => setCreateForm(prev => ({ ...prev, lockTime: e.target.value }))} />

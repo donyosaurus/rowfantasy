@@ -99,7 +99,10 @@ const RegattaDetail = () => {
   const [allTemplatePools, setAllTemplatePools] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [crewPicks, setCrewPicks] = useState<Map<string, number>>(new Map());
+  // Picks are keyed by the composite `${crew_id}::${event_id}` — a v2 competitor can
+  // appear in more than one race, so crew_id alone is not a unique pick identity.
+  const [crewPicks, setCrewPicks] = useState<Map<string, { crewId: string; eventId: string; margin: number }>>(new Map());
+
   const [submitting, setSubmitting] = useState(false);
   const [scoringOpen, setScoringOpen] = useState(false);
   const [prizePoolOpen, setPrizePoolOpen] = useState(false);
@@ -135,13 +138,25 @@ const RegattaDetail = () => {
             .select("id, competitor_key, name, logo_url")
             .eq("template_id", templateId),
         ]);
+        if (racesRes.error || compsRes.error) {
+          console.error("Failed to load contest races/competitors", racesRes.error || compsRes.error);
+          setError("Failed to load contest lineup");
+          setLoading(false);
+          return;
+        }
         const races = racesRes.data || [];
         const comps = compsRes.data || [];
         if (races.length > 0 && comps.length > 0) {
-          const { data: entryRows } = await supabase
+          const { data: entryRows, error: entriesError } = await supabase
             .from("contest_race_entries")
             .select("race_id, competitor_id")
             .in("race_id", races.map((r) => r.id));
+          if (entriesError) {
+            console.error("Failed to load contest race entries", entriesError);
+            setError("Failed to load contest lineup");
+            setLoading(false);
+            return;
+          }
           const raceKeyById = new Map(races.map((r) => [r.id, r.race_key]));
           const raceOrderById = new Map(races.map((r, i) => [r.id, i]));
           const compById = new Map(comps.map((c) => [c.id, c]));
@@ -161,6 +176,7 @@ const RegattaDetail = () => {
             .filter((c) => c.crew_id && c.event_id);
         }
       }
+
 
 
       // Fetch ALL pools for this template to detect tiers
@@ -223,38 +239,38 @@ const RegattaDetail = () => {
       : (FINISH_POINTS as unknown as Record<string, number>)
   ).sort((a, b) => Number(a[0]) - Number(b[0]));
 
-  const toggleCrewSelection = (crewId: string) => {
-    const clickedCrew = contestPool?.contest_pool_crews.find((c) => c.crew_id === crewId);
-    if (!clickedCrew) return;
+  const pickKey = (crewId: string, eventId: string) => `${crewId}::${eventId}`;
 
+  const toggleCrewSelection = (crewId: string, eventId: string) => {
+    const key = pickKey(crewId, eventId);
     setCrewPicks((prev) => {
       const newPicks = new Map(prev);
-      if (newPicks.has(crewId)) {
-        newPicks.delete(crewId);
+      if (newPicks.has(key)) {
+        newPicks.delete(key);
         return newPicks;
       }
-      const existingFromSameEvent = contestPool?.contest_pool_crews.find(
-        (c) => c.event_id === clickedCrew.event_id && newPicks.has(c.crew_id)
-      );
-      if (existingFromSameEvent) {
-        const oldMargin = newPicks.get(existingFromSameEvent.crew_id) ?? 0;
-        newPicks.delete(existingFromSameEvent.crew_id);
-        newPicks.set(crewId, oldMargin);
-        return newPicks;
+      // One pick per race — swap out any existing pick from the same event.
+      let oldMargin = 0;
+      for (const [k, v] of newPicks) {
+        if (v.eventId === eventId) { oldMargin = v.margin; newPicks.delete(k); break; }
       }
-      if (newPicks.size >= maxPicks) { toast.error(`Maximum ${maxPicks} picks allowed`); return prev; }
-      newPicks.set(crewId, 0);
+      if (!oldMargin && newPicks.size >= maxPicks) { toast.error(`Maximum ${maxPicks} picks allowed`); return prev; }
+      newPicks.set(key, { crewId, eventId, margin: oldMargin });
       return newPicks;
     });
   };
 
-  const updateCrewMargin = (crewId: string, margin: number) => {
+  const updateCrewMargin = (crewId: string, eventId: string, margin: number) => {
     setCrewPicks((prev) => {
       const newPicks = new Map(prev);
-      newPicks.set(crewId, margin);
+      const key = pickKey(crewId, eventId);
+      const existing = newPicks.get(key);
+      if (!existing) return prev;
+      newPicks.set(key, { ...existing, margin });
       return newPicks;
     });
   };
+
 
   const isContestOpen = contestPool?.status === "open" && new Date(contestPool.lock_time) > new Date();
   const numDivisions = divisions.length;
@@ -267,9 +283,10 @@ const RegattaDetail = () => {
 
   const allMarginsValid = useMemo(() => {
     if (!needsMargin) return true;
-    for (const [, margin] of crewPicks) {
-      if (margin === undefined || margin <= 0) return false;
+    for (const [, pick] of crewPicks) {
+      if (!(pick.margin > 0)) return false;
     }
+
     return true;
   }, [crewPicks, needsMargin]);
 
@@ -322,11 +339,12 @@ const RegattaDetail = () => {
   const fillPercent = contestPool ? Math.min(100, (contestPool.current_entries / contestPool.max_entries) * 100) : 0;
 
   const draftPicksList = useMemo(() => {
-    return Array.from(crewPicks.entries()).map(([crewId, margin]) => {
-      const crew = contestPool?.contest_pool_crews.find((c) => c.crew_id === crewId);
-      return { crewId, crewName: crew?.crew_name ?? crewId, eventId: crew?.event_id ?? "", margin, logoUrl: crew?.logo_url };
+    return Array.from(crewPicks.values()).map((p) => {
+      const crew = contestPool?.contest_pool_crews.find((c) => c.crew_id === p.crewId && c.event_id === p.eventId);
+      return { crewId: p.crewId, crewName: crew?.crew_name ?? p.crewId, eventId: p.eventId, margin: p.margin, logoUrl: crew?.logo_url };
     });
   }, [crewPicks, contestPool]);
+
 
   const handleSubmitEntry = async () => {
     if (!user) {
@@ -336,19 +354,17 @@ const RegattaDetail = () => {
     if (!id || !contestPool) return;
     if (crewPicks.size < minPicks) { toast.error(`Please select at least ${minPicks} ${t.competitors}`); return; }
     if (needsMargin) {
-      for (const [crewId, margin] of crewPicks) {
-        if (margin <= 0) {
-          const crew = contestPool.contest_pool_crews.find((c) => c.crew_id === crewId);
-          toast.error(`Please enter a valid margin for ${crew?.crew_name || crewId}`);
+      for (const [, p] of crewPicks) {
+        if (!(p.margin > 0)) {
+          const crew = contestPool.contest_pool_crews.find((c) => c.crew_id === p.crewId && c.event_id === p.eventId);
+          toast.error(`Please enter a valid margin for ${crew?.crew_name || p.crewId}`);
           return;
         }
       }
     }
     const selectedDivisions = new Set<string>();
-    for (const crewId of crewPicks.keys()) {
-      const crew = contestPool.contest_pool_crews.find((c) => c.crew_id === crewId);
-      if (crew) selectedDivisions.add(crew.event_id);
-    }
+    for (const p of crewPicks.values()) selectedDivisions.add(p.eventId);
+
     if (selectedDivisions.size < 2) { toast.error(`You must select ${t.competitors} from at least 2 different ${t.events}`); return; }
     if (hasTiers && !selectedTier) { toast.error("Please select an entry tier"); return; }
     // (Wave 1 #6) Fail-closed: refuse submit if balance read errored.
@@ -362,11 +378,11 @@ const RegattaDetail = () => {
     }
 
     setSubmitting(true);
-    const picks = Array.from(crewPicks.entries()).map(([crewId, margin]) => {
-      const crew = contestPool.contest_pool_crews.find((c) => c.crew_id === crewId);
-      const base = { crewId, event_id: crew?.event_id ?? "" };
-      return needsMargin ? { ...base, predictedMargin: margin } : base;
+    const picks = Array.from(crewPicks.values()).map((p) => {
+      const base = { crewId: p.crewId, event_id: p.eventId };
+      return needsMargin ? { ...base, predictedMargin: p.margin } : base;
     });
+
 
     try {
       const { data, error } = await invokeGeoFunction("contest-matchmaking", {
@@ -490,8 +506,9 @@ const RegattaDetail = () => {
                           crewName={crew.crew_name}
                           eventId={divisionId}
                           logoUrl={crew.logo_url}
-                          isSelected={crewPicks.has(crew.crew_id)}
-                          marginVal={crewPicks.get(crew.crew_id) ?? 0}
+                          isSelected={crewPicks.has(pickKey(crew.crew_id, divisionId))}
+                          marginVal={crewPicks.get(pickKey(crew.crew_id, divisionId))?.margin ?? 0}
+
                           isOpen={!!isContestOpen}
                           showMargin={needsMargin}
                           onToggle={toggleCrewSelection}
@@ -648,7 +665,7 @@ const RegattaDetail = () => {
                             <span>{ordinal(Number(place))}</span><span className="font-medium text-foreground">{pts} pts</span>
                           </div>
                         ))}
-                        <div className="flex justify-between text-xs text-muted-foreground"><span>{scoringPointsRows.length + 1}th+</span><span className="font-medium text-foreground">{DEFAULT_POINTS} pts</span></div>
+                        <div className="flex justify-between text-xs text-muted-foreground"><span>{ordinal(scoringPointsRows.length + 1)}+</span><span className="font-medium text-foreground">{DEFAULT_POINTS} pts</span></div>
                       </div>
                       {scoringConfig?.tiebreak === "aggregate_time" && (
                         <p className="text-xs text-muted-foreground mt-3">Ties broken by lowest combined time.</p>

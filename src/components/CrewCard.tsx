@@ -10,8 +10,9 @@ interface CrewCardProps {
   isSelected: boolean;
   marginVal: number;
   isOpen: boolean;
-  onToggle: (crewId: string) => void;
-  onMarginChange: (crewId: string, margin: number) => void;
+  onToggle: (crewId: string, eventId: string) => void;
+  onMarginChange: (crewId: string, eventId: string, margin: number) => void;
+
   animDelay?: number;
   /** When false, the margin-prediction input is hidden (non margin_error tiebreaks). */
   showMargin?: boolean;
@@ -40,7 +41,7 @@ export function CrewCard({
         animationDelay: `${animDelay}ms`,
         opacity: 0,
       }}
-      onClick={() => isOpen && onToggle(crewId)}
+      onClick={() => isOpen && onToggle(crewId, eventId)}
     >
       {/* Left-edge flag accent stripe */}
       <div
@@ -85,7 +86,7 @@ export function CrewCard({
               onClick={(e) => e.stopPropagation()}
               onChange={(e) => {
                 e.stopPropagation();
-                onMarginChange(crewId, parseFloat(e.target.value) || 0);
+                onMarginChange(crewId, eventId, parseFloat(e.target.value) || 0);
               }}
             />
             <span className="text-[10px] whitespace-nowrap text-slate-500">sec</span>
