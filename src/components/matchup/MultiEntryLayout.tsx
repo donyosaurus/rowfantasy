@@ -42,12 +42,14 @@ function EntrantCard({
   crewMap,
   isLocked,
   isCompleted,
+  tiebreak = "margin_error",
 }: {
   entrant: EntrantRow;
   currentUserId: string;
   crewMap: Map<string, CrewInfo>;
   isLocked: boolean;
   isCompleted: boolean;
+  tiebreak?: Tiebreak;
 }) {
   const [expanded, setExpanded] = useState(false);
   const isCurrentUser = entrant.user_id === currentUserId;
