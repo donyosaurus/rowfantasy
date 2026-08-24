@@ -143,8 +143,15 @@ const Lobby = () => {
         });
         const primary = sorted[0];
 
-        const regattaName = primary.contest_templates?.regatta_name || "Unknown Regatta";
-        const genderCategory: "Men's" | "Women's" = regattaName.toLowerCase().includes("women") ? "Women's" : "Men's";
+        const tpl = primary.contest_templates;
+        const regattaName = tpl?.name || tpl?.regatta_name || "Unknown Regatta";
+        const legacyName = tpl?.regatta_name || "";
+        // Legacy templates (scoring_config == null) keep today's name-based inference exactly.
+        const genderCategory: MappedContest["genderCategory"] = tpl?.scoring_config
+          ? ((tpl.gender_category as MappedContest["genderCategory"]) ?? "Open")
+          : legacyName.toLowerCase().includes("women")
+            ? "Women's"
+            : "Men's";
         const lockTime = new Date(primary.lock_time).toLocaleString("en-US", {
           month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true,
         });
