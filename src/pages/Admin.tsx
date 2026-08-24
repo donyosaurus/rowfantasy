@@ -1614,10 +1614,10 @@ const Admin = () => {
               {createForm.crews.length > 0 && (
                 <div className="space-y-2 mb-4">
                   {createForm.crews.map((crew) => (
-                    <div key={crew.crew_id} className="flex items-center gap-3 p-2 bg-muted rounded-lg">
-                      <LogoPicker logoUrl={crew.logo_url} crewName={crew.crew_name} onSelect={(url) => setCreateForm(prev => ({ ...prev, crews: prev.crews.map(c => c.crew_id === crew.crew_id ? { ...c, logo_url: url } : c) }))} />
+                    <div key={`${crew.crew_id}-${crew.event_id}`} className="flex items-center gap-3 p-2 bg-muted rounded-lg">
+                      <LogoPicker logoUrl={crew.logo_url} crewName={crew.crew_name} onSelect={(url) => setCreateForm(prev => ({ ...prev, crews: prev.crews.map(c => c.crew_id === crew.crew_id && c.event_id === crew.event_id ? { ...c, logo_url: url } : c) }))} />
                       <div className="flex-1 text-sm"><span className="font-medium">{crew.crew_name}</span><span className="text-muted-foreground ml-2">({crew.crew_id} • {crew.event_id})</span></div>
-                      <Button size="sm" variant="ghost" onClick={() => removeCrewFromForm(crew.crew_id)}><X className="h-4 w-4" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => removeCrewFromForm(crew.crew_id, crew.event_id)}><X className="h-4 w-4" /></Button>
                     </div>
                   ))}
                 </div>
