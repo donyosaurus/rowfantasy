@@ -1418,6 +1418,26 @@ const Admin = () => {
                   <p className="text-xs text-muted-foreground mt-1">All races share this class — required for the total-time tiebreak.</p>
                 </div>
               )}
+              {createForm.contestType === "classic_total_time" ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="picksPerEntry">Picks per entry *</Label>
+                    <Input id="picksPerEntry" type="number" min={2} value={createForm.minPicks} onChange={(e) => { const v = e.target.value; setCreateForm(prev => ({ ...prev, minPicks: v, maxPicks: v })); }} />
+                    <p className="text-xs text-muted-foreground mt-1">Total Time uses a fixed roster size.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="minPicks">Min picks *</Label>
+                    <Input id="minPicks" type="number" min={2} value={createForm.minPicks} onChange={(e) => setCreateForm(prev => ({ ...prev, minPicks: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label htmlFor="maxPicks">Max picks *</Label>
+                    <Input id="maxPicks" type="number" min={2} value={createForm.maxPicks} onChange={(e) => setCreateForm(prev => ({ ...prev, maxPicks: e.target.value }))} />
+                  </div>
+                </div>
+              )}
               <div>
                 <Label htmlFor="genderCategory">Gender Category *</Label>
                 <Select value={createForm.genderCategory} onValueChange={(value) => setCreateForm(prev => ({ ...prev, genderCategory: value }))}>
