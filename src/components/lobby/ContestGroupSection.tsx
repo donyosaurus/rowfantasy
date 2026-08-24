@@ -5,7 +5,8 @@ import { ContestCard } from "@/components/ContestCard";
 interface Contest {
   id: string;
   regattaName: string;
-  genderCategory: "Men's" | "Women's";
+  genderCategory: "Men's" | "Women's" | "Mixed" | "Open";
+  sport?: string | null;
   lockTime: string;
   lockTimeRaw: string;
   entryFeeCents: number;
@@ -108,6 +109,7 @@ export const ContestGroupSection = ({ title, description, contests }: Props) => 
               entryTiers={c.entryTiers}
               bannerUrl={c.bannerUrl}
               events={c.events}
+              sport={c.sport}
             />
           </div>
         ))}
