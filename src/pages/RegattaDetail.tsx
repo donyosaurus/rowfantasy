@@ -365,11 +365,11 @@ const RegattaDetail = () => {
     }
 
     setSubmitting(true);
-    const picks = Array.from(crewPicks.entries()).map(([crewId, margin]) => {
-      const crew = contestPool.contest_pool_crews.find((c) => c.crew_id === crewId);
-      const base = { crewId, event_id: crew?.event_id ?? "" };
-      return needsMargin ? { ...base, predictedMargin: margin } : base;
+    const picks = Array.from(crewPicks.values()).map((p) => {
+      const base = { crewId: p.crewId, event_id: p.eventId };
+      return needsMargin ? { ...base, predictedMargin: p.margin } : base;
     });
+
 
     try {
       const { data, error } = await invokeGeoFunction("contest-matchmaking", {
