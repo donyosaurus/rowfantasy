@@ -199,6 +199,7 @@ const Lobby = () => {
           id: primary.id,
           contestTemplateId: primary.contest_template_id,
           regattaName, genderCategory, lockTime,
+          sport: tpl?.sport ?? null,
           lockTimeRaw: primary.lock_time,
           entryFeeCents: hasTiers ? lowestFee : primary.entry_fee_cents,
           payoutStructure: primary.payout_structure,
