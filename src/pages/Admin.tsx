@@ -23,12 +23,24 @@ import { toast } from "sonner";
 import { getCircleFlagUrl } from "@/data/countryFlags";
 import { getCollegeLogoUrl } from "@/data/collegeLogos";
 import { formatCents, formatDollars } from "@/lib/formatCurrency";
+import {
+  CONTEST_TYPES,
+  SPORT_OPTIONS,
+  getScoringPreset,
+  parseRaceTimeToMs,
+  formatMsAsRaceTime,
+  type ContestTypeKey,
+} from "@/lib/contest-config";
 
 interface CrewResult {
   crew_id: string;
   crew_name: string;
   finish_order: string;
   finish_time: string;
+  /** v2 (engine) fields — present only for multi-sport contests. */
+  race_key?: string;
+  competitor_key?: string;
+  status?: string;
 }
 
 interface PoolCrew {
@@ -72,7 +84,11 @@ interface CreateContestForm {
   cardBannerUrl: string;
   draftBannerUrl: string;
   contestGroupId: string;
+  contestType: ContestTypeKey;
+  sport: string;
+  eventClass: string;
 }
+
 
 const CARD_GRADIENTS = [
   'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)',
