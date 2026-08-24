@@ -127,11 +127,15 @@ function EntrantCard({
                   <p className="text-sm font-heading font-bold">{points ?? "—"}</p>
                   <p className="text-[10px] text-muted-foreground">pts</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">
-                    ±{marginError != null ? Number(marginError).toFixed(1) : "—"}s
-                  </p>
-                </div>
+                {tiebreak !== "none" && (
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground">
+                      {tiebreak === "aggregate_time"
+                        ? (marginError != null ? formatSecondsAsTime(Number(marginError)) : "—")
+                        : `±${marginError != null ? Number(marginError).toFixed(1) : "—"}s`}
+                    </p>
+                  </div>
+                )}
                 <div className="text-right min-w-[3.5rem]">
                   <p className={`text-sm font-heading font-bold ${payout && payout > 0 ? "text-success" : "text-muted-foreground"}`}>
                     {payout && payout > 0 ? formatCents(payout) : "—"}
