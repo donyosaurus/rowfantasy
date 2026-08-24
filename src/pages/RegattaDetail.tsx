@@ -493,8 +493,9 @@ const RegattaDetail = () => {
                           crewName={crew.crew_name}
                           eventId={divisionId}
                           logoUrl={crew.logo_url}
-                          isSelected={crewPicks.has(crew.crew_id)}
-                          marginVal={crewPicks.get(crew.crew_id) ?? 0}
+                          isSelected={crewPicks.has(pickKey(crew.crew_id, divisionId))}
+                          marginVal={crewPicks.get(pickKey(crew.crew_id, divisionId))?.margin ?? 0}
+
                           isOpen={!!isContestOpen}
                           showMargin={needsMargin}
                           onToggle={toggleCrewSelection}
