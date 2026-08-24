@@ -30,6 +30,10 @@ interface ContestPool {
     card_banner_url: string | null;
     contest_group_id: string | null;
     display_order_in_group: number;
+    gender_category: string | null;
+    sport: string | null;
+    name: string | null;
+    scoring_config: unknown | null;
   };
   contest_pool_crews: {
     event_id: string;
@@ -47,7 +51,8 @@ interface MappedContest {
   id: string;
   contestTemplateId: string;
   regattaName: string;
-  genderCategory: "Men's" | "Women's";
+  genderCategory: "Men's" | "Women's" | "Mixed" | "Open";
+  sport: string | null;
   lockTime: string;
   lockTimeRaw: string;
   entryFeeCents: number;
