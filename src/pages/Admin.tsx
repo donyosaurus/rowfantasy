@@ -155,6 +155,10 @@ const Admin = () => {
     cardBannerUrl: "",
     draftBannerUrl: "",
     contestGroupId: "",
+    contestType: "classic",
+    sport: "rowing",
+    eventClass: "",
+
   });
   const [newCrewInput, setNewCrewInput] = useState<NewCrew>({
     crew_name: "",
@@ -470,6 +474,10 @@ const Admin = () => {
       cardBannerUrl: "",
       draftBannerUrl: "",
       contestGroupId: "",
+      contestType: "classic",
+      sport: "rowing",
+      eventClass: "",
+
     });
     setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
   };
