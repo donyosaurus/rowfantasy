@@ -125,6 +125,8 @@ const Admin = () => {
   const [poolCrews, setPoolCrews] = useState<PoolCrew[]>([]);
   const [resultsForm, setResultsForm] = useState<CrewResult[]>([]);
   const [loadingCrews, setLoadingCrews] = useState(false);
+  const [resultsV2, setResultsV2] = useState(false);
+
   const [submittingResults, setSubmittingResults] = useState(false);
   const [settlingPoolId, setSettlingPoolId] = useState<string | null>(null);
   const [scoringPoolId, setScoringPoolId] = useState<string | null>(null);
@@ -218,17 +220,64 @@ const Admin = () => {
     setSelectedContest(contest);
     setResultsModalOpen(true);
     setLoadingCrews(true);
+    const isV2 = !!contest?.contest_templates?.scoring_config;
+    setResultsV2(isV2);
     try {
+      if (isV2) {
+        const templateId = contest.contest_template_id;
+        const [racesRes, compsRes] = await Promise.all([
+          supabase.from("contest_races").select("id, race_key, race_order").eq("template_id", templateId).order("race_order", { ascending: true }),
+          supabase.from("contest_competitors").select("id, competitor_key, name").eq("template_id", templateId),
+        ]);
+        if (racesRes.error) throw racesRes.error;
+        if (compsRes.error) throw compsRes.error;
+        const races = racesRes.data || [];
+        const comps = compsRes.data || [];
+        const raceIds = races.map((r) => r.id);
+        const [entriesRes, resultsRes] = await Promise.all([
+          supabase.from("contest_race_entries").select("race_id, competitor_id").in("race_id", raceIds),
+          supabase.from("contest_race_results").select("race_id, competitor_id, place, time_ms, status").in("race_id", raceIds),
+        ]);
+        if (entriesRes.error) throw entriesRes.error;
+        if (resultsRes.error) throw resultsRes.error;
+        const raceById = new Map(races.map((r) => [r.id, r]));
+        const compById = new Map(comps.map((c) => [c.id, c]));
+        const orderIdx = new Map(races.map((r, i) => [r.id, i]));
+        const existing = new Map(
+          (resultsRes.data || []).map((r: any) => [`${r.race_id}::${r.competitor_id}`, r])
+        );
+        const rows: CrewResult[] = (entriesRes.data || [])
+          .slice()
+          .sort((a: any, b: any) => (orderIdx.get(a.race_id) ?? 0) - (orderIdx.get(b.race_id) ?? 0))
+          .map((e: any) => {
+            const race = raceById.get(e.race_id);
+            const comp = compById.get(e.competitor_id);
+            const prev: any = existing.get(`${e.race_id}::${e.competitor_id}`);
+            return {
+              crew_id: `${race?.race_key ?? ""}::${comp?.competitor_key ?? ""}`,
+              crew_name: comp?.name ?? comp?.competitor_key ?? "",
+              race_key: race?.race_key ?? "",
+              competitor_key: comp?.competitor_key ?? "",
+              finish_order: prev?.place != null ? String(prev.place) : "",
+              finish_time: prev?.time_ms != null ? formatMsAsRaceTime(prev.time_ms) : "",
+              status: prev?.status ?? "OK",
+            };
+          });
+        setPoolCrews([]);
+        setResultsForm(rows);
+        return;
+      }
       const { data: crews, error } = await supabase.from("contest_pool_crews").select("id, crew_id, crew_name, manual_finish_order, manual_result_time").eq("contest_pool_id", contest.id);
       if (error) throw error;
       setPoolCrews(crews || []);
       setResultsForm((crews || []).map(crew => ({ crew_id: crew.crew_id, crew_name: crew.crew_name, finish_order: crew.manual_finish_order?.toString() || "", finish_time: crew.manual_result_time || "" })));
-    } catch (error) { console.error("Error loading crews:", error); toast.error("Failed to load crews"); } finally { setLoadingCrews(false); }
+    } catch (error) { console.error("Error loading crews:", error); toast.error("Failed to load contest lineup"); } finally { setLoadingCrews(false); }
   };
 
-  const updateResultForm = (crewId: string, field: "finish_order" | "finish_time", value: string) => {
+  const updateResultForm = (crewId: string, field: "finish_order" | "finish_time" | "status", value: string) => {
     setResultsForm(prev => prev.map(r => r.crew_id === crewId ? { ...r, [field]: value } : r));
   };
+
 
   const submitResults = async () => {
     if (!selectedContest) return;
