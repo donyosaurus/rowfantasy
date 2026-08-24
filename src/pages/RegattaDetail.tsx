@@ -210,6 +210,14 @@ const RegattaDetail = () => {
 
   const divisions = Object.keys(crewsByDivision);
 
+  const template = contestPool?.contest_templates;
+  const scoringConfig = template?.scoring_config ?? null;
+  const sport = template?.sport ?? null;
+  const t = terms(sport);
+  const displayName = template?.name || template?.regatta_name || "";
+  // Legacy templates (null scoring_config) always need a margin prediction.
+  const needsMargin = !scoringConfig || scoringConfig.tiebreak === "margin_error";
+
   const toggleCrewSelection = (crewId: string) => {
     const clickedCrew = contestPool?.contest_pool_crews.find((c) => c.crew_id === crewId);
     if (!clickedCrew) return;
@@ -253,11 +261,12 @@ const RegattaDetail = () => {
     : "";
 
   const allMarginsValid = useMemo(() => {
+    if (!needsMargin) return true;
     for (const [, margin] of crewPicks) {
       if (margin === undefined || margin <= 0) return false;
     }
     return true;
-  }, [crewPicks]);
+  }, [crewPicks, needsMargin]);
 
   const entryTiers = contestPool?.entry_tiers as EntryTier[] | null;
   const hasTiers = !!(entryTiers && entryTiers.length > 1);
