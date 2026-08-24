@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Users } from "lucide-react";
 import type { MatchupDialogProps, EntrantRow, CrewInfo } from "./matchup/types";
-import { getPrizeLines } from "./matchup/utils";
+import { getPrizeLines, resolveTiebreak } from "./matchup/utils";
 import { HeadToHeadLayout } from "./matchup/HeadToHeadLayout";
 import { MultiEntryLayout } from "./matchup/MultiEntryLayout";
 
@@ -25,12 +25,14 @@ export function MatchupDialog({
   maxEntries,
   currentEntries,
   payoutStructure,
+  scoringConfig = null,
 }: MatchupDialogProps) {
   const [entrants, setEntrants] = useState<EntrantRow[]>([]);
   const [crewMap, setCrewMap] = useState<Map<string, CrewInfo>>(new Map());
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
+  const tiebreak = resolveTiebreak(scoringConfig);
   const isLocked = new Date(lockTime) <= new Date();
   const isCompleted = ["settled", "completed", "scoring_completed", "results_entered", "voided"].includes(poolStatus);
   const isH2H = maxEntries === 2;
