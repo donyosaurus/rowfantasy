@@ -87,6 +87,8 @@ interface CreateContestForm {
   contestType: ContestTypeKey;
   sport: string;
   eventClass: string;
+  minPicks: string;
+  maxPicks: string;
 }
 
 
@@ -160,7 +162,8 @@ const Admin = () => {
     contestType: "classic",
     sport: "rowing",
     eventClass: "",
-
+    minPicks: "2",
+    maxPicks: "4",
   });
   const [newCrewInput, setNewCrewInput] = useState<NewCrew>({
     crew_name: "",
