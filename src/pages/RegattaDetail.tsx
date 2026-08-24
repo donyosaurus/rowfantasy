@@ -138,13 +138,25 @@ const RegattaDetail = () => {
             .select("id, competitor_key, name, logo_url")
             .eq("template_id", templateId),
         ]);
+        if (racesRes.error || compsRes.error) {
+          console.error("Failed to load contest races/competitors", racesRes.error || compsRes.error);
+          setError("Failed to load contest lineup");
+          setLoading(false);
+          return;
+        }
         const races = racesRes.data || [];
         const comps = compsRes.data || [];
         if (races.length > 0 && comps.length > 0) {
-          const { data: entryRows } = await supabase
+          const { data: entryRows, error: entriesError } = await supabase
             .from("contest_race_entries")
             .select("race_id, competitor_id")
             .in("race_id", races.map((r) => r.id));
+          if (entriesError) {
+            console.error("Failed to load contest race entries", entriesError);
+            setError("Failed to load contest lineup");
+            setLoading(false);
+            return;
+          }
           const raceKeyById = new Map(races.map((r) => [r.id, r.race_key]));
           const raceOrderById = new Map(races.map((r, i) => [r.id, i]));
           const compById = new Map(comps.map((c) => [c.id, c]));
@@ -164,6 +176,7 @@ const RegattaDetail = () => {
             .filter((c) => c.crew_id && c.event_id);
         }
       }
+
 
 
       // Fetch ALL pools for this template to detect tiers
