@@ -226,38 +226,38 @@ const RegattaDetail = () => {
       : (FINISH_POINTS as unknown as Record<string, number>)
   ).sort((a, b) => Number(a[0]) - Number(b[0]));
 
-  const toggleCrewSelection = (crewId: string) => {
-    const clickedCrew = contestPool?.contest_pool_crews.find((c) => c.crew_id === crewId);
-    if (!clickedCrew) return;
+  const pickKey = (crewId: string, eventId: string) => `${crewId}::${eventId}`;
 
+  const toggleCrewSelection = (crewId: string, eventId: string) => {
+    const key = pickKey(crewId, eventId);
     setCrewPicks((prev) => {
       const newPicks = new Map(prev);
-      if (newPicks.has(crewId)) {
-        newPicks.delete(crewId);
+      if (newPicks.has(key)) {
+        newPicks.delete(key);
         return newPicks;
       }
-      const existingFromSameEvent = contestPool?.contest_pool_crews.find(
-        (c) => c.event_id === clickedCrew.event_id && newPicks.has(c.crew_id)
-      );
-      if (existingFromSameEvent) {
-        const oldMargin = newPicks.get(existingFromSameEvent.crew_id) ?? 0;
-        newPicks.delete(existingFromSameEvent.crew_id);
-        newPicks.set(crewId, oldMargin);
-        return newPicks;
+      // One pick per race — swap out any existing pick from the same event.
+      let oldMargin = 0;
+      for (const [k, v] of newPicks) {
+        if (v.eventId === eventId) { oldMargin = v.margin; newPicks.delete(k); break; }
       }
-      if (newPicks.size >= maxPicks) { toast.error(`Maximum ${maxPicks} picks allowed`); return prev; }
-      newPicks.set(crewId, 0);
+      if (!oldMargin && newPicks.size >= maxPicks) { toast.error(`Maximum ${maxPicks} picks allowed`); return prev; }
+      newPicks.set(key, { crewId, eventId, margin: oldMargin });
       return newPicks;
     });
   };
 
-  const updateCrewMargin = (crewId: string, margin: number) => {
+  const updateCrewMargin = (crewId: string, eventId: string, margin: number) => {
     setCrewPicks((prev) => {
       const newPicks = new Map(prev);
-      newPicks.set(crewId, margin);
+      const key = pickKey(crewId, eventId);
+      const existing = newPicks.get(key);
+      if (!existing) return prev;
+      newPicks.set(key, { ...existing, margin });
       return newPicks;
     });
   };
+
 
   const isContestOpen = contestPool?.status === "open" && new Date(contestPool.lock_time) > new Date();
   const numDivisions = divisions.length;
