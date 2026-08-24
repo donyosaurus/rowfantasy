@@ -113,12 +113,55 @@ const RegattaDetail = () => {
     const fetchPoolData = async () => {
       const { data, error: fetchError } = await supabase
         .from("contest_pools")
-        .select(`id, contest_template_id, created_at, current_entries, entry_fee_cents, entry_tiers, lock_time, max_entries, payout_structure, prize_pool_cents, prize_structure, settled_at, status, tier_id, tier_name, allow_overflow, void_unfilled_on_settle, contest_templates!inner (id, regatta_name, gender_category, min_picks, max_picks, card_banner_url, draft_banner_url), contest_pool_crews (id, crew_id, crew_name, event_id, logo_url)`)
+        .select(`id, contest_template_id, created_at, current_entries, entry_fee_cents, entry_tiers, lock_time, max_entries, payout_structure, prize_pool_cents, prize_structure, settled_at, status, tier_id, tier_name, allow_overflow, void_unfilled_on_settle, contest_templates!inner (id, regatta_name, gender_category, min_picks, max_picks, card_banner_url, draft_banner_url, sport, name, scoring_config), contest_pool_crews (id, crew_id, crew_name, event_id, logo_url)`)
         .eq("id", id)
         .single();
       if (fetchError || !data) { setError("Contest not found"); setLoading(false); return; }
 
       const pool = data as unknown as ContestPool;
+
+      // Multi-race (v2) templates carry no contest_pool_crews rows — rebuild the same
+      // structure from the engine tables. Legacy/single-race contests skip this entirely.
+      if (!pool.contest_pool_crews || pool.contest_pool_crews.length === 0) {
+        const templateId = pool.contest_template_id;
+        const [racesRes, compsRes] = await Promise.all([
+          supabase
+            .from("contest_races")
+            .select("id, race_key, race_order")
+            .eq("template_id", templateId)
+            .order("race_order", { ascending: true }),
+          supabase
+            .from("contest_competitors")
+            .select("id, competitor_key, name, logo_url")
+            .eq("template_id", templateId),
+        ]);
+        const races = racesRes.data || [];
+        const comps = compsRes.data || [];
+        if (races.length > 0 && comps.length > 0) {
+          const { data: entryRows } = await supabase
+            .from("contest_race_entries")
+            .select("race_id, competitor_id")
+            .in("race_id", races.map((r) => r.id));
+          const raceKeyById = new Map(races.map((r) => [r.id, r.race_key]));
+          const raceOrderById = new Map(races.map((r, i) => [r.id, i]));
+          const compById = new Map(comps.map((c) => [c.id, c]));
+          pool.contest_pool_crews = (entryRows || [])
+            .slice()
+            .sort((a, b) => (raceOrderById.get(a.race_id) ?? 0) - (raceOrderById.get(b.race_id) ?? 0))
+            .map((re) => {
+              const c = compById.get(re.competitor_id);
+              return {
+                id: `${re.race_id}-${re.competitor_id}`,
+                crew_id: c?.competitor_key ?? "",
+                crew_name: c?.name ?? c?.competitor_key ?? "",
+                event_id: raceKeyById.get(re.race_id) ?? "",
+                logo_url: c?.logo_url ?? null,
+              };
+            })
+            .filter((c) => c.crew_id && c.event_id);
+        }
+      }
+
 
       // Fetch ALL pools for this template to detect tiers
       const { data: allPools } = await supabase
