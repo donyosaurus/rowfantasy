@@ -316,6 +316,7 @@ const Lobby = () => {
                     entryTiers={contest.entryTiers}
                     bannerUrl={contest.bannerUrl}
                     events={contest.events}
+                    sport={contest.sport}
                   />
                 </div>
               ))}
