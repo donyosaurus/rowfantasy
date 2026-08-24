@@ -1345,13 +1345,49 @@ const Admin = () => {
                   </Select>
                 </div>
               )}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Contest Type *</Label>
+                  <Select value={createForm.contestType} onValueChange={(value) => setCreateForm(prev => ({ ...prev, contestType: value as ContestTypeKey }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CONTEST_TYPES.map(t => <SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {CONTEST_TYPES.find(t => t.key === createForm.contestType)?.subtitle}
+                  </p>
+                </div>
+                <div>
+                  <Label>Sport *</Label>
+                  <Select value={createForm.sport} onValueChange={(value) => setCreateForm(prev => ({ ...prev, sport: value }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {SPORT_OPTIONS.map(s => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {CONTEST_TYPES.find(t => t.key === createForm.contestType)?.requiresEventClass && (
+                <div>
+                  <Label htmlFor="eventClass">Event Class *</Label>
+                  <Input id="eventClass" placeholder="e.g., 2000m Eight" value={createForm.eventClass} onChange={(e) => setCreateForm(prev => ({ ...prev, eventClass: e.target.value }))} />
+                  <p className="text-xs text-muted-foreground mt-1">All races share this class — required for the total-time tiebreak.</p>
+                </div>
+              )}
               <div>
                 <Label htmlFor="genderCategory">Gender Category *</Label>
                 <Select value={createForm.genderCategory} onValueChange={(value) => setCreateForm(prev => ({ ...prev, genderCategory: value }))}>
                   <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                  <SelectContent><SelectItem value="Men's">Men's</SelectItem><SelectItem value="Women's">Women's</SelectItem><SelectItem value="Mixed">Mixed</SelectItem></SelectContent>
+                  <SelectContent>
+                    <SelectItem value="Men's">Men's</SelectItem>
+                    <SelectItem value="Women's">Women's</SelectItem>
+                    <SelectItem value="Mixed">Mixed</SelectItem>
+                    {(createForm.contestType !== "classic" || createForm.sport !== "rowing") && <SelectItem value="Open">Open</SelectItem>}
+                  </SelectContent>
                 </Select>
               </div>
+
               <div>
                 <Label htmlFor="lockTime">Lock Time *</Label>
                 <Input id="lockTime" type="datetime-local" value={createForm.lockTime} onChange={(e) => setCreateForm(prev => ({ ...prev, lockTime: e.target.value }))} />
