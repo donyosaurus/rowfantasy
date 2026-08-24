@@ -289,6 +289,17 @@ const Admin = () => {
     setSubmittingResults(true);
     try {
       if (resultsV2) {
+        const badPlace = resultsForm.find(r => (r.status ?? "OK") === "OK" && (isNaN(parseInt(r.finish_order, 10)) || parseInt(r.finish_order, 10) < 1));
+        if (badPlace) { throw new Error("Finish place must be 1 or higher for every OK competitor"); }
+        const scoringConfig = typeof selectedContest?.contest_templates?.scoring_config === "string"
+          ? JSON.parse(selectedContest.contest_templates.scoring_config)
+          : selectedContest?.contest_templates?.scoring_config;
+        if (scoringConfig?.tiebreak === "aggregate_time") {
+          const missingTime = resultsForm.filter(r => (r.status ?? "OK") === "OK" && parseRaceTimeToMs(r.finish_time || "") == null);
+          if (missingTime.length > 0) {
+            throw new Error("Total Time contests require a valid finish time for every OK competitor");
+          }
+        }
         const v2Results = resultsForm.map(r => {
           const status = r.status || "OK";
           const ms = parseRaceTimeToMs(r.finish_time || "");
@@ -304,6 +315,10 @@ const Admin = () => {
           body: { contestTemplateId: selectedContest.contest_template_id, results: v2Results },
         });
         if (v2Error) throw new Error(`Saving results failed: ${v2Error.message}`);
+        toast.success("Results saved.");
+        setResultsModalOpen(false);
+        loadDashboardData();
+        return;
       } else {
         const results = resultsForm.map(r => ({ crew_id: r.crew_id, finish_order: parseInt(r.finish_order), finish_time: r.finish_time || null }));
         const { error: resultsError } = await supabase.functions.invoke("admin-contest-results", { body: { contestPoolId: selectedContest.id, results } });
@@ -556,13 +571,13 @@ const Admin = () => {
 
   const addCrewToForm = () => {
     if (!newCrewInput.crew_name || !newCrewInput.crew_id || !newCrewInput.event_id) { toast.error("Please fill in all crew fields"); return; }
-    if (createForm.crews.some(c => c.crew_id === newCrewInput.crew_id)) { toast.error("Crew ID already exists"); return; }
+    if (createForm.crews.some(c => c.crew_id === newCrewInput.crew_id && c.event_id === newCrewInput.event_id)) { toast.error("This competitor is already in that race"); return; }
     setCreateForm(prev => ({ ...prev, crews: [...prev.crews, { ...newCrewInput }] }));
     setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
   };
 
-  const removeCrewFromForm = (crewId: string) => {
-    setCreateForm(prev => ({ ...prev, crews: prev.crews.filter(c => c.crew_id !== crewId) }));
+  const removeCrewFromForm = (crewId: string, eventId: string) => {
+    setCreateForm(prev => ({ ...prev, crews: prev.crews.filter(c => !(c.crew_id === crewId && c.event_id === eventId)) }));
   };
 
   const ordinal = (n: number) => {
@@ -759,7 +774,8 @@ const Admin = () => {
     }
 
     // ---- v2 (multi-sport engine) body ----
-    const isV2 = createForm.contestType !== "classic" || createForm.sport !== "rowing";
+    const useV1 = false;
+    const isV2 = !useV1;
     if (!isV2 && createForm.genderCategory === "Open") { toast.error("'Open' is only available for multi-sport contests"); return; }
     let v2Body: any = null;
 
@@ -773,6 +789,11 @@ const Admin = () => {
         toast.error("Total Time contests require an event class (all races must share it)"); return;
       }
       const rosterSize = raceKeys.length;
+      const minPicks = parseInt(createForm.minPicks, 10);
+      const maxPicks = parseInt(createForm.maxPicks, 10);
+      if (isNaN(minPicks) || isNaN(maxPicks) || minPicks < 2 || maxPicks < minPicks || maxPicks > rosterSize) {
+        toast.error(`Picks must satisfy 2 ≤ Min picks ≤ Max picks ≤ number of races (${rosterSize})`); return;
+      }
       v2Body = {
         name: createForm.regattaName.trim(),
         sport: createForm.sport,
@@ -804,8 +825,8 @@ const Admin = () => {
         primitive: "placement",
         rosterMode: "per_race",
         scoringConfig,
-        minPicks: typeDef.fixedRoster ? rosterSize : Math.min(2, rosterSize),
-        maxPicks: rosterSize,
+        minPicks,
+        maxPicks,
       };
     }
 
@@ -1066,6 +1087,7 @@ const Admin = () => {
                           {/* Actions */}
                           <div className="flex gap-2 flex-wrap pt-2 border-t">
                             {(overallStatus === "locked" || (overallStatus === "open" && isContestPastLockTime(primary))) && <Button size="sm" variant="outline" onClick={() => openResultsModal(primary)}>Enter Results</Button>}
+                            {overallStatus === "results_entered" && <Button size="sm" variant="outline" onClick={() => openResultsModal(primary)}>Edit Results</Button>}
                             {overallStatus === "results_entered" && <Button size="sm" variant="secondary" disabled={scoringPoolId === primary.id} onClick={() => calculateScores(primary.id)}>{scoringPoolId === primary.id ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Scoring...</> : "Calculate Scores"}</Button>}
                             {overallStatus === "scoring_completed" && <Button size="sm" variant="default" disabled={settlingPoolId === primary.id} onClick={() => settlePayouts(primary.id)}>{settlingPoolId === primary.id ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Settling...</> : hasTiers ? "Settle All Tiers" : "Settle Payouts"}</Button>}
                             {overallStatus === "settling" && <span className="text-sm text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Processing...</span>}
