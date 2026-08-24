@@ -756,7 +756,9 @@ const Admin = () => {
 
     // ---- v2 (multi-sport engine) body ----
     const isV2 = createForm.contestType !== "classic" || createForm.sport !== "rowing";
+    if (!isV2 && createForm.genderCategory === "Open") { toast.error("'Open' is only available for multi-sport contests"); return; }
     let v2Body: any = null;
+
     if (isV2) {
       const typeDef = CONTEST_TYPES.find(t => t.key === createForm.contestType)!;
       const scoringConfig = getScoringPreset(createForm.contestType);
