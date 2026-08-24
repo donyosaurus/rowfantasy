@@ -30,6 +30,10 @@ interface ContestPool {
     card_banner_url: string | null;
     contest_group_id: string | null;
     display_order_in_group: number;
+    gender_category: string | null;
+    sport: string | null;
+    name: string | null;
+    scoring_config: unknown | null;
   };
   contest_pool_crews: {
     event_id: string;
@@ -47,7 +51,8 @@ interface MappedContest {
   id: string;
   contestTemplateId: string;
   regattaName: string;
-  genderCategory: "Men's" | "Women's";
+  genderCategory: "Men's" | "Women's" | "Mixed" | "Open";
+  sport: string | null;
   lockTime: string;
   lockTimeRaw: string;
   entryFeeCents: number;
@@ -82,7 +87,7 @@ const Lobby = () => {
            id, contest_template_id, lock_time, status, entry_fee_cents,
            prize_pool_cents, payout_structure, current_entries, max_entries,
            allow_overflow, created_at, tier_id, tier_name, entry_tiers,
-           contest_templates(regatta_name, card_banner_url, contest_group_id, display_order_in_group),
+           contest_templates(regatta_name, card_banner_url, contest_group_id, display_order_in_group, gender_category, sport, name, scoring_config),
            contest_pool_crews(event_id)
          `)
         .in("status", ["open", "locked"]);
@@ -138,8 +143,15 @@ const Lobby = () => {
         });
         const primary = sorted[0];
 
-        const regattaName = primary.contest_templates?.regatta_name || "Unknown Regatta";
-        const genderCategory: "Men's" | "Women's" = regattaName.toLowerCase().includes("women") ? "Women's" : "Men's";
+        const tpl = primary.contest_templates;
+        const regattaName = tpl?.name || tpl?.regatta_name || "Unknown Regatta";
+        const legacyName = tpl?.regatta_name || "";
+        // Legacy templates (scoring_config == null) keep today's name-based inference exactly.
+        const genderCategory: MappedContest["genderCategory"] = tpl?.scoring_config
+          ? ((tpl.gender_category as MappedContest["genderCategory"]) ?? "Open")
+          : legacyName.toLowerCase().includes("women")
+            ? "Women's"
+            : "Men's";
         const lockTime = new Date(primary.lock_time).toLocaleString("en-US", {
           month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true,
         });
@@ -187,6 +199,7 @@ const Lobby = () => {
           id: primary.id,
           contestTemplateId: primary.contest_template_id,
           regattaName, genderCategory, lockTime,
+          sport: tpl?.sport ?? null,
           lockTimeRaw: primary.lock_time,
           entryFeeCents: hasTiers ? lowestFee : primary.entry_fee_cents,
           payoutStructure: primary.payout_structure,
@@ -303,6 +316,7 @@ const Lobby = () => {
                     entryTiers={contest.entryTiers}
                     bannerUrl={contest.bannerUrl}
                     events={contest.events}
+                    sport={contest.sport}
                   />
                 </div>
               ))}

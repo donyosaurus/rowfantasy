@@ -4,7 +4,7 @@ import { formatCents } from "@/lib/formatCurrency";
 import { Trophy } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
-type GenderCategory = "Men's" | "Women's";
+type GenderCategory = "Men's" | "Women's" | "Mixed" | "Open";
 
 interface EntryTier {
   name: string;
@@ -28,6 +28,7 @@ interface ContestCardProps {
   entryTiers?: EntryTier[] | null;
   bannerUrl?: string | null;
   events?: string[];
+  sport?: string | null;
 }
 
 const CARD_GRADIENTS = [
@@ -111,7 +112,9 @@ export const ContestCard = ({
   entryTiers = null,
   bannerUrl = null,
   events = [],
+  sport = null,
 }: ContestCardProps) => {
+  const showSportBadge = !!sport && sport !== "rowing";
   const hasTiers = entryTiers && entryTiers.length > 0;
   const hasPayoutStructure = payoutStructure && Object.keys(payoutStructure).length > 0;
   const totalPrizes = hasPayoutStructure
@@ -241,6 +244,11 @@ export const ContestCard = ({
               <h3 className="text-lg font-bold text-slate-900 line-clamp-1">{regattaName}</h3>
             </div>
             <div className="flex items-center gap-1.5 mt-1 line-clamp-1">
+              {showSportBadge && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-teal-50 text-[10px] font-semibold uppercase tracking-wider text-teal-700 border border-teal-200">
+                  {sport}
+                </span>
+              )}
               <span className="text-sm text-slate-500">{genderCategory}</span>
               <span className="text-slate-300">·</span>
               <span className="text-sm text-slate-500">Locks {lockTimeFormatted}</span>

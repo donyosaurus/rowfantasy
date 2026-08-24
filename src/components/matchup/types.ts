@@ -9,7 +9,11 @@ export interface MatchupDialogProps {
   maxEntries: number;
   currentEntries: number;
   payoutStructure: Record<string, number> | null;
+  /** Template scoring_config; null/undefined = legacy margin_error behavior. */
+  scoringConfig?: unknown | null;
 }
+
+export type Tiebreak = "margin_error" | "aggregate_time" | "none";
 
 export interface EntrantRow {
   id: string;

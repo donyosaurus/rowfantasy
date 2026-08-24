@@ -62,3 +62,11 @@ export function formatEventId(eventId: string): string {
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
+
+/** Legacy templates (null scoring_config) behave exactly like margin_error. */
+export function resolveTiebreak(scoringConfig: unknown): "margin_error" | "aggregate_time" | "none" {
+  if (!scoringConfig || typeof scoringConfig !== "object") return "margin_error";
+  const tb = (scoringConfig as { tiebreak?: string }).tiebreak;
+  if (tb === "aggregate_time" || tb === "none") return tb;
+  return "margin_error";
+}

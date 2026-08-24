@@ -1,8 +1,9 @@
 import { Trophy, Lock, CheckCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatCents } from "@/lib/formatCurrency";
+import { formatSecondsAsTime } from "@/lib/utils";
 import { CrewLogo } from "@/components/CrewLogo";
-import type { EntrantRow, CrewInfo, ParsedPick } from "./types";
+import type { EntrantRow, CrewInfo, ParsedPick, Tiebreak } from "./types";
 import { parsePicks, getEntrantData, formatEventId } from "./utils";
 
 interface HeadToHeadLayoutProps {
@@ -12,6 +13,7 @@ interface HeadToHeadLayoutProps {
   isLocked: boolean;
   isCompleted: boolean;
   lockTime: string;
+  tiebreak?: Tiebreak;
 }
 
 function EntrantColumn({
@@ -21,6 +23,7 @@ function EntrantColumn({
   showPicks,
   isCompleted,
   side,
+  tiebreak = "margin_error",
 }: {
   entrant: EntrantRow;
   isCurrentUser: boolean;
@@ -28,6 +31,7 @@ function EntrantColumn({
   showPicks: boolean;
   isCompleted: boolean;
   side: "left" | "right";
+  tiebreak?: Tiebreak;
 }) {
   const { points, marginError, payout, isWinner } = getEntrantData(entrant);
 
@@ -132,9 +136,13 @@ function EntrantColumn({
               {points ?? "—"}
               <span className="text-sm font-normal text-muted-foreground ml-1">pts</span>
             </p>
-            <p className="text-xs text-muted-foreground font-body mt-0.5">
-              Margin: ±{marginError != null ? Number(marginError).toFixed(1) : "—"}s
-            </p>
+            {tiebreak !== "none" && (
+              <p className="text-xs text-muted-foreground font-body mt-0.5">
+                {tiebreak === "aggregate_time"
+                  ? `Total time: ${marginError != null ? formatSecondsAsTime(Number(marginError)) : "—"}`
+                  : `Margin: ±${marginError != null ? Number(marginError).toFixed(1) : "—"}s`}
+              </p>
+            )}
           </div>
           {payout != null && payout > 0 && (
             <div className="mt-2 flex items-center justify-center gap-1.5">
@@ -157,6 +165,7 @@ export function HeadToHeadLayout({
   isLocked,
   isCompleted,
   lockTime,
+  tiebreak = "margin_error",
 }: HeadToHeadLayoutProps) {
   // Ensure current user is on the left
   const sorted = [...entrants].sort((a, b) => {
@@ -220,6 +229,7 @@ export function HeadToHeadLayout({
           showPicks={canSeePicks(left)}
           isCompleted={isCompleted}
           side="left"
+          tiebreak={tiebreak}
         />
 
         {/* VS Divider */}
@@ -243,6 +253,7 @@ export function HeadToHeadLayout({
           showPicks={canSeePicks(right)}
           isCompleted={isCompleted}
           side="right"
+          tiebreak={tiebreak}
         />
       </div>
 

@@ -13,11 +13,13 @@ interface CrewCardProps {
   onToggle: (crewId: string) => void;
   onMarginChange: (crewId: string, margin: number) => void;
   animDelay?: number;
+  /** When false, the margin-prediction input is hidden (non margin_error tiebreaks). */
+  showMargin?: boolean;
 }
 
 export function CrewCard({
   crewId, crewName, eventId, logoUrl, isSelected, marginVal,
-  isOpen, onToggle, onMarginChange, animDelay = 0,
+  isOpen, onToggle, onMarginChange, animDelay = 0, showMargin = true,
 }: CrewCardProps) {
   const palette = getCrewPalette(crewName);
   const stripeBg = getStripeBackground(palette);
@@ -70,7 +72,7 @@ export function CrewCard({
       )}
 
       {/* Margin input when selected */}
-      {isSelected && isOpen && (
+      {isSelected && isOpen && showMargin && (
         <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-100 border border-slate-200">
             <Input

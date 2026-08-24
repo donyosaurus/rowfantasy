@@ -20,6 +20,18 @@ import myEntriesBg from "@/assets/my-entries-bg.jpg";
 import { CrewLogo } from "@/components/CrewLogo";
 import { toast } from "sonner";
 import { formatCents, formatDollars } from "@/lib/formatCurrency";
+import { formatSecondsAsTime } from "@/lib/utils";
+
+/**
+ * Templates with a null scoring_config, or a margin_error tiebreak, keep today's copy.
+ * aggregate_time renders a formatted total time; none hides the line.
+ */
+function tiebreakOf(scoringConfig: unknown): "margin_error" | "aggregate_time" | "none" {
+  if (!scoringConfig || typeof scoringConfig !== "object") return "margin_error";
+  const tb = (scoringConfig as { tiebreak?: string }).tiebreak;
+  if (tb === "aggregate_time" || tb === "none") return tb;
+  return "margin_error";
+}
 
 interface PickNew {
   crewId: string;
@@ -40,6 +52,7 @@ interface Entry {
   contest_templates: {
     regatta_name: string;
     lock_time: string;
+    scoring_config?: unknown | null;
   };
   contest_pools: {
     status: string;
@@ -130,7 +143,7 @@ const MyEntries = () => {
       from('contest_entries').
       select(`
           id, created_at, status, entry_fee_cents, pool_id, contest_template_id, picks, payout_cents, rank, tier_name,
-          contest_templates!inner (regatta_name, lock_time),
+          contest_templates!inner (regatta_name, lock_time, scoring_config),
           contest_pools!inner (status, prize_pool_cents, max_entries, current_entries, payout_structure, tier_id, entry_fee_cents, contest_template_id),
           contest_scores (rank, total_points, margin_bonus, is_winner, payout_cents)
         `).
@@ -501,7 +514,16 @@ const MyEntries = () => {
             <div className="flex flex-wrap items-center gap-4 text-sm pt-3 border-t text-muted-foreground">
               <span className="font-heading font-bold text-foreground">Rank: #{score.rank}</span>
               <span>{score.total_points} pts</span>
-              {score.margin_bonus > 0 && <span className="text-muted-foreground">Margin error: {score.margin_bonus.toFixed(1)}s</span>}
+              {(() => {
+                const tb = tiebreakOf(entry.contest_templates?.scoring_config);
+                if (tb === "none") return null;
+                if (tb === "aggregate_time") {
+                  return <span className="text-muted-foreground">Total time: {formatSecondsAsTime(score.margin_bonus)}</span>;
+                }
+                return score.margin_bonus > 0
+                  ? <span className="text-muted-foreground">Margin error: {score.margin_bonus.toFixed(1)}s</span>
+                  : null;
+              })()}
             </div>
           )}
         </CardContent>
@@ -603,6 +625,7 @@ const MyEntries = () => {
           maxEntries={matchupEntry.contest_pools?.max_entries || 0}
           currentEntries={matchupEntry.contest_pools?.current_entries || 0}
           payoutStructure={matchupEntry.contest_pools?.payout_structure || null}
+          scoringConfig={matchupEntry.contest_templates?.scoring_config ?? null}
         />
       )}
 

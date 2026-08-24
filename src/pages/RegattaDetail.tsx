@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { formatCents } from "@/lib/formatCurrency";
 import { TierSelector, type EntryTier } from "@/components/TierSelector";
 import { ContestBannerHeader } from "@/components/ContestBannerHeader";
+import { terms } from "@/lib/contest-config";
 
 interface PoolCrew {
   id: string;
@@ -37,6 +38,11 @@ interface PoolCrew {
   crew_name: string;
   event_id: string;
   logo_url?: string | null;
+}
+
+interface ScoringConfigLite {
+  points_table?: Record<string, number>;
+  tiebreak?: string;
 }
 
 interface ContestPool {
@@ -60,6 +66,9 @@ interface ContestPool {
     max_picks: number;
     card_banner_url?: string | null;
     draft_banner_url?: string | null;
+    sport?: string | null;
+    name?: string | null;
+    scoring_config?: ScoringConfigLite | null;
   };
   contest_pool_crews: PoolCrew[];
 }
@@ -104,12 +113,55 @@ const RegattaDetail = () => {
     const fetchPoolData = async () => {
       const { data, error: fetchError } = await supabase
         .from("contest_pools")
-        .select(`id, contest_template_id, created_at, current_entries, entry_fee_cents, entry_tiers, lock_time, max_entries, payout_structure, prize_pool_cents, prize_structure, settled_at, status, tier_id, tier_name, allow_overflow, void_unfilled_on_settle, contest_templates!inner (id, regatta_name, gender_category, min_picks, max_picks, card_banner_url, draft_banner_url), contest_pool_crews (id, crew_id, crew_name, event_id, logo_url)`)
+        .select(`id, contest_template_id, created_at, current_entries, entry_fee_cents, entry_tiers, lock_time, max_entries, payout_structure, prize_pool_cents, prize_structure, settled_at, status, tier_id, tier_name, allow_overflow, void_unfilled_on_settle, contest_templates!inner (id, regatta_name, gender_category, min_picks, max_picks, card_banner_url, draft_banner_url, sport, name, scoring_config), contest_pool_crews (id, crew_id, crew_name, event_id, logo_url)`)
         .eq("id", id)
         .single();
       if (fetchError || !data) { setError("Contest not found"); setLoading(false); return; }
 
       const pool = data as unknown as ContestPool;
+
+      // Multi-race (v2) templates carry no contest_pool_crews rows — rebuild the same
+      // structure from the engine tables. Legacy/single-race contests skip this entirely.
+      if (!pool.contest_pool_crews || pool.contest_pool_crews.length === 0) {
+        const templateId = pool.contest_template_id;
+        const [racesRes, compsRes] = await Promise.all([
+          supabase
+            .from("contest_races")
+            .select("id, race_key, race_order")
+            .eq("template_id", templateId)
+            .order("race_order", { ascending: true }),
+          supabase
+            .from("contest_competitors")
+            .select("id, competitor_key, name, logo_url")
+            .eq("template_id", templateId),
+        ]);
+        const races = racesRes.data || [];
+        const comps = compsRes.data || [];
+        if (races.length > 0 && comps.length > 0) {
+          const { data: entryRows } = await supabase
+            .from("contest_race_entries")
+            .select("race_id, competitor_id")
+            .in("race_id", races.map((r) => r.id));
+          const raceKeyById = new Map(races.map((r) => [r.id, r.race_key]));
+          const raceOrderById = new Map(races.map((r, i) => [r.id, i]));
+          const compById = new Map(comps.map((c) => [c.id, c]));
+          pool.contest_pool_crews = (entryRows || [])
+            .slice()
+            .sort((a, b) => (raceOrderById.get(a.race_id) ?? 0) - (raceOrderById.get(b.race_id) ?? 0))
+            .map((re) => {
+              const c = compById.get(re.competitor_id);
+              return {
+                id: `${re.race_id}-${re.competitor_id}`,
+                crew_id: c?.competitor_key ?? "",
+                crew_name: c?.name ?? c?.competitor_key ?? "",
+                event_id: raceKeyById.get(re.race_id) ?? "",
+                logo_url: c?.logo_url ?? null,
+              };
+            })
+            .filter((c) => c.crew_id && c.event_id);
+        }
+      }
+
 
       // Fetch ALL pools for this template to detect tiers
       const { data: allPools } = await supabase
@@ -158,6 +210,19 @@ const RegattaDetail = () => {
 
   const divisions = Object.keys(crewsByDivision);
 
+  const template = contestPool?.contest_templates;
+  const scoringConfig = template?.scoring_config ?? null;
+  const sport = template?.sport ?? null;
+  const t = terms(sport);
+  const displayName = template?.name || template?.regatta_name || "";
+  // Legacy templates (null scoring_config) always need a margin prediction.
+  const needsMargin = !scoringConfig || scoringConfig.tiebreak === "margin_error";
+  const scoringPointsRows: [string, number][] = Object.entries(
+    scoringConfig?.points_table && Object.keys(scoringConfig.points_table).length > 0
+      ? scoringConfig.points_table
+      : (FINISH_POINTS as unknown as Record<string, number>)
+  ).sort((a, b) => Number(a[0]) - Number(b[0]));
+
   const toggleCrewSelection = (crewId: string) => {
     const clickedCrew = contestPool?.contest_pool_crews.find((c) => c.crew_id === crewId);
     if (!clickedCrew) return;
@@ -201,11 +266,12 @@ const RegattaDetail = () => {
     : "";
 
   const allMarginsValid = useMemo(() => {
+    if (!needsMargin) return true;
     for (const [, margin] of crewPicks) {
       if (margin === undefined || margin <= 0) return false;
     }
     return true;
-  }, [crewPicks]);
+  }, [crewPicks, needsMargin]);
 
   const entryTiers = contestPool?.entry_tiers as EntryTier[] | null;
   const hasTiers = !!(entryTiers && entryTiers.length > 1);
@@ -268,12 +334,14 @@ const RegattaDetail = () => {
       return;
     }
     if (!id || !contestPool) return;
-    if (crewPicks.size < minPicks) { toast.error(`Please select at least ${minPicks} crews`); return; }
-    for (const [crewId, margin] of crewPicks) {
-      if (margin <= 0) {
-        const crew = contestPool.contest_pool_crews.find((c) => c.crew_id === crewId);
-        toast.error(`Please enter a valid margin for ${crew?.crew_name || crewId}`);
-        return;
+    if (crewPicks.size < minPicks) { toast.error(`Please select at least ${minPicks} ${t.competitors}`); return; }
+    if (needsMargin) {
+      for (const [crewId, margin] of crewPicks) {
+        if (margin <= 0) {
+          const crew = contestPool.contest_pool_crews.find((c) => c.crew_id === crewId);
+          toast.error(`Please enter a valid margin for ${crew?.crew_name || crewId}`);
+          return;
+        }
       }
     }
     const selectedDivisions = new Set<string>();
@@ -281,7 +349,7 @@ const RegattaDetail = () => {
       const crew = contestPool.contest_pool_crews.find((c) => c.crew_id === crewId);
       if (crew) selectedDivisions.add(crew.event_id);
     }
-    if (selectedDivisions.size < 2) { toast.error("You must select crews from at least 2 different events"); return; }
+    if (selectedDivisions.size < 2) { toast.error(`You must select ${t.competitors} from at least 2 different ${t.events}`); return; }
     if (hasTiers && !selectedTier) { toast.error("Please select an entry tier"); return; }
     // (Wave 1 #6) Fail-closed: refuse submit if balance read errored.
     if (wallet.status === 'error') {
@@ -296,7 +364,8 @@ const RegattaDetail = () => {
     setSubmitting(true);
     const picks = Array.from(crewPicks.entries()).map(([crewId, margin]) => {
       const crew = contestPool.contest_pool_crews.find((c) => c.crew_id === crewId);
-      return { crewId, event_id: crew?.event_id ?? "", predictedMargin: margin };
+      const base = { crewId, event_id: crew?.event_id ?? "" };
+      return needsMargin ? { ...base, predictedMargin: margin } : base;
     });
 
     try {
@@ -369,7 +438,7 @@ const RegattaDetail = () => {
       <Header />
       {/* ── Banner Image Header ── */}
       <ContestBannerHeader
-        regattaName={contestPool.contest_templates.regatta_name}
+        regattaName={displayName}
         genderCategory={contestPool.contest_templates.gender_category}
         lockTime={contestPool.lock_time}
         status={contestPool.status}
@@ -396,21 +465,21 @@ const RegattaDetail = () => {
             {/* ── LEFT: Crew Selection ── */}
             <div className="flex-1 min-w-0 space-y-5">
                <div>
-                <h2 className="font-heading text-xl lg:text-2xl font-bold mb-1 text-white">Select Your Crews</h2>
+                <h2 className="font-heading text-xl lg:text-2xl font-bold mb-1 text-white">Select Your {t.Competitors}</h2>
                 <p className="text-sm text-white/60">
-                  Draft a crew from each event. Your entry will be matched against other players.
+                  Draft a {t.competitor} from each {t.event}. Your entry will be matched against other players.
                 </p>
               </div>
 
               {divisions.length === 0 ? (
-                <Card className="bg-card border-border"><CardContent className="py-8 text-center text-muted-foreground">No crews available.</CardContent></Card>
+                <Card className="bg-card border-border"><CardContent className="py-8 text-center text-muted-foreground">No {t.competitors} available.</CardContent></Card>
               ) : (
                 divisions.map((divisionId) => (
                   <div key={divisionId}>
                     <div className="flex items-center gap-2 mb-3">
                       <div className="flex items-center gap-2 rounded-full bg-white/10 text-white px-3 py-1 border border-white/15">
                         <span className="font-semibold text-xs">{divisionId}</span>
-                        <span className="text-white/60 text-xs">· {crewsByDivision[divisionId].length} crews</span>
+                        <span className="text-white/60 text-xs">· {crewsByDivision[divisionId].length} {t.competitors}</span>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -424,6 +493,7 @@ const RegattaDetail = () => {
                           isSelected={crewPicks.has(crew.crew_id)}
                           marginVal={crewPicks.get(crew.crew_id) ?? 0}
                           isOpen={!!isContestOpen}
+                          showMargin={needsMargin}
                           onToggle={toggleCrewSelection}
                           onMarginChange={updateCrewMargin}
                           animDelay={idx * 50}
@@ -457,6 +527,7 @@ const RegattaDetail = () => {
                     events={divisions}
                     maxPicks={maxPicks}
                     onRemove={toggleCrewSelection}
+                    competitorNoun={t.competitor}
                   />
 
                    <div className="mt-4">
@@ -572,13 +643,16 @@ const RegattaDetail = () => {
                     </CollapsibleTrigger>
                     <CollapsibleContent className="pt-3">
                       <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                        {Object.entries(FINISH_POINTS).map(([place, pts]) => (
+                        {scoringPointsRows.map(([place, pts]) => (
                           <div key={place} className="flex justify-between text-xs text-muted-foreground">
                             <span>{ordinal(Number(place))}</span><span className="font-medium text-foreground">{pts} pts</span>
                           </div>
                         ))}
-                        <div className="flex justify-between text-xs text-muted-foreground"><span>8th+</span><span className="font-medium text-foreground">{DEFAULT_POINTS} pts</span></div>
+                        <div className="flex justify-between text-xs text-muted-foreground"><span>{scoringPointsRows.length + 1}th+</span><span className="font-medium text-foreground">{DEFAULT_POINTS} pts</span></div>
                       </div>
+                      {scoringConfig?.tiebreak === "aggregate_time" && (
+                        <p className="text-xs text-muted-foreground mt-3">Ties broken by lowest combined time.</p>
+                      )}
                     </CollapsibleContent>
                   </CardContent>
                 </Card>
