@@ -433,7 +433,7 @@ const RegattaDetail = () => {
       <Header />
       {/* ── Banner Image Header ── */}
       <ContestBannerHeader
-        regattaName={contestPool.contest_templates.regatta_name}
+        regattaName={displayName}
         genderCategory={contestPool.contest_templates.gender_category}
         lockTime={contestPool.lock_time}
         status={contestPool.status}
@@ -460,21 +460,21 @@ const RegattaDetail = () => {
             {/* ── LEFT: Crew Selection ── */}
             <div className="flex-1 min-w-0 space-y-5">
                <div>
-                <h2 className="font-heading text-xl lg:text-2xl font-bold mb-1 text-white">Select Your Crews</h2>
+                <h2 className="font-heading text-xl lg:text-2xl font-bold mb-1 text-white">Select Your {t.Competitors}</h2>
                 <p className="text-sm text-white/60">
-                  Draft a crew from each event. Your entry will be matched against other players.
+                  Draft a {t.competitor} from each {t.event}. Your entry will be matched against other players.
                 </p>
               </div>
 
               {divisions.length === 0 ? (
-                <Card className="bg-card border-border"><CardContent className="py-8 text-center text-muted-foreground">No crews available.</CardContent></Card>
+                <Card className="bg-card border-border"><CardContent className="py-8 text-center text-muted-foreground">No {t.competitors} available.</CardContent></Card>
               ) : (
                 divisions.map((divisionId) => (
                   <div key={divisionId}>
                     <div className="flex items-center gap-2 mb-3">
                       <div className="flex items-center gap-2 rounded-full bg-white/10 text-white px-3 py-1 border border-white/15">
                         <span className="font-semibold text-xs">{divisionId}</span>
-                        <span className="text-white/60 text-xs">· {crewsByDivision[divisionId].length} crews</span>
+                        <span className="text-white/60 text-xs">· {crewsByDivision[divisionId].length} {t.competitors}</span>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -488,6 +488,7 @@ const RegattaDetail = () => {
                           isSelected={crewPicks.has(crew.crew_id)}
                           marginVal={crewPicks.get(crew.crew_id) ?? 0}
                           isOpen={!!isContestOpen}
+                          showMargin={needsMargin}
                           onToggle={toggleCrewSelection}
                           onMarginChange={updateCrewMargin}
                           animDelay={idx * 50}
