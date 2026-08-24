@@ -15,7 +15,7 @@ interface DraftPicksListProps {
   picks: DraftPick[];
   events: string[];
   maxPicks: number;
-  onRemove: (crewId: string) => void;
+  onRemove: (crewId: string, eventId: string) => void;
   /** Sport-aware noun for the empty-slot copy. Defaults to rowing wording. */
   competitorNoun?: string;
 }
@@ -35,7 +35,8 @@ export function DraftPicksList({ picks, events, maxPicks, onRemove, competitorNo
           const country = isCountry(pick.crewName);
           return (
             <div
-              key={pick.crewId}
+              key={`${pick.crewId}-${pick.eventId}`}
+
               className="flex items-center gap-3 px-3 py-2 rounded-lg border-l-4"
               style={{
                 borderLeftColor: color,
@@ -52,7 +53,7 @@ export function DraftPicksList({ picks, events, maxPicks, onRemove, competitorNo
                 <p className="text-xs text-muted-foreground">{pick.eventId}</p>
               </div>
               <button
-                onClick={(e) => { e.stopPropagation(); onRemove(pick.crewId); }}
+                onClick={(e) => { e.stopPropagation(); onRemove(pick.crewId, pick.eventId); }}
                 className="w-6 h-6 rounded-full bg-secondary hover:bg-destructive/10 hover:text-destructive flex items-center justify-center text-muted-foreground text-xs cursor-pointer transition-colors flex-shrink-0"
               >
                 <X className="h-3 w-3" />

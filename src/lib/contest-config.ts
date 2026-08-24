@@ -136,7 +136,9 @@ export function parseRaceTimeToMs(input: string): number | null {
 export function formatMsAsRaceTime(ms: number | null | undefined): string {
   if (ms == null || !Number.isFinite(Number(ms))) return "";
   const total = Math.max(0, Math.round(Number(ms)));
-  const mins = Math.floor(total / 60000);
-  const secs = (total % 60000) / 1000;
+  const cs = Math.round(total / 10);
+  const mins = Math.floor(cs / 6000);
+  const secs = (cs % 6000) / 100;
   return `${mins}:${secs.toFixed(2).padStart(5, "0")}`;
 }
+

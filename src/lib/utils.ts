@@ -12,8 +12,9 @@ export function cn(...inputs: ClassValue[]) {
 export function formatSecondsAsTime(seconds: number): string {
   if (!Number.isFinite(seconds)) return "—";
   const sign = seconds < 0 ? "-" : "";
-  const abs = Math.abs(seconds);
-  const mins = Math.floor(abs / 60);
-  const secs = abs - mins * 60;
+  const cs = Math.round(Math.abs(seconds) * 100);
+  const mins = Math.floor(cs / 6000);
+  const secs = (cs % 6000) / 100;
   return `${sign}${mins}:${secs.toFixed(2).padStart(5, "0")}`;
 }
+
