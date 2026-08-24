@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { formatCents } from "@/lib/formatCurrency";
 import { TierSelector, type EntryTier } from "@/components/TierSelector";
 import { ContestBannerHeader } from "@/components/ContestBannerHeader";
+import { terms } from "@/lib/contest-config";
 
 interface PoolCrew {
   id: string;
@@ -37,6 +38,11 @@ interface PoolCrew {
   crew_name: string;
   event_id: string;
   logo_url?: string | null;
+}
+
+interface ScoringConfigLite {
+  points_table?: Record<string, number>;
+  tiebreak?: string;
 }
 
 interface ContestPool {
@@ -60,6 +66,9 @@ interface ContestPool {
     max_picks: number;
     card_banner_url?: string | null;
     draft_banner_url?: string | null;
+    sport?: string | null;
+    name?: string | null;
+    scoring_config?: ScoringConfigLite | null;
   };
   contest_pool_crews: PoolCrew[];
 }
