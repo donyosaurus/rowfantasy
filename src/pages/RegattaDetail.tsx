@@ -638,13 +638,16 @@ const RegattaDetail = () => {
                     </CollapsibleTrigger>
                     <CollapsibleContent className="pt-3">
                       <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                        {Object.entries(FINISH_POINTS).map(([place, pts]) => (
+                        {scoringPointsRows.map(([place, pts]) => (
                           <div key={place} className="flex justify-between text-xs text-muted-foreground">
                             <span>{ordinal(Number(place))}</span><span className="font-medium text-foreground">{pts} pts</span>
                           </div>
                         ))}
-                        <div className="flex justify-between text-xs text-muted-foreground"><span>8th+</span><span className="font-medium text-foreground">{DEFAULT_POINTS} pts</span></div>
+                        <div className="flex justify-between text-xs text-muted-foreground"><span>{scoringPointsRows.length + 1}th+</span><span className="font-medium text-foreground">{DEFAULT_POINTS} pts</span></div>
                       </div>
+                      {scoringConfig?.tiebreak === "aggregate_time" && (
+                        <p className="text-xs text-muted-foreground mt-3">Ties broken by lowest combined time.</p>
+                      )}
                     </CollapsibleContent>
                   </CardContent>
                 </Card>
