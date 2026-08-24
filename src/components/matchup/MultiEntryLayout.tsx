@@ -3,7 +3,8 @@ import { Trophy, ChevronDown, ChevronUp, Lock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatCents } from "@/lib/formatCurrency";
 import { CrewLogo } from "@/components/CrewLogo";
-import type { EntrantRow, CrewInfo } from "./types";
+import { formatSecondsAsTime } from "@/lib/utils";
+import type { EntrantRow, CrewInfo, Tiebreak } from "./types";
 import { parsePicks, getEntrantData, getRankLabel, formatEventId } from "./utils";
 import {
   Collapsible,
@@ -17,6 +18,7 @@ interface MultiEntryLayoutProps {
   crewMap: Map<string, CrewInfo>;
   isLocked: boolean;
   isCompleted: boolean;
+  tiebreak?: Tiebreak;
 }
 
 function RankBadge({ rank }: { rank: number | null }) {
