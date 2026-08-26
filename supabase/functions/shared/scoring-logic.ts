@@ -119,7 +119,7 @@ interface CrewScore {
 // V2 (configurable) scoring types
 // ---------------------------------------------------------------------------
 
-export const ScoringConfigSchema = z.object({
+export const PlacementConfigSchema = z.object({
   primitive: z.literal("placement"),
   points_table: z.record(z.string(), z.number().int().min(0).max(100000)),
   race_multipliers: z.record(z.string(), z.number().int().min(1).max(100)).optional(),
@@ -127,17 +127,37 @@ export const ScoringConfigSchema = z.object({
   dnf_policy: z.enum(["zero", "field_plus_one"]),
   tiebreak: z.enum(["margin_error", "aggregate_time", "none"]),
   penalty_pct: z.number().min(0).max(100).optional(),
-}).strict().superRefine((c, ctx) => {
-  if (c.direction === "high" && c.dnf_policy !== "zero") {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "direction high requires dnf_policy zero" });
-  }
-  if (c.direction === "low" && c.dnf_policy !== "field_plus_one") {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "direction low requires dnf_policy field_plus_one" });
-  }
-  if (c.direction === "low" && c.race_multipliers) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "race_multipliers not allowed with direction low" });
-  }
-});
+}).strict();
+
+export const TimeVsRefConfigSchema = z.object({
+  primitive: z.literal("time_vs_ref"),
+  time_ref: z.enum(["none", "winner"]),
+  dnf_policy: z.literal("penalty_pct"),
+  penalty_pct: z.number().min(0).max(100).default(10),
+  tiebreak: z.literal("none"),
+}).strict();
+
+// zod 3.22 rejects superRefine'd object schemas as discriminated-union members,
+// so the cross-field placement checks live on the union itself.
+export const ScoringConfigSchema = z
+  .discriminatedUnion("primitive", [PlacementConfigSchema, TimeVsRefConfigSchema])
+  .superRefine((c, ctx) => {
+    if (c.primitive === "placement") {
+      if (c.direction === "high" && c.dnf_policy !== "zero") {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "direction high requires dnf_policy zero" });
+      }
+      if (c.direction === "low" && c.dnf_policy !== "field_plus_one") {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "direction low requires dnf_policy field_plus_one" });
+      }
+      if (c.direction === "low" && c.race_multipliers) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "race_multipliers not allowed with direction low" });
+      }
+    }
+  });
+
+export type PlacementScoringConfig = z.infer<typeof PlacementConfigSchema>;
+export type TimeVsRefScoringConfig = z.infer<typeof TimeVsRefConfigSchema>;
+
 
 export type ScoringConfig = z.infer<typeof ScoringConfigSchema>;
 
