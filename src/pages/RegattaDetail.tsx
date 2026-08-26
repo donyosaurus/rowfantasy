@@ -155,6 +155,8 @@ const RegattaDetail = () => {
         }
         const races = racesRes.data || [];
         const comps = compsRes.data || [];
+        setStageList(races.map((r: any) => ({ race_key: r.race_key, name: r.name ?? null })));
+
         if (races.length > 0 && comps.length > 0) {
           const { data: entryRows, error: entriesError } = await supabase
             .from("contest_race_entries")
