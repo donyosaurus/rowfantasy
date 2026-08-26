@@ -1128,6 +1128,13 @@ const Admin = () => {
                           <div className="flex gap-2 flex-wrap pt-2 border-t">
                             {(overallStatus === "locked" || (overallStatus === "open" && isContestPastLockTime(primary))) && <Button size="sm" variant="outline" onClick={() => openResultsModal(primary)}>Enter Results</Button>}
                             {overallStatus === "results_entered" && <Button size="sm" variant="outline" onClick={() => openResultsModal(primary)}>Edit Results</Button>}
+                            {overallStatus === "scoring_completed" && (
+                              <div className="flex items-center gap-2">
+                                <Button size="sm" variant="outline" onClick={() => openResultsModal(primary)}>Edit Results</Button>
+                                <span className="text-xs text-muted-foreground">Editing results will reopen scoring.</span>
+                              </div>
+                            )}
+
                             {overallStatus === "results_entered" && <Button size="sm" variant="secondary" disabled={scoringPoolId === primary.id} onClick={() => calculateScores(primary.id)}>{scoringPoolId === primary.id ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Scoring...</> : "Calculate Scores"}</Button>}
                             {overallStatus === "scoring_completed" && <Button size="sm" variant="default" disabled={settlingPoolId === primary.id} onClick={() => settlePayouts(primary.id)}>{settlingPoolId === primary.id ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Settling...</> : hasTiers ? "Settle All Tiers" : "Settle Payouts"}</Button>}
                             {overallStatus === "settling" && <span className="text-sm text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Processing...</span>}
@@ -1431,7 +1438,7 @@ const Admin = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Contest Type *</Label>
-                  <Select value={createForm.contestType} onValueChange={(value) => setCreateForm(prev => ({ ...prev, contestType: value as ContestTypeKey, maxPicks: value === "classic_total_time" ? prev.minPicks : prev.maxPicks }))}>
+                  <Select value={createForm.contestType} onValueChange={(value) => setCreateForm(prev => ({ ...prev, contestType: value as ContestTypeKey, maxPicks: CONTEST_TYPES.find(t => t.key === value)?.fixedRoster ? prev.minPicks : prev.maxPicks }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {CONTEST_TYPES.map(t => <SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>)}
