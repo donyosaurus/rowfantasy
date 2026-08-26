@@ -292,6 +292,93 @@ export function reducePlacement(
   return { totalPoints, tiebreakValue, crewScores };
 }
 
+export type RaceTimeStats = { winner: number | null; slowest: number | null };
+
+/**
+ * Score one entry's picks under a time_vs_ref scoring_config.
+ * Total is integer milliseconds — LOWEST wins. Throws on any unusable cell so
+ * the caller refuses the whole pool (no writes).
+ */
+export function reduceTimeVsRef(
+  picks: EntryPick[],
+  resultsByKey: Record<string, RaceResultV2>,
+  raceStats: Map<string, RaceTimeStats>,
+  cfg: TimeVsRefScoringConfig,
+): { totalMs: number; crewScores: CrewScore[] } {
+  let totalMs = 0;
+  const crewScores: CrewScore[] = [];
+  const pct = cfg.penalty_pct ?? DEFAULT_PENALTY_PCT;
+
+  for (const pick of picks) {
+    const raceKey = pick.event_id ?? "";
+    const result = resultsByKey[`${raceKey}|${pick.crewId}`];
+
+    if (!result) {
+      throw new Error(`crew ${pick.crewId} (race ${raceKey}) has no result`);
+    }
+    if (result.status === "PENDING") {
+      throw new Error(`crew ${pick.crewId} (race ${raceKey}) result is PENDING`);
+    }
+
+    const stats = raceStats.get(raceKey) ?? { winner: null, slowest: null };
+    const winnerMs = stats.winner;
+    const slowestMs = stats.slowest;
+
+    if (cfg.time_ref === "winner" && (winnerMs === null || winnerMs <= 0)) {
+      throw new Error(`race ${raceKey}: time scoring requires the race winner's time`);
+    }
+
+    let contribution: number;
+
+    if (result.status === "OK") {
+      const t = result.timeMs;
+      if (t === null || t === 0) {
+        throw new Error(`crew ${pick.crewId} (race ${raceKey}) is OK with no finish time`);
+      }
+      contribution = cfg.time_ref === "none" ? t : t - (winnerMs as number);
+      if (contribution < 0) {
+        throw new Error(
+          `race ${raceKey}: ${pick.crewId} time is faster than the recorded race winner — results inconsistent`,
+        );
+      }
+    } else {
+      if (slowestMs === null || slowestMs <= 0) {
+        throw new Error(`race ${raceKey} has no finisher times (time scoring requires times)`);
+      }
+      if (cfg.time_ref === "none") {
+        contribution = Math.round(slowestMs * (1 + pct / 100));
+      } else {
+        const spread = slowestMs - (winnerMs as number);
+        if (spread < 0) {
+          throw new Error(
+            `race ${raceKey}: slowest finisher is faster than the recorded race winner — results inconsistent`,
+          );
+        }
+        contribution = Math.max(spread + 1, Math.round(spread * (1 + pct / 100)));
+      }
+    }
+
+    totalMs += contribution;
+
+    crewScores.push({
+      crew_id: pick.crewId,
+      event_id: raceKey,
+      predicted_margin: null,
+      actual_margin: 0,
+      finish_order: result.place,
+      finish_points: 0,
+      margin_error: 0,
+      status: result.status,
+      time_ms: result.timeMs,
+      contribution_ms: contribution,
+    });
+  }
+
+  return { totalMs, crewScores };
+}
+
+
+
 function parseEntryPicks(entry: any): EntryPick[] {
   let rawPicks: any[] = [];
   if (Array.isArray(entry.picks)) {
