@@ -752,18 +752,29 @@ const RegattaDetail = () => {
                       <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${scoringOpen ? "rotate-180" : ""}`} />
                     </CollapsibleTrigger>
                     <CollapsibleContent className="pt-3">
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                        {scoringPointsRows.map(([place, pts]) => (
-                          <div key={place} className="flex justify-between text-xs text-muted-foreground">
-                            <span>{ordinal(Number(place))}</span><span className="font-medium text-foreground">{pts} pts</span>
+                      {isTimeScored ? (
+                        <p className="text-xs text-muted-foreground">
+                          {scoringConfig?.time_ref === "winner"
+                            ? "Your picks' times behind each race winner are added — lowest total wins."
+                            : "Your picks' finishing times are added together across every race/stage — lowest combined time wins. A DNF/DNS/DSQ is charged the slowest finisher's time +10%."}
+                        </p>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                            {scoringPointsRows.map(([place, pts]) => (
+                              <div key={place} className="flex justify-between text-xs text-muted-foreground">
+                                <span>{ordinal(Number(place))}</span><span className="font-medium text-foreground">{pts} pts</span>
+                              </div>
+                            ))}
+                            <div className="flex justify-between text-xs text-muted-foreground"><span>{ordinal(scoringPointsRows.length + 1)}+</span><span className="font-medium text-foreground">{DEFAULT_POINTS} pts</span></div>
                           </div>
-                        ))}
-                        <div className="flex justify-between text-xs text-muted-foreground"><span>{ordinal(scoringPointsRows.length + 1)}+</span><span className="font-medium text-foreground">{DEFAULT_POINTS} pts</span></div>
-                      </div>
-                      {scoringConfig?.tiebreak === "aggregate_time" && (
-                        <p className="text-xs text-muted-foreground mt-3">Ties broken by lowest combined time.</p>
+                          {scoringConfig?.tiebreak === "aggregate_time" && (
+                            <p className="text-xs text-muted-foreground mt-3">Ties broken by lowest combined time.</p>
+                          )}
+                        </>
                       )}
                     </CollapsibleContent>
+
                   </CardContent>
                 </Card>
               </Collapsible>
