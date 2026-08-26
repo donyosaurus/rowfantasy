@@ -184,6 +184,7 @@ export function HeadToHeadLayout({
   isCompleted,
   lockTime,
   tiebreak = "margin_error",
+  timeDisplay = null,
 }: HeadToHeadLayoutProps) {
   // Ensure current user is on the left
   const sorted = [...entrants].sort((a, b) => {
@@ -248,6 +249,7 @@ export function HeadToHeadLayout({
           isCompleted={isCompleted}
           side="left"
           tiebreak={tiebreak}
+          timeDisplay={timeDisplay}
         />
 
         {/* VS Divider */}
@@ -272,6 +274,7 @@ export function HeadToHeadLayout({
           isCompleted={isCompleted}
           side="right"
           tiebreak={tiebreak}
+          timeDisplay={timeDisplay}
         />
       </div>
 
