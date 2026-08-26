@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatCents } from "@/lib/formatCurrency";
 import { formatSecondsAsTime } from "@/lib/utils";
 import { CrewLogo } from "@/components/CrewLogo";
-import type { EntrantRow, CrewInfo, ParsedPick, Tiebreak } from "./types";
+import type { EntrantRow, CrewInfo, ParsedPick, Tiebreak, TimeDisplay } from "./types";
 import { parsePicks, getEntrantData, formatEventId } from "./utils";
 
 interface HeadToHeadLayoutProps {
@@ -14,6 +14,7 @@ interface HeadToHeadLayoutProps {
   isCompleted: boolean;
   lockTime: string;
   tiebreak?: Tiebreak;
+  timeDisplay?: TimeDisplay;
 }
 
 function EntrantColumn({
@@ -24,6 +25,7 @@ function EntrantColumn({
   isCompleted,
   side,
   tiebreak = "margin_error",
+  timeDisplay = null,
 }: {
   entrant: EntrantRow;
   isCurrentUser: boolean;
@@ -32,8 +34,10 @@ function EntrantColumn({
   isCompleted: boolean;
   side: "left" | "right";
   tiebreak?: Tiebreak;
+  timeDisplay?: TimeDisplay;
 }) {
   const { points, marginError, payout, isWinner } = getEntrantData(entrant);
+
 
   return (
     <div
