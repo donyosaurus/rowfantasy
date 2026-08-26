@@ -283,7 +283,14 @@ const Admin = () => {
   };
 
   const updateResultForm = (crewId: string, field: "finish_order" | "finish_time" | "status", value: string) => {
-    setResultsForm(prev => prev.map(r => r.crew_id === crewId ? { ...r, [field]: value } : r));
+    setResultsForm(prev => prev.map(r => {
+      if (r.crew_id !== crewId) return r;
+      const next: CrewResult = { ...r, [field]: value };
+      if (field === "status" && value !== "OK") {
+        next.finish_time = "";
+      }
+      return next;
+    }));
   };
 
 
@@ -322,7 +329,7 @@ const Admin = () => {
           const ms = parseRaceTimeToMs(r.finish_time || "");
           const row: any = { race_key: r.race_key, competitor_key: r.competitor_key, status };
           if (status === "OK" && (r.finish_order ?? "").trim() !== "") row.place = parseInt(r.finish_order, 10);
-          if (ms != null) row.time_ms = ms;
+          if (status === "OK" && ms != null) row.time_ms = ms;
           return row;
         });
 
@@ -1206,9 +1213,9 @@ const Admin = () => {
                           <p className="text-xs text-muted-foreground">{resultsV2 ? `${crew.race_key} • ${crew.competitor_key}` : `ID: ${crew.crew_id}`}</p>
                         </div>
                         {!timeOnly && (
-                          <div><Label htmlFor={`order-${crew.crew_id}`} className="text-xs">{resultsV2 ? "Place" : "Finish Order"}</Label><Input id={`order-${crew.crew_id}`} type="number" min="1" placeholder="1, 2, 3..." value={crew.finish_order} disabled={resultsV2 && (crew.status ?? "OK") !== "OK"} onChange={(e) => updateResultForm(crew.crew_id, "finish_order", e.target.value)} /></div>
+                        <div><Label htmlFor={`order-${crew.crew_id}`} className="text-xs">{resultsV2 ? "Place" : "Finish Order"}</Label><Input id={`order-${crew.crew_id}`} type="number" min="1" placeholder="1, 2, 3..." value={crew.finish_order} disabled={resultsV2 && (crew.status ?? "OK") !== "OK"} onChange={(e) => updateResultForm(crew.crew_id, "finish_order", e.target.value)} /></div>
                         )}
-                        <div><Label htmlFor={`time-${crew.crew_id}`} className="text-xs">Finish Time</Label><Input id={`time-${crew.crew_id}`} type="text" placeholder={resultsV2 ? "5:30.50" : "05:30.50"} value={crew.finish_time} onChange={(e) => updateResultForm(crew.crew_id, "finish_time", e.target.value)} /></div>
+                        <div><Label htmlFor={`time-${crew.crew_id}`} className="text-xs">Finish Time</Label><Input id={`time-${crew.crew_id}`} type="text" placeholder={resultsV2 ? "5:30.50" : "05:30.50"} value={crew.finish_time} disabled={resultsV2 && (crew.status ?? "OK") !== "OK"} onChange={(e) => updateResultForm(crew.crew_id, "finish_time", e.target.value)} /></div>
 
                         {resultsV2 && (
                           <div>
@@ -1445,7 +1452,16 @@ const Admin = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Contest Type *</Label>
-                  <Select value={createForm.contestType} onValueChange={(value) => setCreateForm(prev => ({ ...prev, contestType: value as ContestTypeKey, maxPicks: CONTEST_TYPES.find(t => t.key === value)?.fixedRoster ? prev.minPicks : prev.maxPicks }))}>
+                  <Select value={createForm.contestType} onValueChange={(value) => {
+                    const newType = CONTEST_TYPES.find(t => t.key === value);
+                    const oldType = CONTEST_TYPES.find(t => t.key === createForm.contestType);
+                    const modeChanged = !!newType?.perCompetitor !== !!oldType?.perCompetitor;
+                    setCreateForm(prev => ({ ...prev, contestType: value as ContestTypeKey, maxPicks: newType?.fixedRoster ? prev.minPicks : prev.maxPicks, crews: modeChanged ? [] : prev.crews }));
+                    if (modeChanged) {
+                      setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
+                      toast.info("Lineup cleared — competitor entry differs for this contest type");
+                    }
+                  }}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {CONTEST_TYPES.map(t => <SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>)}
