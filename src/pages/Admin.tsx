@@ -806,18 +806,35 @@ const Admin = () => {
     if (isV2) {
       const typeDef = CONTEST_TYPES.find(t => t.key === createForm.contestType)!;
       const scoringConfig = getScoringPreset(createForm.contestType);
-      const raceKeys = Array.from(new Set(createForm.crews.map(c => c.event_id)));
+      const isGc = !!typeDef.perCompetitor;
+      const stageNames = createForm.stages.map(s => s.trim()).filter(Boolean);
+      const raceKeys = isGc
+        ? Array.from(new Set(stageNames))
+        : Array.from(new Set(createForm.crews.map(c => c.event_id)));
+      if (isGc && raceKeys.length < 2) { toast.error("GC / Stage Race contests need at least 2 distinct stages"); return; }
       if (raceKeys.length < 2 && entryFeeCents > 0) { toast.error("Paid contests require at least 2 races"); return; }
       const eventClass = createForm.eventClass.trim();
       if (typeDef.requiresEventClass && !eventClass) {
-        toast.error("Total Time contests require an event class (all races must share it)"); return;
+        toast.error("GC / Team Time Trial / Total Time contests require one event class for all races"); return;
       }
-      const rosterSize = raceKeys.length;
+      const competitors = Array.from(
+        new Map(createForm.crews.map(c => [c.crew_id, {
+          competitor_key: c.crew_id,
+          name: c.crew_name,
+          logo_url: c.logo_url ?? null,
+        }])).values()
+      );
+      // GC rosters are bounded by competitor count; every other mode by race count.
+      const rosterSize = isGc ? competitors.length : raceKeys.length;
       const minPicks = parseInt(createForm.minPicks, 10);
       const maxPicks = parseInt(createForm.maxPicks, 10);
-      const effectiveMax = createForm.contestType === "classic_total_time" ? minPicks : maxPicks;
+      const effectiveMax = typeDef.fixedRoster ? minPicks : maxPicks;
       if (isNaN(minPicks) || isNaN(effectiveMax) || minPicks < 2 || effectiveMax < minPicks || effectiveMax > rosterSize) {
-        toast.error(`Picks must satisfy 2 ≤ Min picks ≤ Max picks ≤ number of races (${rosterSize})`); return;
+        toast.error(
+          isGc
+            ? `Picks must satisfy 2 ≤ picks per entry ≤ number of competitors (${rosterSize})`
+            : `Picks must satisfy 2 ≤ Min picks ≤ Max picks ≤ number of races (${rosterSize})`
+        ); return;
       }
       v2Body = {
         name: createForm.regattaName.trim(),
@@ -830,14 +847,11 @@ const Admin = () => {
           race_order: i + 1,
           event_class: eventClass || null,
         })),
-        competitors: Array.from(
-          new Map(createForm.crews.map(c => [c.crew_id, {
-            competitor_key: c.crew_id,
-            name: c.crew_name,
-            logo_url: c.logo_url ?? null,
-          }])).values()
-        ),
-        raceEntries: createForm.crews.map(c => ({ race_key: c.event_id, competitor_key: c.crew_id })),
+        competitors,
+        // GC: every competitor is entered in every stage (backend requires the full cross-product).
+        raceEntries: isGc
+          ? competitors.flatMap(c => raceKeys.map(rk => ({ race_key: rk, competitor_key: c.competitor_key })))
+          : createForm.crews.map(c => ({ race_key: c.event_id, competitor_key: c.crew_id })),
         entryFeeCents,
         maxEntries,
         payouts,
@@ -847,11 +861,12 @@ const Admin = () => {
         cardBannerUrl: createForm.cardBannerUrl.trim() || null,
         draftBannerUrl: createForm.draftBannerUrl.trim() || null,
         contestGroupId: (createForm.contestGroupId && createForm.contestGroupId !== "none") ? createForm.contestGroupId : null,
-        primitive: "placement",
-        rosterMode: "per_race",
+        primitive: scoringConfig.primitive,
+        rosterMode: isGc ? "per_competitor" : "per_race",
         scoringConfig,
         minPicks,
         maxPicks: effectiveMax,
+
       };
     }
 
