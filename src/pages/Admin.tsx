@@ -1197,14 +1197,19 @@ const Admin = () => {
               ) : (
                 <>
                   <div className="grid gap-4">
-                    {resultsForm.map((crew) => (
-                      <div key={crew.crew_id} className={`grid ${resultsV2 ? "grid-cols-4" : "grid-cols-3"} gap-3 items-center p-3 border rounded-lg`}>
+                    {resultsForm.map((crew) => {
+                      const timeOnly = resultsV2 && parseTemplateScoringConfig(selectedContest?.contest_templates?.scoring_config)?.primitive === "time_vs_ref";
+                      return (
+                      <div key={crew.crew_id} className={`grid ${resultsV2 ? (timeOnly ? "grid-cols-3" : "grid-cols-4") : "grid-cols-3"} gap-3 items-center p-3 border rounded-lg`}>
                         <div>
                           <Label className="text-sm font-medium">{crew.crew_name}</Label>
                           <p className="text-xs text-muted-foreground">{resultsV2 ? `${crew.race_key} • ${crew.competitor_key}` : `ID: ${crew.crew_id}`}</p>
                         </div>
-                        <div><Label htmlFor={`order-${crew.crew_id}`} className="text-xs">{resultsV2 ? "Place" : "Finish Order"}</Label><Input id={`order-${crew.crew_id}`} type="number" min="1" placeholder="1, 2, 3..." value={crew.finish_order} disabled={resultsV2 && (crew.status ?? "OK") !== "OK"} onChange={(e) => updateResultForm(crew.crew_id, "finish_order", e.target.value)} /></div>
+                        {!timeOnly && (
+                          <div><Label htmlFor={`order-${crew.crew_id}`} className="text-xs">{resultsV2 ? "Place" : "Finish Order"}</Label><Input id={`order-${crew.crew_id}`} type="number" min="1" placeholder="1, 2, 3..." value={crew.finish_order} disabled={resultsV2 && (crew.status ?? "OK") !== "OK"} onChange={(e) => updateResultForm(crew.crew_id, "finish_order", e.target.value)} /></div>
+                        )}
                         <div><Label htmlFor={`time-${crew.crew_id}`} className="text-xs">Finish Time</Label><Input id={`time-${crew.crew_id}`} type="text" placeholder={resultsV2 ? "5:30.50" : "05:30.50"} value={crew.finish_time} onChange={(e) => updateResultForm(crew.crew_id, "finish_time", e.target.value)} /></div>
+
                         {resultsV2 && (
                           <div>
                             <Label className="text-xs">Status</Label>
