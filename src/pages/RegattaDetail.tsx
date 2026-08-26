@@ -529,13 +529,60 @@ const RegattaDetail = () => {
                <div>
                 <h2 className="font-heading text-xl lg:text-2xl font-bold mb-1 text-white">Select Your {t.Competitors}</h2>
                 <p className="text-sm text-white/60">
-                  Draft a {t.competitor} from each {t.event}. Your entry will be matched against other players.
+                  {isPerCompetitor
+                    ? `Pick ${minPicks} ${t.competitors} — every stage counts toward your combined time.`
+                    : `Draft a ${t.competitor} from each ${t.event}. Your entry will be matched against other players.`}
                 </p>
               </div>
 
-              {divisions.length === 0 ? (
+              {isPerCompetitor && stageList.length > 0 && (
+                <div className="rounded-xl border border-white/15 bg-white/5 p-3">
+                  <p className="text-xs font-semibold text-white/80 mb-2">Stages ({stageList.length})</p>
+                  <div className="flex flex-wrap gap-2">
+                    {stageList.map((s, i) => (
+                      <span key={s.race_key} className="rounded-full bg-white/10 text-white/80 text-xs px-3 py-1 border border-white/15">
+                        {i + 1}. {s.name || s.race_key}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {isPerCompetitor ? (
+                competitorList.length === 0 ? (
+                  <Card className="bg-card border-border"><CardContent className="py-8 text-center text-muted-foreground">No {t.competitors} available.</CardContent></Card>
+                ) : (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="flex items-center gap-2 rounded-full bg-white/10 text-white px-3 py-1 border border-white/15">
+                        <span className="font-semibold text-xs">{t.Competitors}</span>
+                        <span className="text-white/60 text-xs">· {competitorList.length}</span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {competitorList.map((crew, idx) => (
+                        <CrewCard
+                          key={crew.crew_id}
+                          crewId={crew.crew_id}
+                          crewName={crew.crew_name}
+                          eventId=""
+                          logoUrl={crew.logo_url}
+                          isSelected={crewPicks.has(crew.crew_id)}
+                          marginVal={0}
+                          isOpen={!!isContestOpen}
+                          showMargin={false}
+                          onToggle={toggleCrewSelection}
+                          onMarginChange={updateCrewMargin}
+                          animDelay={idx * 50}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )
+              ) : divisions.length === 0 ? (
                 <Card className="bg-card border-border"><CardContent className="py-8 text-center text-muted-foreground">No {t.competitors} available.</CardContent></Card>
               ) : (
+
                 divisions.map((divisionId) => (
                   <div key={divisionId}>
                     <div className="flex items-center gap-2 mb-3">
