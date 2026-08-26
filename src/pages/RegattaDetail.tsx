@@ -106,7 +106,11 @@ const RegattaDetail = () => {
   const [error, setError] = useState<string | null>(null);
   // Picks are keyed by the composite `${crew_id}::${event_id}` — a v2 competitor can
   // appear in more than one race, so crew_id alone is not a unique pick identity.
+  // Exception: per_competitor (GC) rosters key by crew_id alone (one pick per competitor).
   const [crewPicks, setCrewPicks] = useState<Map<string, { crewId: string; eventId: string; margin: number }>>(new Map());
+  // Ordered stages for per_competitor (GC) templates — read-only display.
+  const [stageList, setStageList] = useState<{ race_key: string; name: string | null }[]>([]);
+
 
   const [submitting, setSubmitting] = useState(false);
   const [scoringOpen, setScoringOpen] = useState(false);
