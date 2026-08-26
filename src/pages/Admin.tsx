@@ -287,32 +287,45 @@ const Admin = () => {
   };
 
 
+  const parseTemplateScoringConfig = (raw: any): any => {
+    if (typeof raw === "string") { try { return JSON.parse(raw); } catch { return null; } }
+    return raw ?? null;
+  };
+
   const submitResults = async () => {
     if (!selectedContest) return;
+    const templateScoringConfig = parseTemplateScoringConfig(selectedContest?.contest_templates?.scoring_config);
+    // Time contests are scored purely from times — finish place is optional there.
+    const isTimeVsRef = templateScoringConfig?.primitive === "time_vs_ref";
     const finished = resultsForm.filter(r => (r.status ?? "OK") === "OK");
-    if (finished.some(r => !r.finish_order)) { toast.error("Please enter a finish place for every finisher"); return; }
+    if (!isTimeVsRef && finished.some(r => !r.finish_order)) { toast.error("Please enter a finish place for every finisher"); return; }
     setSubmittingResults(true);
     try {
       if (resultsV2) {
-        const badPlace = resultsForm.find(r => (r.status ?? "OK") === "OK" && (isNaN(parseInt(r.finish_order, 10)) || parseInt(r.finish_order, 10) < 1));
-        if (badPlace) { throw new Error("Finish place must be 1 or higher for every OK competitor"); }
-        const scoringConfig = typeof selectedContest?.contest_templates?.scoring_config === "string"
-          ? JSON.parse(selectedContest.contest_templates.scoring_config)
-          : selectedContest?.contest_templates?.scoring_config;
-        if (scoringConfig?.tiebreak === "aggregate_time") {
+        if (!isTimeVsRef) {
+          const badPlace = resultsForm.find(r => (r.status ?? "OK") === "OK" && (isNaN(parseInt(r.finish_order, 10)) || parseInt(r.finish_order, 10) < 1));
+          if (badPlace) { throw new Error("Finish place must be 1 or higher for every OK competitor"); }
+        }
+        const scoringConfig = templateScoringConfig;
+        if (scoringConfig?.tiebreak === "aggregate_time" || isTimeVsRef) {
           const missingTime = resultsForm.filter(r => (r.status ?? "OK") === "OK" && parseRaceTimeToMs(r.finish_time || "") == null);
           if (missingTime.length > 0) {
-            throw new Error("Total Time contests require a valid finish time for every OK competitor");
+            throw new Error(
+              isTimeVsRef
+                ? "Time contests require a valid finish time for every OK competitor"
+                : "Total Time contests require a valid finish time for every OK competitor"
+            );
           }
         }
         const v2Results = resultsForm.map(r => {
           const status = r.status || "OK";
           const ms = parseRaceTimeToMs(r.finish_time || "");
           const row: any = { race_key: r.race_key, competitor_key: r.competitor_key, status };
-          if (status === "OK") row.place = parseInt(r.finish_order, 10);
+          if (status === "OK" && (r.finish_order ?? "").trim() !== "") row.place = parseInt(r.finish_order, 10);
           if (ms != null) row.time_ms = ms;
           return row;
         });
+
         if (resultsForm.some(r => r.finish_time && parseRaceTimeToMs(r.finish_time) == null)) {
           throw new Error("Invalid time format — use M:SS.cc");
         }
