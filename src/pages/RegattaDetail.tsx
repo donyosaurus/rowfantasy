@@ -41,9 +41,12 @@ interface PoolCrew {
 }
 
 interface ScoringConfigLite {
+  primitive?: string;
+  time_ref?: string;
   points_table?: Record<string, number>;
   tiebreak?: string;
 }
+
 
 interface ContestPool {
   id: string;
@@ -69,6 +72,8 @@ interface ContestPool {
     sport?: string | null;
     name?: string | null;
     scoring_config?: ScoringConfigLite | null;
+    roster_mode?: string | null;
+
   };
   contest_pool_crews: PoolCrew[];
 }
