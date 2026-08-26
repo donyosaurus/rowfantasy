@@ -17,7 +17,17 @@
 //                        With direction 'low', a missing points_table key means points = place.
 //   classic_total_time = classic + tiebreak:'aggregate_time' — admin option for
 //                        same-distance slates only (enforced in admin-create-contest).
+//   gc_pool            = {primitive:'time_vs_ref', time_ref:'none', dnf_policy:'penalty_pct',
+//                         penalty_pct:10, tiebreak:'none'} + roster_mode 'per_competitor'
+//                        "lowest combined time across all stages" — every race must share the
+//                        same non-empty event_class (enforced in admin-create-contest).
+//   team_time_trial    = same config + roster_mode 'per_race' — same event_class rule.
+//   deficit            = {primitive:'time_vs_ref', time_ref:'winner', …} + roster_mode 'per_race'
+//                        "lowest combined time behind the winners"; mixed distances comparable,
+//                        no event_class requirement.
 // Fixed-roster rule: direction 'low' OR tiebreak 'aggregate_time' requires min_picks === max_picks.
+// Every time_vs_ref config is fixed-roster (min_picks === max_picks).
+// time_vs_ref score semantics: total = integer MILLISECONDS, LOWEST wins, no tiebreak.
 
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
@@ -112,6 +122,7 @@ interface CrewScore {
   margin_error: number;
   status?: string;
   time_ms?: number | null;
+  contribution_ms?: number;
   multiplier?: number;
 }
 
@@ -183,7 +194,7 @@ const DEFAULT_PENALTY_PCT = 10;
 export function reducePlacement(
   picks: EntryPick[],
   resultsByKey: Record<string, RaceResultV2>,
-  cfg: ScoringConfig,
+  cfg: PlacementScoringConfig,
 ): { totalPoints: number; tiebreakValue: number; crewScores: CrewScore[] } {
   let totalPoints = 0;
   let marginErrorSum = 0;
