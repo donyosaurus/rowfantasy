@@ -1705,19 +1705,24 @@ const Admin = () => {
 
             {/* Crew Management */}
             <div className="border-t pt-4">
-              <Label className="text-base font-semibold">Crews ({createForm.crews.length})</Label>
-              <p className="text-sm text-muted-foreground mb-3">Add at least 2 crews to the contest</p>
+              <Label className="text-base font-semibold">{createForm.contestType === "gc_pool" ? "Competitors" : "Crews"} ({createForm.crews.length})</Label>
+              <p className="text-sm text-muted-foreground mb-3">
+                {createForm.contestType === "gc_pool"
+                  ? "Add at least 2 competitors — each one is entered in every stage"
+                  : "Add at least 2 crews to the contest"}
+              </p>
               {createForm.crews.length > 0 && (
                 <div className="space-y-2 mb-4">
                   {createForm.crews.map((crew) => (
                     <div key={`${crew.crew_id}-${crew.event_id}`} className="flex items-center gap-3 p-2 bg-muted rounded-lg">
                       <LogoPicker logoUrl={crew.logo_url} crewName={crew.crew_name} onSelect={(url) => setCreateForm(prev => ({ ...prev, crews: prev.crews.map(c => c.crew_id === crew.crew_id && c.event_id === crew.event_id ? { ...c, logo_url: url } : c) }))} />
-                      <div className="flex-1 text-sm"><span className="font-medium">{crew.crew_name}</span><span className="text-muted-foreground ml-2">({crew.crew_id} • {crew.event_id})</span></div>
+                      <div className="flex-1 text-sm"><span className="font-medium">{crew.crew_name}</span><span className="text-muted-foreground ml-2">({crew.crew_id}{crew.event_id ? ` • ${crew.event_id}` : ""})</span></div>
                       <Button size="sm" variant="ghost" onClick={() => removeCrewFromForm(crew.crew_id, crew.event_id)}><X className="h-4 w-4" /></Button>
                     </div>
                   ))}
                 </div>
               )}
+
               <div className="flex items-end gap-2">
                 <LogoPicker logoUrl={newCrewInput.logo_url} crewName={newCrewInput.crew_name || "?"} onSelect={(url) => setNewCrewInput(prev => ({ ...prev, logo_url: url }))} />
                 <div className="flex-1 grid grid-cols-3 gap-2">
