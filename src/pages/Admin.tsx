@@ -1462,16 +1462,45 @@ const Admin = () => {
                 <div>
                   <Label htmlFor="eventClass">Event Class *</Label>
                   <Input id="eventClass" placeholder="e.g., 2000m Eight" value={createForm.eventClass} onChange={(e) => setCreateForm(prev => ({ ...prev, eventClass: e.target.value }))} />
-                  <p className="text-xs text-muted-foreground mt-1">All races share this class — required for the total-time tiebreak.</p>
+                  <p className="text-xs text-muted-foreground mt-1">All races share this class — required for time-based scoring.</p>
                 </div>
               )}
-              {createForm.contestType === "classic_total_time" ? (
+              {createForm.contestType === "gc_pool" && (
+                <div className="border rounded-lg p-3 space-y-2">
+                  <Label className="text-sm font-semibold">Stages *</Label>
+                  <p className="text-xs text-muted-foreground">Ordered stages. Every competitor is entered in every stage. Minimum 2.</p>
+                  {createForm.stages.map((stage, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground w-6">{idx + 1}.</span>
+                      <Input
+                        value={stage}
+                        placeholder={`Stage ${idx + 1}`}
+                        onChange={(e) => { const v = e.target.value; setCreateForm(prev => ({ ...prev, stages: prev.stages.map((s, i) => i === idx ? v : s) })); }}
+                      />
+                      {createForm.stages.length > 2 && (
+                        <Button size="sm" variant="ghost" onClick={() => setCreateForm(prev => ({ ...prev, stages: prev.stages.filter((_, i) => i !== idx) }))}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  <Button size="sm" variant="outline" onClick={() => setCreateForm(prev => ({ ...prev, stages: [...prev.stages, `Stage ${prev.stages.length + 1}`] }))}>
+                    <Plus className="mr-2 h-4 w-4" />Add Stage
+                  </Button>
+                </div>
+              )}
+              {CONTEST_TYPES.find(t => t.key === createForm.contestType)?.fixedRoster ? (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="picksPerEntry">Picks per entry *</Label>
                     <Input id="picksPerEntry" type="number" min={2} value={createForm.minPicks} onChange={(e) => { const v = e.target.value; setCreateForm(prev => ({ ...prev, minPicks: v, maxPicks: v })); }} />
-                    <p className="text-xs text-muted-foreground mt-1">Total Time uses a fixed roster size.</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {createForm.contestType === "gc_pool"
+                        ? "Fixed roster — must be ≤ the number of competitors."
+                        : "Fixed roster — must be ≤ the number of races."}
+                    </p>
                   </div>
+
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-4">
