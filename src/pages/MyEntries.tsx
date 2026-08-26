@@ -558,16 +558,6 @@ const MyEntries = () => {
                   </>
                 );
               })()}
-              {false && (() => {
-                const tb = "none" as string;
-                if (tb === "none") return null;
-                if (tb === "aggregate_time") {
-                  return <span className="text-muted-foreground">Total time: {formatSecondsAsTime(score.margin_bonus)}</span>;
-                }
-                return score.margin_bonus > 0
-                  ? <span className="text-muted-foreground">Margin error: {score.margin_bonus.toFixed(1)}s</span>
-                  : null;
-              })()}
             </div>
           )}
         </CardContent>
