@@ -277,6 +277,12 @@ const RegattaDetail = () => {
         newPicks.delete(key);
         return newPicks;
       }
+      if (isPerCompetitor) {
+        // GC: a flat roster, no per-race swap.
+        if (newPicks.size >= maxPicks) { toast.error(`Maximum ${maxPicks} picks allowed`); return prev; }
+        newPicks.set(key, { crewId, eventId: "", margin: 0 });
+        return newPicks;
+      }
       // One pick per race — swap out any existing pick from the same event.
       let oldMargin = 0;
       for (const [k, v] of newPicks) {
@@ -286,6 +292,7 @@ const RegattaDetail = () => {
       newPicks.set(key, { crewId, eventId, margin: oldMargin });
       return newPicks;
     });
+
   };
 
   const updateCrewMargin = (crewId: string, eventId: string, margin: number) => {
