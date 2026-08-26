@@ -144,7 +144,7 @@ export const TimeVsRefConfigSchema = z.object({
   primitive: z.literal("time_vs_ref"),
   time_ref: z.enum(["none", "winner"]),
   dnf_policy: z.literal("penalty_pct"),
-  penalty_pct: z.number().min(0).max(100).default(10),
+  penalty_pct: z.number().min(1).max(100).default(10),
   tiebreak: z.literal("none"),
 }).strict();
 

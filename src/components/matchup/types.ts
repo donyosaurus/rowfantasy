@@ -15,6 +15,10 @@ export interface MatchupDialogProps {
 
 export type Tiebreak = "margin_error" | "aggregate_time" | "none";
 
+/** Time-scored (time_vs_ref) display mode; null = placement/legacy points display. */
+export type TimeDisplay = "total_time" | "behind_winners" | null;
+
+
 export interface EntrantRow {
   id: string;
   user_id: string;

@@ -89,6 +89,9 @@ interface CreateContestForm {
   eventClass: string;
   minPicks: string;
   maxPicks: string;
+  /** GC / stage-race only: ordered stage names. Ignored by every other type. */
+  stages: string[];
+
 }
 
 
@@ -164,6 +167,8 @@ const Admin = () => {
     eventClass: "",
     minPicks: "2",
     maxPicks: "4",
+    stages: ["Stage 1", "Stage 2"],
+
   });
   const [newCrewInput, setNewCrewInput] = useState<NewCrew>({
     crew_name: "",
@@ -282,32 +287,45 @@ const Admin = () => {
   };
 
 
+  const parseTemplateScoringConfig = (raw: any): any => {
+    if (typeof raw === "string") { try { return JSON.parse(raw); } catch { return null; } }
+    return raw ?? null;
+  };
+
   const submitResults = async () => {
     if (!selectedContest) return;
+    const templateScoringConfig = parseTemplateScoringConfig(selectedContest?.contest_templates?.scoring_config);
+    // Time contests are scored purely from times — finish place is optional there.
+    const isTimeVsRef = templateScoringConfig?.primitive === "time_vs_ref";
     const finished = resultsForm.filter(r => (r.status ?? "OK") === "OK");
-    if (finished.some(r => !r.finish_order)) { toast.error("Please enter a finish place for every finisher"); return; }
+    if (!isTimeVsRef && finished.some(r => !r.finish_order)) { toast.error("Please enter a finish place for every finisher"); return; }
     setSubmittingResults(true);
     try {
       if (resultsV2) {
-        const badPlace = resultsForm.find(r => (r.status ?? "OK") === "OK" && (isNaN(parseInt(r.finish_order, 10)) || parseInt(r.finish_order, 10) < 1));
-        if (badPlace) { throw new Error("Finish place must be 1 or higher for every OK competitor"); }
-        const scoringConfig = typeof selectedContest?.contest_templates?.scoring_config === "string"
-          ? JSON.parse(selectedContest.contest_templates.scoring_config)
-          : selectedContest?.contest_templates?.scoring_config;
-        if (scoringConfig?.tiebreak === "aggregate_time") {
+        if (!isTimeVsRef) {
+          const badPlace = resultsForm.find(r => (r.status ?? "OK") === "OK" && (isNaN(parseInt(r.finish_order, 10)) || parseInt(r.finish_order, 10) < 1));
+          if (badPlace) { throw new Error("Finish place must be 1 or higher for every OK competitor"); }
+        }
+        const scoringConfig = templateScoringConfig;
+        if (scoringConfig?.tiebreak === "aggregate_time" || isTimeVsRef) {
           const missingTime = resultsForm.filter(r => (r.status ?? "OK") === "OK" && parseRaceTimeToMs(r.finish_time || "") == null);
           if (missingTime.length > 0) {
-            throw new Error("Total Time contests require a valid finish time for every OK competitor");
+            throw new Error(
+              isTimeVsRef
+                ? "Time contests require a valid finish time for every OK competitor"
+                : "Total Time contests require a valid finish time for every OK competitor"
+            );
           }
         }
         const v2Results = resultsForm.map(r => {
           const status = r.status || "OK";
           const ms = parseRaceTimeToMs(r.finish_time || "");
           const row: any = { race_key: r.race_key, competitor_key: r.competitor_key, status };
-          if (status === "OK") row.place = parseInt(r.finish_order, 10);
+          if (status === "OK" && (r.finish_order ?? "").trim() !== "") row.place = parseInt(r.finish_order, 10);
           if (ms != null) row.time_ms = ms;
           return row;
         });
+
         if (resultsForm.some(r => r.finish_time && parseRaceTimeToMs(r.finish_time) == null)) {
           throw new Error("Invalid time format — use M:SS.cc");
         }
@@ -565,16 +583,22 @@ const Admin = () => {
       eventClass: "",
       minPicks: "2",
       maxPicks: "4",
+      stages: ["Stage 1", "Stage 2"],
+
     });
     setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
   };
 
   const addCrewToForm = () => {
-    if (!newCrewInput.crew_name || !newCrewInput.crew_id || !newCrewInput.event_id) { toast.error("Please fill in all crew fields"); return; }
-    if (createForm.crews.some(c => c.crew_id === newCrewInput.crew_id && c.event_id === newCrewInput.event_id)) { toast.error("This competitor is already in that race"); return; }
-    setCreateForm(prev => ({ ...prev, crews: [...prev.crews, { ...newCrewInput }] }));
+    // GC / stage races carry no per-row race: competitors are entered in every stage.
+    const gcMode = createForm.contestType === "gc_pool";
+    if (!newCrewInput.crew_name || !newCrewInput.crew_id || (!gcMode && !newCrewInput.event_id)) { toast.error("Please fill in all crew fields"); return; }
+    const eventId = gcMode ? "" : newCrewInput.event_id;
+    if (createForm.crews.some(c => c.crew_id === newCrewInput.crew_id && c.event_id === eventId)) { toast.error(gcMode ? "This competitor is already added" : "This competitor is already in that race"); return; }
+    setCreateForm(prev => ({ ...prev, crews: [...prev.crews, { ...newCrewInput, event_id: eventId }] }));
     setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
   };
+
 
   const removeCrewFromForm = (crewId: string, eventId: string) => {
     setCreateForm(prev => ({ ...prev, crews: prev.crews.filter(c => !(c.crew_id === crewId && c.event_id === eventId)) }));
@@ -782,18 +806,35 @@ const Admin = () => {
     if (isV2) {
       const typeDef = CONTEST_TYPES.find(t => t.key === createForm.contestType)!;
       const scoringConfig = getScoringPreset(createForm.contestType);
-      const raceKeys = Array.from(new Set(createForm.crews.map(c => c.event_id)));
+      const isGc = !!typeDef.perCompetitor;
+      const stageNames = createForm.stages.map(s => s.trim()).filter(Boolean);
+      const raceKeys = isGc
+        ? Array.from(new Set(stageNames))
+        : Array.from(new Set(createForm.crews.map(c => c.event_id)));
+      if (isGc && raceKeys.length < 2) { toast.error("GC / Stage Race contests need at least 2 distinct stages"); return; }
       if (raceKeys.length < 2 && entryFeeCents > 0) { toast.error("Paid contests require at least 2 races"); return; }
       const eventClass = createForm.eventClass.trim();
       if (typeDef.requiresEventClass && !eventClass) {
-        toast.error("Total Time contests require an event class (all races must share it)"); return;
+        toast.error("GC / Team Time Trial / Total Time contests require one event class for all races"); return;
       }
-      const rosterSize = raceKeys.length;
+      const competitors = Array.from(
+        new Map(createForm.crews.map(c => [c.crew_id, {
+          competitor_key: c.crew_id,
+          name: c.crew_name,
+          logo_url: c.logo_url ?? null,
+        }])).values()
+      );
+      // GC rosters are bounded by competitor count; every other mode by race count.
+      const rosterSize = isGc ? competitors.length : raceKeys.length;
       const minPicks = parseInt(createForm.minPicks, 10);
       const maxPicks = parseInt(createForm.maxPicks, 10);
-      const effectiveMax = createForm.contestType === "classic_total_time" ? minPicks : maxPicks;
+      const effectiveMax = typeDef.fixedRoster ? minPicks : maxPicks;
       if (isNaN(minPicks) || isNaN(effectiveMax) || minPicks < 2 || effectiveMax < minPicks || effectiveMax > rosterSize) {
-        toast.error(`Picks must satisfy 2 ≤ Min picks ≤ Max picks ≤ number of races (${rosterSize})`); return;
+        toast.error(
+          isGc
+            ? `Picks must satisfy 2 ≤ picks per entry ≤ number of competitors (${rosterSize})`
+            : `Picks must satisfy 2 ≤ Min picks ≤ Max picks ≤ number of races (${rosterSize})`
+        ); return;
       }
       v2Body = {
         name: createForm.regattaName.trim(),
@@ -806,14 +847,11 @@ const Admin = () => {
           race_order: i + 1,
           event_class: eventClass || null,
         })),
-        competitors: Array.from(
-          new Map(createForm.crews.map(c => [c.crew_id, {
-            competitor_key: c.crew_id,
-            name: c.crew_name,
-            logo_url: c.logo_url ?? null,
-          }])).values()
-        ),
-        raceEntries: createForm.crews.map(c => ({ race_key: c.event_id, competitor_key: c.crew_id })),
+        competitors,
+        // GC: every competitor is entered in every stage (backend requires the full cross-product).
+        raceEntries: isGc
+          ? competitors.flatMap(c => raceKeys.map(rk => ({ race_key: rk, competitor_key: c.competitor_key })))
+          : createForm.crews.map(c => ({ race_key: c.event_id, competitor_key: c.crew_id })),
         entryFeeCents,
         maxEntries,
         payouts,
@@ -823,11 +861,12 @@ const Admin = () => {
         cardBannerUrl: createForm.cardBannerUrl.trim() || null,
         draftBannerUrl: createForm.draftBannerUrl.trim() || null,
         contestGroupId: (createForm.contestGroupId && createForm.contestGroupId !== "none") ? createForm.contestGroupId : null,
-        primitive: "placement",
-        rosterMode: "per_race",
+        primitive: scoringConfig.primitive,
+        rosterMode: isGc ? "per_competitor" : "per_race",
         scoringConfig,
         minPicks,
         maxPicks: effectiveMax,
+
       };
     }
 
@@ -1089,6 +1128,13 @@ const Admin = () => {
                           <div className="flex gap-2 flex-wrap pt-2 border-t">
                             {(overallStatus === "locked" || (overallStatus === "open" && isContestPastLockTime(primary))) && <Button size="sm" variant="outline" onClick={() => openResultsModal(primary)}>Enter Results</Button>}
                             {overallStatus === "results_entered" && <Button size="sm" variant="outline" onClick={() => openResultsModal(primary)}>Edit Results</Button>}
+                            {overallStatus === "scoring_completed" && (
+                              <div className="flex items-center gap-2">
+                                <Button size="sm" variant="outline" onClick={() => openResultsModal(primary)}>Edit Results</Button>
+                                <span className="text-xs text-muted-foreground">Editing results will reopen scoring.</span>
+                              </div>
+                            )}
+
                             {overallStatus === "results_entered" && <Button size="sm" variant="secondary" disabled={scoringPoolId === primary.id} onClick={() => calculateScores(primary.id)}>{scoringPoolId === primary.id ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Scoring...</> : "Calculate Scores"}</Button>}
                             {overallStatus === "scoring_completed" && <Button size="sm" variant="default" disabled={settlingPoolId === primary.id} onClick={() => settlePayouts(primary.id)}>{settlingPoolId === primary.id ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Settling...</> : hasTiers ? "Settle All Tiers" : "Settle Payouts"}</Button>}
                             {overallStatus === "settling" && <span className="text-sm text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Processing...</span>}
@@ -1151,14 +1197,19 @@ const Admin = () => {
               ) : (
                 <>
                   <div className="grid gap-4">
-                    {resultsForm.map((crew) => (
-                      <div key={crew.crew_id} className={`grid ${resultsV2 ? "grid-cols-4" : "grid-cols-3"} gap-3 items-center p-3 border rounded-lg`}>
+                    {resultsForm.map((crew) => {
+                      const timeOnly = resultsV2 && parseTemplateScoringConfig(selectedContest?.contest_templates?.scoring_config)?.primitive === "time_vs_ref";
+                      return (
+                      <div key={crew.crew_id} className={`grid ${resultsV2 ? (timeOnly ? "grid-cols-3" : "grid-cols-4") : "grid-cols-3"} gap-3 items-center p-3 border rounded-lg`}>
                         <div>
                           <Label className="text-sm font-medium">{crew.crew_name}</Label>
                           <p className="text-xs text-muted-foreground">{resultsV2 ? `${crew.race_key} • ${crew.competitor_key}` : `ID: ${crew.crew_id}`}</p>
                         </div>
-                        <div><Label htmlFor={`order-${crew.crew_id}`} className="text-xs">{resultsV2 ? "Place" : "Finish Order"}</Label><Input id={`order-${crew.crew_id}`} type="number" min="1" placeholder="1, 2, 3..." value={crew.finish_order} disabled={resultsV2 && (crew.status ?? "OK") !== "OK"} onChange={(e) => updateResultForm(crew.crew_id, "finish_order", e.target.value)} /></div>
+                        {!timeOnly && (
+                          <div><Label htmlFor={`order-${crew.crew_id}`} className="text-xs">{resultsV2 ? "Place" : "Finish Order"}</Label><Input id={`order-${crew.crew_id}`} type="number" min="1" placeholder="1, 2, 3..." value={crew.finish_order} disabled={resultsV2 && (crew.status ?? "OK") !== "OK"} onChange={(e) => updateResultForm(crew.crew_id, "finish_order", e.target.value)} /></div>
+                        )}
                         <div><Label htmlFor={`time-${crew.crew_id}`} className="text-xs">Finish Time</Label><Input id={`time-${crew.crew_id}`} type="text" placeholder={resultsV2 ? "5:30.50" : "05:30.50"} value={crew.finish_time} onChange={(e) => updateResultForm(crew.crew_id, "finish_time", e.target.value)} /></div>
+
                         {resultsV2 && (
                           <div>
                             <Label className="text-xs">Status</Label>
@@ -1171,7 +1222,9 @@ const Admin = () => {
                           </div>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
+
 
                   </div>
                   <div className="flex justify-end gap-3 pt-4 border-t">
@@ -1392,7 +1445,7 @@ const Admin = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Contest Type *</Label>
-                  <Select value={createForm.contestType} onValueChange={(value) => setCreateForm(prev => ({ ...prev, contestType: value as ContestTypeKey, maxPicks: value === "classic_total_time" ? prev.minPicks : prev.maxPicks }))}>
+                  <Select value={createForm.contestType} onValueChange={(value) => setCreateForm(prev => ({ ...prev, contestType: value as ContestTypeKey, maxPicks: CONTEST_TYPES.find(t => t.key === value)?.fixedRoster ? prev.minPicks : prev.maxPicks }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {CONTEST_TYPES.map(t => <SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>)}
@@ -1416,16 +1469,45 @@ const Admin = () => {
                 <div>
                   <Label htmlFor="eventClass">Event Class *</Label>
                   <Input id="eventClass" placeholder="e.g., 2000m Eight" value={createForm.eventClass} onChange={(e) => setCreateForm(prev => ({ ...prev, eventClass: e.target.value }))} />
-                  <p className="text-xs text-muted-foreground mt-1">All races share this class — required for the total-time tiebreak.</p>
+                  <p className="text-xs text-muted-foreground mt-1">All races share this class — required for time-based scoring.</p>
                 </div>
               )}
-              {createForm.contestType === "classic_total_time" ? (
+              {createForm.contestType === "gc_pool" && (
+                <div className="border rounded-lg p-3 space-y-2">
+                  <Label className="text-sm font-semibold">Stages *</Label>
+                  <p className="text-xs text-muted-foreground">Ordered stages. Every competitor is entered in every stage. Minimum 2.</p>
+                  {createForm.stages.map((stage, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground w-6">{idx + 1}.</span>
+                      <Input
+                        value={stage}
+                        placeholder={`Stage ${idx + 1}`}
+                        onChange={(e) => { const v = e.target.value; setCreateForm(prev => ({ ...prev, stages: prev.stages.map((s, i) => i === idx ? v : s) })); }}
+                      />
+                      {createForm.stages.length > 2 && (
+                        <Button size="sm" variant="ghost" onClick={() => setCreateForm(prev => ({ ...prev, stages: prev.stages.filter((_, i) => i !== idx) }))}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  <Button size="sm" variant="outline" onClick={() => setCreateForm(prev => ({ ...prev, stages: [...prev.stages, `Stage ${prev.stages.length + 1}`] }))}>
+                    <Plus className="mr-2 h-4 w-4" />Add Stage
+                  </Button>
+                </div>
+              )}
+              {CONTEST_TYPES.find(t => t.key === createForm.contestType)?.fixedRoster ? (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="picksPerEntry">Picks per entry *</Label>
                     <Input id="picksPerEntry" type="number" min={2} value={createForm.minPicks} onChange={(e) => { const v = e.target.value; setCreateForm(prev => ({ ...prev, minPicks: v, maxPicks: v })); }} />
-                    <p className="text-xs text-muted-foreground mt-1">Total Time uses a fixed roster size.</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {createForm.contestType === "gc_pool"
+                        ? "Fixed roster — must be ≤ the number of competitors."
+                        : "Fixed roster — must be ≤ the number of races."}
+                    </p>
                   </div>
+
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-4">
@@ -1630,26 +1712,34 @@ const Admin = () => {
 
             {/* Crew Management */}
             <div className="border-t pt-4">
-              <Label className="text-base font-semibold">Crews ({createForm.crews.length})</Label>
-              <p className="text-sm text-muted-foreground mb-3">Add at least 2 crews to the contest</p>
+              <Label className="text-base font-semibold">{createForm.contestType === "gc_pool" ? "Competitors" : "Crews"} ({createForm.crews.length})</Label>
+              <p className="text-sm text-muted-foreground mb-3">
+                {createForm.contestType === "gc_pool"
+                  ? "Add at least 2 competitors — each one is entered in every stage"
+                  : "Add at least 2 crews to the contest"}
+              </p>
               {createForm.crews.length > 0 && (
                 <div className="space-y-2 mb-4">
                   {createForm.crews.map((crew) => (
                     <div key={`${crew.crew_id}-${crew.event_id}`} className="flex items-center gap-3 p-2 bg-muted rounded-lg">
                       <LogoPicker logoUrl={crew.logo_url} crewName={crew.crew_name} onSelect={(url) => setCreateForm(prev => ({ ...prev, crews: prev.crews.map(c => c.crew_id === crew.crew_id && c.event_id === crew.event_id ? { ...c, logo_url: url } : c) }))} />
-                      <div className="flex-1 text-sm"><span className="font-medium">{crew.crew_name}</span><span className="text-muted-foreground ml-2">({crew.crew_id} • {crew.event_id})</span></div>
+                      <div className="flex-1 text-sm"><span className="font-medium">{crew.crew_name}</span><span className="text-muted-foreground ml-2">({crew.crew_id}{crew.event_id ? ` • ${crew.event_id}` : ""})</span></div>
                       <Button size="sm" variant="ghost" onClick={() => removeCrewFromForm(crew.crew_id, crew.event_id)}><X className="h-4 w-4" /></Button>
                     </div>
                   ))}
                 </div>
               )}
+
               <div className="flex items-end gap-2">
                 <LogoPicker logoUrl={newCrewInput.logo_url} crewName={newCrewInput.crew_name || "?"} onSelect={(url) => setNewCrewInput(prev => ({ ...prev, logo_url: url }))} />
-                <div className="flex-1 grid grid-cols-3 gap-2">
+                <div className={`flex-1 grid gap-2 ${createForm.contestType === "gc_pool" ? "grid-cols-2" : "grid-cols-3"}`}>
                   <div><Label htmlFor="crewName" className="text-xs">Name</Label><Input id="crewName" placeholder="Yale" value={newCrewInput.crew_name} onChange={(e) => { const name = e.target.value; const autoLogo = getCircleFlagUrl(name) || getCollegeLogoUrl(name); setNewCrewInput(prev => ({ ...prev, crew_name: name, ...(autoLogo ? { logo_url: autoLogo } : {}) })); }} /></div>
                   <div><Label htmlFor="crewId" className="text-xs">Crew ID</Label><Input id="crewId" placeholder="yale_1v" value={newCrewInput.crew_id} onChange={(e) => setNewCrewInput(prev => ({ ...prev, crew_id: e.target.value }))} /></div>
-                  <div><Label htmlFor="eventId" className="text-xs">Event ID</Label><Input id="eventId" placeholder="mens_8" value={newCrewInput.event_id} onChange={(e) => setNewCrewInput(prev => ({ ...prev, event_id: e.target.value }))} /></div>
+                  {createForm.contestType !== "gc_pool" && (
+                    <div><Label htmlFor="eventId" className="text-xs">Event ID</Label><Input id="eventId" placeholder="mens_8" value={newCrewInput.event_id} onChange={(e) => setNewCrewInput(prev => ({ ...prev, event_id: e.target.value }))} /></div>
+                  )}
                 </div>
+
                 <Button variant="secondary" onClick={addCrewToForm}>Add</Button>
               </div>
             </div>

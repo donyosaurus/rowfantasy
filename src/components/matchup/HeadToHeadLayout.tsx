@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatCents } from "@/lib/formatCurrency";
 import { formatSecondsAsTime } from "@/lib/utils";
 import { CrewLogo } from "@/components/CrewLogo";
-import type { EntrantRow, CrewInfo, ParsedPick, Tiebreak } from "./types";
+import type { EntrantRow, CrewInfo, ParsedPick, Tiebreak, TimeDisplay } from "./types";
 import { parsePicks, getEntrantData, formatEventId } from "./utils";
 
 interface HeadToHeadLayoutProps {
@@ -14,6 +14,7 @@ interface HeadToHeadLayoutProps {
   isCompleted: boolean;
   lockTime: string;
   tiebreak?: Tiebreak;
+  timeDisplay?: TimeDisplay;
 }
 
 function EntrantColumn({
@@ -24,6 +25,7 @@ function EntrantColumn({
   isCompleted,
   side,
   tiebreak = "margin_error",
+  timeDisplay = null,
 }: {
   entrant: EntrantRow;
   isCurrentUser: boolean;
@@ -32,8 +34,10 @@ function EntrantColumn({
   isCompleted: boolean;
   side: "left" | "right";
   tiebreak?: Tiebreak;
+  timeDisplay?: TimeDisplay;
 }) {
   const { points, marginError, payout, isWinner } = getEntrantData(entrant);
+
 
   return (
     <div
@@ -132,18 +136,32 @@ function EntrantColumn({
       {isCompleted && (
         <div className="w-full mt-4 pt-3 border-t border-border">
           <div className="text-center">
-            <p className="text-2xl font-heading font-bold text-foreground">
-              {points ?? "—"}
-              <span className="text-sm font-normal text-muted-foreground ml-1">pts</span>
-            </p>
-            {tiebreak !== "none" && (
-              <p className="text-xs text-muted-foreground font-body mt-0.5">
-                {tiebreak === "aggregate_time"
-                  ? `Total time: ${marginError != null ? formatSecondsAsTime(Number(marginError)) : "—"}`
-                  : `Margin: ±${marginError != null ? Number(marginError).toFixed(1) : "—"}s`}
-              </p>
+            {timeDisplay ? (
+              <>
+                <p className="text-2xl font-heading font-bold text-foreground">
+                  {marginError != null ? formatSecondsAsTime(Number(marginError)) : "—"}
+                </p>
+                <p className="text-xs text-muted-foreground font-body mt-0.5">
+                  {timeDisplay === "behind_winners" ? "Behind winners" : "Total time"}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-2xl font-heading font-bold text-foreground">
+                  {points ?? "—"}
+                  <span className="text-sm font-normal text-muted-foreground ml-1">pts</span>
+                </p>
+                {tiebreak !== "none" && (
+                  <p className="text-xs text-muted-foreground font-body mt-0.5">
+                    {tiebreak === "aggregate_time"
+                      ? `Total time: ${marginError != null ? formatSecondsAsTime(Number(marginError)) : "—"}`
+                      : `Margin: ±${marginError != null ? Number(marginError).toFixed(1) : "—"}s`}
+                  </p>
+                )}
+              </>
             )}
           </div>
+
           {payout != null && payout > 0 && (
             <div className="mt-2 flex items-center justify-center gap-1.5">
               <CheckCircle className="h-3.5 w-3.5 text-success" />
@@ -166,6 +184,7 @@ export function HeadToHeadLayout({
   isCompleted,
   lockTime,
   tiebreak = "margin_error",
+  timeDisplay = null,
 }: HeadToHeadLayoutProps) {
   // Ensure current user is on the left
   const sorted = [...entrants].sort((a, b) => {
@@ -230,6 +249,7 @@ export function HeadToHeadLayout({
           isCompleted={isCompleted}
           side="left"
           tiebreak={tiebreak}
+          timeDisplay={timeDisplay}
         />
 
         {/* VS Divider */}
@@ -254,6 +274,7 @@ export function HeadToHeadLayout({
           isCompleted={isCompleted}
           side="right"
           tiebreak={tiebreak}
+          timeDisplay={timeDisplay}
         />
       </div>
 

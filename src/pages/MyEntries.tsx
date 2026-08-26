@@ -26,6 +26,23 @@ import { formatSecondsAsTime } from "@/lib/utils";
  * Templates with a null scoring_config, or a margin_error tiebreak, keep today's copy.
  * aggregate_time renders a formatted total time; none hides the line.
  */
+/** time_vs_ref templates score in ms — show a formatted time, never points. */
+function timeDisplayOf(scoringConfig: unknown): "total_time" | "behind_winners" | null {
+  if (!scoringConfig || typeof scoringConfig !== "object") return null;
+  const cfg = scoringConfig as { primitive?: string; time_ref?: string };
+  if (cfg.primitive !== "time_vs_ref") return null;
+  return cfg.time_ref === "winner" ? "behind_winners" : "total_time";
+}
+
+function tiebreakLine(tb: "margin_error" | "aggregate_time", marginBonus: number) {
+  if (tb === "aggregate_time") {
+    return <span className="text-muted-foreground">Total time: {formatSecondsAsTime(marginBonus)}</span>;
+  }
+  return marginBonus > 0
+    ? <span className="text-muted-foreground">Margin error: {marginBonus.toFixed(1)}s</span>
+    : null;
+}
+
 function tiebreakOf(scoringConfig: unknown): "margin_error" | "aggregate_time" | "none" {
   if (!scoringConfig || typeof scoringConfig !== "object") return "margin_error";
   const tb = (scoringConfig as { tiebreak?: string }).tiebreak;
@@ -143,7 +160,7 @@ const MyEntries = () => {
       from('contest_entries').
       select(`
           id, created_at, status, entry_fee_cents, pool_id, contest_template_id, picks, payout_cents, rank, tier_name,
-          contest_templates!inner (regatta_name, lock_time, scoring_config),
+          contest_templates!inner (regatta_name, lock_time, scoring_config, roster_mode),
           contest_pools!inner (status, prize_pool_cents, max_entries, current_entries, payout_structure, tier_id, entry_fee_cents, contest_template_id),
           contest_scores (rank, total_points, margin_bonus, is_winner, payout_cents)
         `).
@@ -276,20 +293,31 @@ const MyEntries = () => {
     else if (rawPicks && typeof rawPicks === 'object' && Array.isArray((rawPicks as any).crews)) {
       picksArray = (rawPicks as any).crews;
     }
-    const picks = picksArray.map((p: any) => {
-      if (typeof p === 'string') return { crewId: p, event_id: '', predictedMargin: 0 };
-      return {
-        crewId: String(p.crewId || p.crew_id || p.id || ''),
-        event_id: p.event_id || p.eventId || '',
-        predictedMargin: Number(p.predictedMargin ?? p.predicted_margin ?? 0),
-      };
-    });
+    // GC (per_competitor) rosters carry only the competitor — never fabricate an event.
+    const isPerCompetitor =
+      !!entry.contest_templates?.scoring_config &&
+      (entry.contest_templates as any)?.roster_mode === 'per_competitor';
 
-    // Backfill missing event_ids from crewMap
-    for (const pick of picks) {
-      if (!pick.event_id) {
-        const info = crewMap.get(`${entry.pool_id}-${pick.crewId}`) as any;
-        if (info?.event_id) pick.event_id = info.event_id;
+    const picks = isPerCompetitor
+      ? picksArray.map((p: any) => ({
+          crewId: String(typeof p === 'string' ? p : (p.crewId || p.crew_id || p.id || '')),
+        }))
+      : picksArray.map((p: any) => {
+          if (typeof p === 'string') return { crewId: p, event_id: '', predictedMargin: 0 };
+          return {
+            crewId: String(p.crewId || p.crew_id || p.id || ''),
+            event_id: p.event_id || p.eventId || '',
+            predictedMargin: Number(p.predictedMargin ?? p.predicted_margin ?? 0),
+          };
+        });
+
+    // Backfill missing event_ids from crewMap (per_race / legacy only)
+    if (!isPerCompetitor) {
+      for (const pick of picks as any[]) {
+        if (!pick.event_id) {
+          const info = crewMap.get(`${entry.pool_id}-${pick.crewId}`) as any;
+          if (info?.event_id) pick.event_id = info.event_id;
+        }
       }
     }
 
@@ -513,16 +541,22 @@ const MyEntries = () => {
           {showScore && score && (
             <div className="flex flex-wrap items-center gap-4 text-sm pt-3 border-t text-muted-foreground">
               <span className="font-heading font-bold text-foreground">Rank: #{score.rank}</span>
-              <span>{score.total_points} pts</span>
               {(() => {
-                const tb = tiebreakOf(entry.contest_templates?.scoring_config);
-                if (tb === "none") return null;
-                if (tb === "aggregate_time") {
-                  return <span className="text-muted-foreground">Total time: {formatSecondsAsTime(score.margin_bonus)}</span>;
+                const td = timeDisplayOf(entry.contest_templates?.scoring_config);
+                if (td) {
+                  return (
+                    <span className="text-muted-foreground">
+                      {td === "behind_winners" ? "Behind winners" : "Total time"}: {formatSecondsAsTime(score.margin_bonus)}
+                    </span>
+                  );
                 }
-                return score.margin_bonus > 0
-                  ? <span className="text-muted-foreground">Margin error: {score.margin_bonus.toFixed(1)}s</span>
-                  : null;
+                const tb = tiebreakOf(entry.contest_templates?.scoring_config);
+                return (
+                  <>
+                    <span>{score.total_points} pts</span>
+                    {tb !== "none" && tiebreakLine(tb, score.margin_bonus)}
+                  </>
+                );
               })()}
             </div>
           )}

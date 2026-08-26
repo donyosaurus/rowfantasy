@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatCents } from "@/lib/formatCurrency";
 import { CrewLogo } from "@/components/CrewLogo";
 import { formatSecondsAsTime } from "@/lib/utils";
-import type { EntrantRow, CrewInfo, Tiebreak } from "./types";
+import type { EntrantRow, CrewInfo, Tiebreak, TimeDisplay } from "./types";
 import { parsePicks, getEntrantData, getRankLabel, formatEventId } from "./utils";
 import {
   Collapsible,
@@ -19,6 +19,7 @@ interface MultiEntryLayoutProps {
   isLocked: boolean;
   isCompleted: boolean;
   tiebreak?: Tiebreak;
+  timeDisplay?: TimeDisplay;
 }
 
 function RankBadge({ rank }: { rank: number | null }) {
@@ -43,6 +44,7 @@ function EntrantCard({
   isLocked,
   isCompleted,
   tiebreak = "margin_error",
+  timeDisplay = null,
 }: {
   entrant: EntrantRow;
   currentUserId: string;
@@ -50,6 +52,7 @@ function EntrantCard({
   isLocked: boolean;
   isCompleted: boolean;
   tiebreak?: Tiebreak;
+  timeDisplay?: TimeDisplay;
 }) {
   const [expanded, setExpanded] = useState(false);
   const isCurrentUser = entrant.user_id === currentUserId;
@@ -123,18 +126,31 @@ function EntrantCard({
             {/* Score columns */}
             {isCompleted && (
               <div className="flex items-center gap-3 shrink-0">
-                <div className="text-right">
-                  <p className="text-sm font-heading font-bold">{points ?? "—"}</p>
-                  <p className="text-[10px] text-muted-foreground">pts</p>
-                </div>
-                {tiebreak !== "none" && (
+                {timeDisplay ? (
                   <div className="text-right">
-                    <p className="text-xs text-muted-foreground">
-                      {tiebreak === "aggregate_time"
-                        ? (marginError != null ? formatSecondsAsTime(Number(marginError)) : "—")
-                        : `±${marginError != null ? Number(marginError).toFixed(1) : "—"}s`}
+                    <p className="text-sm font-heading font-bold">
+                      {marginError != null ? formatSecondsAsTime(Number(marginError)) : "—"}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {timeDisplay === "behind_winners" ? "Behind winners" : "Total time"}
                     </p>
                   </div>
+                ) : (
+                  <>
+                    <div className="text-right">
+                      <p className="text-sm font-heading font-bold">{points ?? "—"}</p>
+                      <p className="text-[10px] text-muted-foreground">pts</p>
+                    </div>
+                    {tiebreak !== "none" && (
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">
+                          {tiebreak === "aggregate_time"
+                            ? (marginError != null ? formatSecondsAsTime(Number(marginError)) : "—")
+                            : `±${marginError != null ? Number(marginError).toFixed(1) : "—"}s`}
+                        </p>
+                      </div>
+                    )}
+                  </>
                 )}
                 <div className="text-right min-w-[3.5rem]">
                   <p className={`text-sm font-heading font-bold ${payout && payout > 0 ? "text-success" : "text-muted-foreground"}`}>
@@ -188,6 +204,7 @@ export function MultiEntryLayout({
   isLocked,
   isCompleted,
   tiebreak = "margin_error",
+  timeDisplay = null,
 }: MultiEntryLayoutProps) {
   return (
     <div className="p-4 space-y-2">
@@ -197,9 +214,15 @@ export function MultiEntryLayout({
           <span className="w-7 mr-3">Rk</span>
           <span className="w-8 mr-3" />
           <span className="flex-1">Player</span>
-          <span className="w-10 text-right mr-3">Pts</span>
-          {tiebreak !== "none" && (
-            <span className="w-12 text-right mr-3">{tiebreak === "aggregate_time" ? "Time" : "Margin"}</span>
+          {timeDisplay ? (
+            <span className="w-20 text-right mr-3">{timeDisplay === "behind_winners" ? "Behind" : "Total time"}</span>
+          ) : (
+            <>
+              <span className="w-10 text-right mr-3">Pts</span>
+              {tiebreak !== "none" && (
+                <span className="w-12 text-right mr-3">{tiebreak === "aggregate_time" ? "Time" : "Margin"}</span>
+              )}
+            </>
           )}
           <span className="w-14 text-right mr-3">Payout</span>
           <span className="w-4" />
@@ -214,6 +237,7 @@ export function MultiEntryLayout({
           isLocked={isLocked}
           isCompleted={isCompleted}
           tiebreak={tiebreak}
+          timeDisplay={timeDisplay}
         />
       ))}
     </div>

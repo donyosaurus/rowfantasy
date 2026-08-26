@@ -70,3 +70,14 @@ export function resolveTiebreak(scoringConfig: unknown): "margin_error" | "aggre
   if (tb === "aggregate_time" || tb === "none") return tb;
   return "margin_error";
 }
+
+/**
+ * time_vs_ref templates score in milliseconds, not points. Derive the display
+ * mode explicitly — the reduced `tiebreak` prop cannot distinguish them.
+ */
+export function resolveTimeDisplay(scoringConfig: unknown): "total_time" | "behind_winners" | null {
+  if (!scoringConfig || typeof scoringConfig !== "object") return null;
+  const cfg = scoringConfig as { primitive?: string; time_ref?: string };
+  if (cfg.primitive !== "time_vs_ref") return null;
+  return cfg.time_ref === "winner" ? "behind_winners" : "total_time";
+}

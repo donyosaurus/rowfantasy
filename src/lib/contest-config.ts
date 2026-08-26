@@ -4,15 +4,30 @@
  * and render sport-appropriate copy. The backend re-validates everything.
  */
 
-export type ContestTypeKey = "classic" | "classic_total_time";
+export type ContestTypeKey =
+  | "classic"
+  | "classic_total_time"
+  | "gc_pool"
+  | "team_time_trial"
+  | "deficit";
 
-export interface ScoringConfig {
+export interface PlacementScoringConfig {
   primitive: "placement";
   points_table: Record<string, number>;
   direction: "high" | "low";
   dnf_policy: "zero" | "field_plus_one";
   tiebreak: "margin_error" | "aggregate_time" | "none";
 }
+
+export interface TimeVsRefScoringConfig {
+  primitive: "time_vs_ref";
+  time_ref: "none" | "winner";
+  dnf_policy: "penalty_pct";
+  penalty_pct: number;
+  tiebreak: "none";
+}
+
+export type ScoringConfig = PlacementScoringConfig | TimeVsRefScoringConfig;
 
 const CLASSIC_POINTS_TABLE: Record<string, number> = {
   "1": 100,
@@ -30,6 +45,7 @@ export const CONTEST_TYPES: {
   subtitle: string;
   fixedRoster: boolean;
   requiresEventClass: boolean;
+  perCompetitor?: boolean;
 }[] = [
   {
     key: "classic",
@@ -46,9 +62,49 @@ export const CONTEST_TYPES: {
     fixedRoster: true,
     requiresEventClass: true,
   },
+  {
+    key: "gc_pool",
+    label: "GC / Stage Race",
+    subtitle: "Lowest combined time across all stages — pick riders, every stage counts",
+    fixedRoster: true,
+    requiresEventClass: true,
+    perCompetitor: true,
+  },
+  {
+    key: "team_time_trial",
+    label: "Team Time Trial",
+    subtitle: "Lowest combined time wins — fixed roster, same-distance races only",
+    fixedRoster: true,
+    requiresEventClass: true,
+  },
+  {
+    key: "deficit",
+    label: "Deficit",
+    subtitle: "Lowest combined time behind the winners — works across mixed distances",
+    fixedRoster: true,
+    requiresEventClass: false,
+  },
 ];
 
 export function getScoringPreset(key: ContestTypeKey): ScoringConfig {
+  if (key === "gc_pool" || key === "team_time_trial") {
+    return {
+      primitive: "time_vs_ref",
+      time_ref: "none",
+      dnf_policy: "penalty_pct",
+      penalty_pct: 10,
+      tiebreak: "none",
+    };
+  }
+  if (key === "deficit") {
+    return {
+      primitive: "time_vs_ref",
+      time_ref: "winner",
+      dnf_policy: "penalty_pct",
+      penalty_pct: 10,
+      tiebreak: "none",
+    };
+  }
   if (key === "classic_total_time") {
     return {
       primitive: "placement",
@@ -66,6 +122,7 @@ export function getScoringPreset(key: ContestTypeKey): ScoringConfig {
     tiebreak: "margin_error",
   };
 }
+
 
 export const SPORT_OPTIONS = [
   "rowing",

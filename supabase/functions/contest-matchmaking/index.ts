@@ -62,7 +62,8 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
           }),
         )
         .min(1)
-        .max(10),
+        .max(50),
+
     });
 
 
@@ -85,7 +86,7 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
     // Fetch template name for success message (and pre-RPC sanity check)
     const { data: template, error: templateError } = await auth.supabase
       .from("contest_templates")
-      .select("regatta_name, scoring_config, roster_mode")
+      .select("regatta_name, scoring_config, roster_mode, max_picks")
       .eq("id", body.contestTemplateId)
       .single();
 
@@ -94,6 +95,14 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Early, clear bound on roster size for every mode. The RPC re-checks.
+    if (body.picks.length > ((template as any).max_picks ?? 4)) {
+      return new Response(
+        JSON.stringify({ error: "You have selected more picks than this contest allows." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     const rosterMode = (template as any).roster_mode ?? "per_race";
@@ -107,6 +116,7 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+
 
     // Legacy templates (scoring_config NULL) keep today's required-margin contract.
     // New-path templates require a margin only when the tiebreak is margin_error.

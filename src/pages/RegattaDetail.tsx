@@ -41,9 +41,12 @@ interface PoolCrew {
 }
 
 interface ScoringConfigLite {
+  primitive?: string;
+  time_ref?: string;
   points_table?: Record<string, number>;
   tiebreak?: string;
 }
+
 
 interface ContestPool {
   id: string;
@@ -69,6 +72,8 @@ interface ContestPool {
     sport?: string | null;
     name?: string | null;
     scoring_config?: ScoringConfigLite | null;
+    roster_mode?: string | null;
+
   };
   contest_pool_crews: PoolCrew[];
 }
@@ -101,7 +106,11 @@ const RegattaDetail = () => {
   const [error, setError] = useState<string | null>(null);
   // Picks are keyed by the composite `${crew_id}::${event_id}` — a v2 competitor can
   // appear in more than one race, so crew_id alone is not a unique pick identity.
+  // Exception: per_competitor (GC) rosters key by crew_id alone (one pick per competitor).
   const [crewPicks, setCrewPicks] = useState<Map<string, { crewId: string; eventId: string; margin: number }>>(new Map());
+  // Ordered stages for per_competitor (GC) templates — read-only display.
+  const [stageList, setStageList] = useState<{ race_key: string; name: string | null }[]>([]);
+
 
   const [submitting, setSubmitting] = useState(false);
   const [scoringOpen, setScoringOpen] = useState(false);
@@ -116,7 +125,7 @@ const RegattaDetail = () => {
     const fetchPoolData = async () => {
       const { data, error: fetchError } = await supabase
         .from("contest_pools")
-        .select(`id, contest_template_id, created_at, current_entries, entry_fee_cents, entry_tiers, lock_time, max_entries, payout_structure, prize_pool_cents, prize_structure, settled_at, status, tier_id, tier_name, allow_overflow, void_unfilled_on_settle, contest_templates!inner (id, regatta_name, gender_category, min_picks, max_picks, card_banner_url, draft_banner_url, sport, name, scoring_config), contest_pool_crews (id, crew_id, crew_name, event_id, logo_url)`)
+        .select(`id, contest_template_id, created_at, current_entries, entry_fee_cents, entry_tiers, lock_time, max_entries, payout_structure, prize_pool_cents, prize_structure, settled_at, status, tier_id, tier_name, allow_overflow, void_unfilled_on_settle, contest_templates!inner (id, regatta_name, gender_category, min_picks, max_picks, card_banner_url, draft_banner_url, sport, name, scoring_config, roster_mode), contest_pool_crews (id, crew_id, crew_name, event_id, logo_url)`)
         .eq("id", id)
         .single();
       if (fetchError || !data) { setError("Contest not found"); setLoading(false); return; }
@@ -130,7 +139,7 @@ const RegattaDetail = () => {
         const [racesRes, compsRes] = await Promise.all([
           supabase
             .from("contest_races")
-            .select("id, race_key, race_order")
+            .select("id, race_key, name, race_order")
             .eq("template_id", templateId)
             .order("race_order", { ascending: true }),
           supabase
@@ -146,6 +155,8 @@ const RegattaDetail = () => {
         }
         const races = racesRes.data || [];
         const comps = compsRes.data || [];
+        setStageList(races.map((r: any) => ({ race_key: r.race_key, name: r.name ?? null })));
+
         if (races.length > 0 && comps.length > 0) {
           const { data: entryRows, error: entriesError } = await supabase
             .from("contest_race_entries")
@@ -228,6 +239,9 @@ const RegattaDetail = () => {
 
   const template = contestPool?.contest_templates;
   const scoringConfig = template?.scoring_config ?? null;
+  // GC / stage races: one roster of competitors, every stage counts.
+  const isPerCompetitor = !!scoringConfig && template?.roster_mode === "per_competitor";
+  const isTimeScored = scoringConfig?.primitive === "time_vs_ref";
   const sport = template?.sport ?? null;
   const t = terms(sport);
   const displayName = template?.name || template?.regatta_name || "";
@@ -239,14 +253,34 @@ const RegattaDetail = () => {
       : (FINISH_POINTS as unknown as Record<string, number>)
   ).sort((a, b) => Number(a[0]) - Number(b[0]));
 
-  const pickKey = (crewId: string, eventId: string) => `${crewId}::${eventId}`;
+  // Deduped competitor list for per_competitor mode (first race_order appearance wins).
+  const competitorList = useMemo(() => {
+    if (!isPerCompetitor || !contestPool?.contest_pool_crews) return [] as PoolCrew[];
+    const seen = new Set<string>();
+    const out: PoolCrew[] = [];
+    for (const c of contestPool.contest_pool_crews) {
+      if (seen.has(c.crew_id)) continue;
+      seen.add(c.crew_id);
+      out.push(c);
+    }
+    return out;
+  }, [isPerCompetitor, contestPool?.contest_pool_crews]);
+
+  const pickKey = (crewId: string, eventId: string) => (isPerCompetitor ? crewId : `${crewId}::${eventId}`);
 
   const toggleCrewSelection = (crewId: string, eventId: string) => {
     const key = pickKey(crewId, eventId);
+
     setCrewPicks((prev) => {
       const newPicks = new Map(prev);
       if (newPicks.has(key)) {
         newPicks.delete(key);
+        return newPicks;
+      }
+      if (isPerCompetitor) {
+        // GC: a flat roster, no per-race swap.
+        if (newPicks.size >= maxPicks) { toast.error(`Maximum ${maxPicks} picks allowed`); return prev; }
+        newPicks.set(key, { crewId, eventId: "", margin: 0 });
         return newPicks;
       }
       // One pick per race — swap out any existing pick from the same event.
@@ -258,6 +292,7 @@ const RegattaDetail = () => {
       newPicks.set(key, { crewId, eventId, margin: oldMargin });
       return newPicks;
     });
+
   };
 
   const updateCrewMargin = (crewId: string, eventId: string, margin: number) => {
@@ -274,8 +309,11 @@ const RegattaDetail = () => {
 
   const isContestOpen = contestPool?.status === "open" && new Date(contestPool.lock_time) > new Date();
   const numDivisions = divisions.length;
-  const minPicks = Math.min(contestPool?.contest_templates?.min_picks ?? 2, numDivisions);
-  const maxPicks = Math.min(contestPool?.contest_templates?.max_picks ?? 10, numDivisions);
+  // GC rosters are bounded by competitor count, not race count.
+  const pickCeiling = isPerCompetitor ? competitorList.length : numDivisions;
+  const minPicks = Math.min(contestPool?.contest_templates?.min_picks ?? 2, pickCeiling);
+  const maxPicks = Math.min(contestPool?.contest_templates?.max_picks ?? 10, pickCeiling);
+
 
   const formattedLockTime = contestPool?.lock_time
     ? new Date(contestPool.lock_time).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
@@ -340,10 +378,13 @@ const RegattaDetail = () => {
 
   const draftPicksList = useMemo(() => {
     return Array.from(crewPicks.values()).map((p) => {
-      const crew = contestPool?.contest_pool_crews.find((c) => c.crew_id === p.crewId && c.event_id === p.eventId);
+      const crew = isPerCompetitor
+        ? contestPool?.contest_pool_crews.find((c) => c.crew_id === p.crewId)
+        : contestPool?.contest_pool_crews.find((c) => c.crew_id === p.crewId && c.event_id === p.eventId);
       return { crewId: p.crewId, crewName: crew?.crew_name ?? p.crewId, eventId: p.eventId, margin: p.margin, logoUrl: crew?.logo_url };
     });
-  }, [crewPicks, contestPool]);
+  }, [crewPicks, contestPool, isPerCompetitor]);
+
 
 
   const handleSubmitEntry = async () => {
@@ -362,10 +403,12 @@ const RegattaDetail = () => {
         }
       }
     }
-    const selectedDivisions = new Set<string>();
-    for (const p of crewPicks.values()) selectedDivisions.add(p.eventId);
+    if (!isPerCompetitor) {
+      const selectedDivisions = new Set<string>();
+      for (const p of crewPicks.values()) selectedDivisions.add(p.eventId);
+      if (selectedDivisions.size < 2) { toast.error(`You must select ${t.competitors} from at least 2 different ${t.events}`); return; }
+    }
 
-    if (selectedDivisions.size < 2) { toast.error(`You must select ${t.competitors} from at least 2 different ${t.events}`); return; }
     if (hasTiers && !selectedTier) { toast.error("Please select an entry tier"); return; }
     // (Wave 1 #6) Fail-closed: refuse submit if balance read errored.
     if (wallet.status === 'error') {
@@ -379,9 +422,12 @@ const RegattaDetail = () => {
 
     setSubmitting(true);
     const picks = Array.from(crewPicks.values()).map((p) => {
+      // GC rosters carry only the competitor — no event, no margin.
+      if (isPerCompetitor) return { crewId: p.crewId };
       const base = { crewId: p.crewId, event_id: p.eventId };
       return needsMargin ? { ...base, predictedMargin: p.margin } : base;
     });
+
 
 
     try {
@@ -483,13 +529,60 @@ const RegattaDetail = () => {
                <div>
                 <h2 className="font-heading text-xl lg:text-2xl font-bold mb-1 text-white">Select Your {t.Competitors}</h2>
                 <p className="text-sm text-white/60">
-                  Draft a {t.competitor} from each {t.event}. Your entry will be matched against other players.
+                  {isPerCompetitor
+                    ? `Pick ${minPicks} ${t.competitors} — every stage counts toward your combined time.`
+                    : `Draft a ${t.competitor} from each ${t.event}. Your entry will be matched against other players.`}
                 </p>
               </div>
 
-              {divisions.length === 0 ? (
+              {isPerCompetitor && stageList.length > 0 && (
+                <div className="rounded-xl border border-white/15 bg-white/5 p-3">
+                  <p className="text-xs font-semibold text-white/80 mb-2">Stages ({stageList.length})</p>
+                  <div className="flex flex-wrap gap-2">
+                    {stageList.map((s, i) => (
+                      <span key={s.race_key} className="rounded-full bg-white/10 text-white/80 text-xs px-3 py-1 border border-white/15">
+                        {i + 1}. {s.name || s.race_key}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {isPerCompetitor ? (
+                competitorList.length === 0 ? (
+                  <Card className="bg-card border-border"><CardContent className="py-8 text-center text-muted-foreground">No {t.competitors} available.</CardContent></Card>
+                ) : (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="flex items-center gap-2 rounded-full bg-white/10 text-white px-3 py-1 border border-white/15">
+                        <span className="font-semibold text-xs">{t.Competitors}</span>
+                        <span className="text-white/60 text-xs">· {competitorList.length}</span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {competitorList.map((crew, idx) => (
+                        <CrewCard
+                          key={crew.crew_id}
+                          crewId={crew.crew_id}
+                          crewName={crew.crew_name}
+                          eventId=""
+                          logoUrl={crew.logo_url}
+                          isSelected={crewPicks.has(crew.crew_id)}
+                          marginVal={0}
+                          isOpen={!!isContestOpen}
+                          showMargin={false}
+                          onToggle={toggleCrewSelection}
+                          onMarginChange={updateCrewMargin}
+                          animDelay={idx * 50}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )
+              ) : divisions.length === 0 ? (
                 <Card className="bg-card border-border"><CardContent className="py-8 text-center text-muted-foreground">No {t.competitors} available.</CardContent></Card>
               ) : (
+
                 divisions.map((divisionId) => (
                   <div key={divisionId}>
                     <div className="flex items-center gap-2 mb-3">
@@ -659,18 +752,29 @@ const RegattaDetail = () => {
                       <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${scoringOpen ? "rotate-180" : ""}`} />
                     </CollapsibleTrigger>
                     <CollapsibleContent className="pt-3">
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                        {scoringPointsRows.map(([place, pts]) => (
-                          <div key={place} className="flex justify-between text-xs text-muted-foreground">
-                            <span>{ordinal(Number(place))}</span><span className="font-medium text-foreground">{pts} pts</span>
+                      {isTimeScored ? (
+                        <p className="text-xs text-muted-foreground">
+                          {scoringConfig?.time_ref === "winner"
+                            ? "Your picks' times behind each race winner are added — lowest total wins."
+                            : "Your picks' finishing times are added together across every race/stage — lowest combined time wins. A DNF/DNS/DSQ is charged the slowest finisher's time +10%."}
+                        </p>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                            {scoringPointsRows.map(([place, pts]) => (
+                              <div key={place} className="flex justify-between text-xs text-muted-foreground">
+                                <span>{ordinal(Number(place))}</span><span className="font-medium text-foreground">{pts} pts</span>
+                              </div>
+                            ))}
+                            <div className="flex justify-between text-xs text-muted-foreground"><span>{ordinal(scoringPointsRows.length + 1)}+</span><span className="font-medium text-foreground">{DEFAULT_POINTS} pts</span></div>
                           </div>
-                        ))}
-                        <div className="flex justify-between text-xs text-muted-foreground"><span>{ordinal(scoringPointsRows.length + 1)}+</span><span className="font-medium text-foreground">{DEFAULT_POINTS} pts</span></div>
-                      </div>
-                      {scoringConfig?.tiebreak === "aggregate_time" && (
-                        <p className="text-xs text-muted-foreground mt-3">Ties broken by lowest combined time.</p>
+                          {scoringConfig?.tiebreak === "aggregate_time" && (
+                            <p className="text-xs text-muted-foreground mt-3">Ties broken by lowest combined time.</p>
+                          )}
+                        </>
                       )}
                     </CollapsibleContent>
+
                   </CardContent>
                 </Card>
               </Collapsible>
