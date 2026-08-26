@@ -47,8 +47,8 @@ const CreateContestV2Schema = z.object({
   cardBannerUrl: z.string().nullable().optional(),
   draftBannerUrl: z.string().nullable().optional(),
   contestGroupId: z.string().uuid().nullable().optional(),
-  primitive: z.string().optional(),
-  rosterMode: z.string().optional(),
+  primitive: z.enum(["placement", "time_vs_ref"]).optional(),
+  rosterMode: z.enum(["per_race", "per_competitor"]).optional(),
   scoringConfig: ScoringConfigSchema.optional(),
   minPicks: z.number().int().optional(),
   maxPicks: z.number().int().optional(),
@@ -166,15 +166,21 @@ Deno.serve(withFnVersion('admin-create-contest', async (req) => {
       }
       const v2 = parsed.data;
 
-      if (v2.primitive !== undefined && v2.primitive !== 'placement') {
-        return new Response(JSON.stringify({ error: "primitive must be 'placement'" }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+      const bad = (msg: string) => new Response(JSON.stringify({ error: msg }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+
+      const primitive = v2.primitive ?? v2.scoringConfig?.primitive ?? 'placement';
+      const rosterMode = v2.rosterMode ?? (primitive === 'time_vs_ref' ? 'per_race' : 'per_race');
+
+      if (rosterMode === 'per_competitor' && primitive !== 'time_vs_ref') {
+        return bad("rosterMode 'per_competitor' requires primitive 'time_vs_ref'");
       }
-      if (v2.rosterMode !== undefined && v2.rosterMode !== 'per_race') {
-        return new Response(JSON.stringify({ error: "rosterMode must be 'per_race'" }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+      if ((primitive === 'time_vs_ref' || rosterMode === 'per_competitor') && !v2.scoringConfig) {
+        return bad('time contests require an explicit scoringConfig');
+      }
+      if (v2.primitive && v2.scoringConfig && v2.primitive !== v2.scoringConfig.primitive) {
+        return bad('primitive does not match scoringConfig.primitive');
       }
 
       const lockDate = new Date(v2.lockTime);
@@ -197,7 +203,8 @@ Deno.serve(withFnVersion('admin-create-contest', async (req) => {
 
       const cfg = v2.scoringConfig;
       if (cfg) {
-        const fixedRosterRequired = cfg.direction === 'low' || cfg.tiebreak === 'aggregate_time';
+        const fixedRosterRequired = cfg.primitive === 'time_vs_ref' ||
+          (cfg.primitive === 'placement' && (cfg.direction === 'low' || cfg.tiebreak === 'aggregate_time'));
         if (fixedRosterRequired) {
           if (
             typeof v2.minPicks !== 'number' || typeof v2.maxPicks !== 'number' ||
@@ -210,7 +217,7 @@ Deno.serve(withFnVersion('admin-create-contest', async (req) => {
           }
         }
 
-        if (cfg.tiebreak === 'aggregate_time') {
+        if (cfg.tiebreak === 'aggregate_time' || (cfg.primitive === 'time_vs_ref' && cfg.time_ref === 'none')) {
           const classes = v2.races.map((r) => (typeof r.event_class === 'string' ? r.event_class.trim() : ''));
           const allPresent = classes.every((c) => c.length > 0);
           const allSame = new Set(classes).size === 1;
@@ -220,6 +227,25 @@ Deno.serve(withFnVersion('admin-create-contest', async (req) => {
               { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
             );
           }
+        }
+      }
+
+      if (rosterMode === 'per_competitor') {
+        const entriesByCompetitor = new Map<string, Set<string>>();
+        for (const re of v2.raceEntries) {
+          if (!entriesByCompetitor.has(re.competitor_key)) entriesByCompetitor.set(re.competitor_key, new Set());
+          entriesByCompetitor.get(re.competitor_key)!.add(re.race_key);
+        }
+        const raceKeys = v2.races.map((r) => r.race_key);
+        const everywhere = v2.competitors.every((c) => {
+          const set = entriesByCompetitor.get(c.competitor_key);
+          return !!set && raceKeys.every((rk) => set.has(rk));
+        });
+        if (!everywhere) {
+          return bad('GC contests require every competitor entered in every race/stage');
+        }
+        if (typeof v2.maxPicks === 'number' && v2.maxPicks > v2.competitors.length) {
+          return bad('maxPicks exceeds competitor count');
         }
       }
 
@@ -242,8 +268,8 @@ Deno.serve(withFnVersion('admin-create-contest', async (req) => {
         p_card_banner_url: v2.cardBannerUrl ?? null,
         p_draft_banner_url: v2.draftBannerUrl ?? null,
         p_contest_group_id: v2.contestGroupId ?? null,
-        p_primitive: v2.primitive ?? 'placement',
-        p_roster_mode: v2.rosterMode ?? 'per_race',
+        p_primitive: primitive,
+        p_roster_mode: rosterMode,
         p_scoring_config: v2.scoringConfig ?? null,
         p_min_picks: v2.minPicks ?? 2,
         p_max_picks: v2.maxPicks ?? 4,
