@@ -89,6 +89,9 @@ interface CreateContestForm {
   eventClass: string;
   minPicks: string;
   maxPicks: string;
+  /** GC / stage-race only: ordered stage names. Ignored by every other type. */
+  stages: string[];
+
 }
 
 
@@ -164,6 +167,8 @@ const Admin = () => {
     eventClass: "",
     minPicks: "2",
     maxPicks: "4",
+    stages: ["Stage 1", "Stage 2"],
+
   });
   const [newCrewInput, setNewCrewInput] = useState<NewCrew>({
     crew_name: "",
@@ -565,16 +570,22 @@ const Admin = () => {
       eventClass: "",
       minPicks: "2",
       maxPicks: "4",
+      stages: ["Stage 1", "Stage 2"],
+
     });
     setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
   };
 
   const addCrewToForm = () => {
-    if (!newCrewInput.crew_name || !newCrewInput.crew_id || !newCrewInput.event_id) { toast.error("Please fill in all crew fields"); return; }
-    if (createForm.crews.some(c => c.crew_id === newCrewInput.crew_id && c.event_id === newCrewInput.event_id)) { toast.error("This competitor is already in that race"); return; }
-    setCreateForm(prev => ({ ...prev, crews: [...prev.crews, { ...newCrewInput }] }));
+    // GC / stage races carry no per-row race: competitors are entered in every stage.
+    const gcMode = createForm.contestType === "gc_pool";
+    if (!newCrewInput.crew_name || !newCrewInput.crew_id || (!gcMode && !newCrewInput.event_id)) { toast.error("Please fill in all crew fields"); return; }
+    const eventId = gcMode ? "" : newCrewInput.event_id;
+    if (createForm.crews.some(c => c.crew_id === newCrewInput.crew_id && c.event_id === eventId)) { toast.error(gcMode ? "This competitor is already added" : "This competitor is already in that race"); return; }
+    setCreateForm(prev => ({ ...prev, crews: [...prev.crews, { ...newCrewInput, event_id: eventId }] }));
     setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
   };
+
 
   const removeCrewFromForm = (crewId: string, eventId: string) => {
     setCreateForm(prev => ({ ...prev, crews: prev.crews.filter(c => !(c.crew_id === crewId && c.event_id === eventId)) }));
