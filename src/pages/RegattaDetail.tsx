@@ -309,8 +309,11 @@ const RegattaDetail = () => {
 
   const isContestOpen = contestPool?.status === "open" && new Date(contestPool.lock_time) > new Date();
   const numDivisions = divisions.length;
-  const minPicks = Math.min(contestPool?.contest_templates?.min_picks ?? 2, numDivisions);
-  const maxPicks = Math.min(contestPool?.contest_templates?.max_picks ?? 10, numDivisions);
+  // GC rosters are bounded by competitor count, not race count.
+  const pickCeiling = isPerCompetitor ? competitorList.length : numDivisions;
+  const minPicks = Math.min(contestPool?.contest_templates?.min_picks ?? 2, pickCeiling);
+  const maxPicks = Math.min(contestPool?.contest_templates?.max_picks ?? 10, pickCeiling);
+
 
   const formattedLockTime = contestPool?.lock_time
     ? new Date(contestPool.lock_time).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
