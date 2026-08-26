@@ -136,18 +136,32 @@ function EntrantColumn({
       {isCompleted && (
         <div className="w-full mt-4 pt-3 border-t border-border">
           <div className="text-center">
-            <p className="text-2xl font-heading font-bold text-foreground">
-              {points ?? "—"}
-              <span className="text-sm font-normal text-muted-foreground ml-1">pts</span>
-            </p>
-            {tiebreak !== "none" && (
-              <p className="text-xs text-muted-foreground font-body mt-0.5">
-                {tiebreak === "aggregate_time"
-                  ? `Total time: ${marginError != null ? formatSecondsAsTime(Number(marginError)) : "—"}`
-                  : `Margin: ±${marginError != null ? Number(marginError).toFixed(1) : "—"}s`}
-              </p>
+            {timeDisplay ? (
+              <>
+                <p className="text-2xl font-heading font-bold text-foreground">
+                  {marginError != null ? formatSecondsAsTime(Number(marginError)) : "—"}
+                </p>
+                <p className="text-xs text-muted-foreground font-body mt-0.5">
+                  {timeDisplay === "behind_winners" ? "Behind winners" : "Total time"}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-2xl font-heading font-bold text-foreground">
+                  {points ?? "—"}
+                  <span className="text-sm font-normal text-muted-foreground ml-1">pts</span>
+                </p>
+                {tiebreak !== "none" && (
+                  <p className="text-xs text-muted-foreground font-body mt-0.5">
+                    {tiebreak === "aggregate_time"
+                      ? `Total time: ${marginError != null ? formatSecondsAsTime(Number(marginError)) : "—"}`
+                      : `Margin: ±${marginError != null ? Number(marginError).toFixed(1) : "—"}s`}
+                  </p>
+                )}
+              </>
             )}
           </div>
+
           {payout != null && payout > 0 && (
             <div className="mt-2 flex items-center justify-center gap-1.5">
               <CheckCircle className="h-3.5 w-3.5 text-success" />
