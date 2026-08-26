@@ -378,10 +378,13 @@ const RegattaDetail = () => {
 
   const draftPicksList = useMemo(() => {
     return Array.from(crewPicks.values()).map((p) => {
-      const crew = contestPool?.contest_pool_crews.find((c) => c.crew_id === p.crewId && c.event_id === p.eventId);
+      const crew = isPerCompetitor
+        ? contestPool?.contest_pool_crews.find((c) => c.crew_id === p.crewId)
+        : contestPool?.contest_pool_crews.find((c) => c.crew_id === p.crewId && c.event_id === p.eventId);
       return { crewId: p.crewId, crewName: crew?.crew_name ?? p.crewId, eventId: p.eventId, margin: p.margin, logoUrl: crew?.logo_url };
     });
-  }, [crewPicks, contestPool]);
+  }, [crewPicks, contestPool, isPerCompetitor]);
+
 
 
   const handleSubmitEntry = async () => {
