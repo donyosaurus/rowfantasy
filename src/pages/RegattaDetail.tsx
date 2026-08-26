@@ -239,6 +239,9 @@ const RegattaDetail = () => {
 
   const template = contestPool?.contest_templates;
   const scoringConfig = template?.scoring_config ?? null;
+  // GC / stage races: one roster of competitors, every stage counts.
+  const isPerCompetitor = !!scoringConfig && template?.roster_mode === "per_competitor";
+  const isTimeScored = scoringConfig?.primitive === "time_vs_ref";
   const sport = template?.sport ?? null;
   const t = terms(sport);
   const displayName = template?.name || template?.regatta_name || "";
@@ -250,10 +253,24 @@ const RegattaDetail = () => {
       : (FINISH_POINTS as unknown as Record<string, number>)
   ).sort((a, b) => Number(a[0]) - Number(b[0]));
 
-  const pickKey = (crewId: string, eventId: string) => `${crewId}::${eventId}`;
+  // Deduped competitor list for per_competitor mode (first race_order appearance wins).
+  const competitorList = useMemo(() => {
+    if (!isPerCompetitor || !contestPool?.contest_pool_crews) return [] as PoolCrew[];
+    const seen = new Set<string>();
+    const out: PoolCrew[] = [];
+    for (const c of contestPool.contest_pool_crews) {
+      if (seen.has(c.crew_id)) continue;
+      seen.add(c.crew_id);
+      out.push(c);
+    }
+    return out;
+  }, [isPerCompetitor, contestPool?.contest_pool_crews]);
+
+  const pickKey = (crewId: string, eventId: string) => (isPerCompetitor ? crewId : `${crewId}::${eventId}`);
 
   const toggleCrewSelection = (crewId: string, eventId: string) => {
     const key = pickKey(crewId, eventId);
+
     setCrewPicks((prev) => {
       const newPicks = new Map(prev);
       if (newPicks.has(key)) {
