@@ -403,10 +403,12 @@ const RegattaDetail = () => {
         }
       }
     }
-    const selectedDivisions = new Set<string>();
-    for (const p of crewPicks.values()) selectedDivisions.add(p.eventId);
+    if (!isPerCompetitor) {
+      const selectedDivisions = new Set<string>();
+      for (const p of crewPicks.values()) selectedDivisions.add(p.eventId);
+      if (selectedDivisions.size < 2) { toast.error(`You must select ${t.competitors} from at least 2 different ${t.events}`); return; }
+    }
 
-    if (selectedDivisions.size < 2) { toast.error(`You must select ${t.competitors} from at least 2 different ${t.events}`); return; }
     if (hasTiers && !selectedTier) { toast.error("Please select an entry tier"); return; }
     // (Wave 1 #6) Fail-closed: refuse submit if balance read errored.
     if (wallet.status === 'error') {
