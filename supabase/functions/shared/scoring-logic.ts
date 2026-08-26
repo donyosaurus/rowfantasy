@@ -862,7 +862,242 @@ async function scoreConfiguredPool(
     return { entriesScored: 0 };
   }
 
+  // ---- time_vs_ref branch (placement path below is unchanged) ----
+  if (cfg.primitive === "time_vs_ref") {
+    const timeCfg = cfg;
+    const rosterMode: string = template?.roster_mode ?? "per_race";
+    const allRaceKeys: string[] = races.map((r: any) => r.race_key);
+
+    const raceStatsByKey = new Map<string, RaceTimeStats>();
+    for (const [raceId, st] of raceStats.entries()) {
+      const rk = raceKeyById.get(raceId);
+      if (rk) raceStatsByKey.set(rk, { winner: st.winner, slowest: st.slowest });
+    }
+
+    // competitor_key → set of race_keys the competitor is entered in
+    const enteredByCompetitor = new Map<string, Set<string>>();
+    for (const re of templateRaceEntries) {
+      const ck = compKeyById.get(re.competitor_id);
+      const rk = raceKeyById.get(re.race_id);
+      if (!ck || !rk) continue;
+      if (!enteredByCompetitor.has(ck)) enteredByCompetitor.set(ck, new Set<string>());
+      enteredByCompetitor.get(ck)!.add(rk);
+    }
+
+    // Every time_vs_ref contest is fixed-roster.
+    const tMinPicks = template?.min_picks ?? null;
+    const tMaxPicks = template?.max_picks ?? null;
+    if (tMinPicks === null || tMaxPicks === null || tMinPicks !== tMaxPicks) {
+      throw new Error(
+        `[scoring-logic] Refusing to score pool ${contestPoolId}: fixed roster violated (expected ${tMinPicks} picks)`,
+      );
+    }
+
+    const timeScores: Array<EntryScore & { total_ms: number; tiebreak_persist: number; margin_bonus: number }> = [];
+    const timeFailures: string[] = [];
+
+    for (const entry of entries) {
+      const picks = parseEntryPicks(entry);
+
+      if (picks.length !== tMinPicks) {
+        throw new Error(
+          `[scoring-logic] Refusing to score pool ${contestPoolId}: fixed roster violated (expected ${tMinPicks} picks)`,
+        );
+      }
+
+      let cells: EntryPick[];
+      if (rosterMode === "per_competitor") {
+        // GC: every picked competitor is scored across EVERY stage of the template.
+        cells = [];
+        let missing: string | null = null;
+        for (const pick of picks) {
+          const entered = enteredByCompetitor.get(pick.crewId) ?? new Set<string>();
+          for (const rk of allRaceKeys) {
+            if (!entered.has(rk)) {
+              missing = `crew ${pick.crewId} is not entered in race ${rk}`;
+              break;
+            }
+            cells.push({ crewId: pick.crewId, event_id: rk, predictedMargin: NaN });
+          }
+          if (missing) break;
+        }
+        if (missing) {
+          timeFailures.push(`entry ${entry.id} → ${missing}`);
+          continue;
+        }
+      } else {
+        cells = picks;
+      }
+
+      try {
+        const { totalMs, crewScores } = reduceTimeVsRef(cells, resultsByKey, raceStatsByKey, timeCfg);
+        const persist = Math.round(totalMs) / 1000;
+        timeScores.push({
+          entry_id: entry.id,
+          user_id: entry.user_id,
+          total_points: 0,
+          margin_error: persist,
+          crew_scores: crewScores,
+          total_ms: totalMs,
+          tiebreak_persist: Math.round(persist * 1000) / 1000,
+          margin_bonus: Math.round(totalMs / 10) / 100,
+        });
+      } catch (e: any) {
+        timeFailures.push(`entry ${entry.id} → ${e.message}`);
+      }
+    }
+
+    if (timeFailures.length > 0) {
+      throw new Error(
+        `[scoring-logic] Refusing to score pool ${contestPoolId}: ${timeFailures.length} pick(s) could not be scored: ${timeFailures.join("; ")}`,
+      );
+    }
+
+    // Bounds check BEFORE any write
+    for (const s of timeScores) {
+      if (!Number.isFinite(s.total_ms) || !Number.isInteger(s.total_ms) || s.total_ms < 0 || s.total_ms >= 1e11) {
+        throw new Error(
+          `[scoring-logic] Refusing to score pool ${contestPoolId}: total time out of range for entry ${s.entry_id}`,
+        );
+      }
+      if (!Number.isFinite(s.margin_bonus) || Math.abs(s.margin_bonus) >= 100000000) {
+        throw new Error(`[scoring-logic] Refusing to score pool ${contestPoolId}: time value out of numeric(10,2) range`);
+      }
+    }
+
+    // Lowest total milliseconds wins; equal ms ⇒ shared rank, never "tiebreak resolved".
+    timeScores.sort((a, b) => a.total_ms - b.total_ms);
+
+    for (let i = 0; i < timeScores.length; i++) {
+      if (i === 0) {
+        timeScores[i].rank = 1;
+      } else if (timeScores[i - 1].total_ms === timeScores[i].total_ms) {
+        timeScores[i].rank = timeScores[i - 1].rank;
+      } else {
+        timeScores[i].rank = i + 1;
+      }
+      timeScores[i].is_tiebreak_resolved = false;
+    }
+
+    const isH2HTime = pool.max_entries <= 2;
+    let timeTieRefund = false;
+
+    if (isH2HTime && timeScores.length === 2 && timeScores[0].total_ms === timeScores[1].total_ms) {
+      console.log("[scoring-logic] H2H TRUE TIE detected (time) — settlement will issue refunds");
+      timeTieRefund = true;
+      for (const score of timeScores) {
+        score.is_winner = false;
+        score.rank = 1;
+        score.is_tie_refund = true;
+      }
+    } else {
+      for (const score of timeScores) score.is_winner = score.rank === 1;
+    }
+
+    const timeWinnerIds = timeScores.filter((s) => s.rank === 1).map((s) => s.user_id);
+
+    const timeWriteErrors: string[] = [];
+    for (const score of timeScores) {
+      const { error: upsertError } = await supabase.from("contest_scores").upsert(
+        {
+          entry_id: score.entry_id,
+          pool_id: contestPoolId,
+          user_id: score.user_id,
+          total_points: 0,
+          margin_bonus: score.margin_bonus,
+          rank: score.rank,
+          is_tiebreak_resolved: false,
+          is_winner: score.is_winner ?? false,
+          crew_scores: score.crew_scores,
+          score_value: score.total_ms,
+          tiebreak_value: score.tiebreak_persist,
+        },
+        { onConflict: "entry_id" },
+      );
+
+      if (upsertError) {
+        console.error("[scoring-logic] Upsert error for entry", score.entry_id, upsertError.message);
+        timeWriteErrors.push(`contest_scores upsert failed for entry ${score.entry_id}: ${upsertError.message}`);
+      }
+
+      const { error: entryUpdateError } = await supabase
+        .from("contest_entries")
+        .update({
+          total_points: 0,
+          margin_error: score.tiebreak_persist,
+          rank: score.rank,
+          status: "active",
+        })
+        .eq("id", score.entry_id);
+
+      if (entryUpdateError) {
+        console.error("[scoring-logic] Entry update error:", score.entry_id, entryUpdateError.message);
+        timeWriteErrors.push(`contest_entries update failed for entry ${score.entry_id}: ${entryUpdateError.message}`);
+      }
+    }
+
+    if (timeWriteErrors.length > 0) {
+      throw new Error(
+        `[scoring-logic] Aborting pool ${contestPoolId} — ${timeWriteErrors.length} per-entry write failure(s). ` +
+          `Pool NOT marked scoring_completed. First error: ${timeWriteErrors[0]}`,
+      );
+    }
+
+    const { data: updatedTimePools, error: timePoolUpdateError } = await supabase
+      .from("contest_pools")
+      .update({
+        status: "scoring_completed",
+        winner_ids: timeTieRefund ? [] : timeWinnerIds,
+      })
+      .eq("id", contestPoolId)
+      .not("status", "in", "(settled,voided,cancelled)")
+      .select("id");
+
+    if (timePoolUpdateError) {
+      throw new Error(
+        `[scoring-logic] Failed to mark pool ${contestPoolId} scoring_completed: ${timePoolUpdateError.message}`,
+      );
+    }
+    if (!updatedTimePools || updatedTimePools.length === 0) {
+      throw new Error(
+        `[scoring-logic] Pool ${contestPoolId} reached a terminal status mid-scoring (settled/voided/cancelled) — refusing to clobber`,
+      );
+    }
+
+    await supabase.from("compliance_audit_logs").insert({
+      event_type: "contest_scored",
+      severity: "info",
+      description: `Scored: ${template?.name || template?.regatta_name || "Contest"} — pool ${contestPoolId}${
+        timeTieRefund ? " (H2H TIE REFUND)" : ""
+      }`,
+      metadata: {
+        contest_pool_id: contestPoolId,
+        entries_scored: timeScores.length,
+        winner_ids: timeTieRefund ? [] : timeWinnerIds,
+        top_score: timeScores[0]?.total_ms,
+        top_tiebreak: timeScores[0]?.tiebreak_persist,
+        scoring_primitive: timeCfg.primitive,
+        time_ref: timeCfg.time_ref,
+        roster_mode: rosterMode,
+        tiebreak: timeCfg.tiebreak,
+        is_tie_refund: timeTieRefund,
+      },
+    });
+
+    console.log(
+      "[scoring-logic] Done (time_vs_ref). Entries scored:",
+      timeScores.length,
+      "Winners:",
+      timeWinnerIds,
+      "TieRefund:",
+      timeTieRefund,
+    );
+
+    return { entriesScored: timeScores.length, winnerId: timeWinnerIds[0], isTieRefund: timeTieRefund };
+  }
+
   const fixedRosterRequired = cfg.direction === "low" || cfg.tiebreak === "aggregate_time";
+
   const minPicks = template?.min_picks ?? null;
   const maxPicks = template?.max_picks ?? null;
   if (fixedRosterRequired && (minPicks === null || maxPicks === null || minPicks !== maxPicks)) {
