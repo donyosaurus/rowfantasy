@@ -57,7 +57,7 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
         .array(
           z.object({
             crewId: z.string(),
-            event_id: z.string(),
+            event_id: z.string().optional(),
             predictedMargin: z.number().optional(),
           }),
         )
@@ -85,7 +85,7 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
     // Fetch template name for success message (and pre-RPC sanity check)
     const { data: template, error: templateError } = await auth.supabase
       .from("contest_templates")
-      .select("regatta_name, scoring_config")
+      .select("regatta_name, scoring_config, roster_mode")
       .eq("id", body.contestTemplateId)
       .single();
 
@@ -94,6 +94,18 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    const rosterMode = (template as any).roster_mode ?? "per_race";
+    const isPerCompetitor = (template as any).scoring_config !== null && rosterMode === "per_competitor";
+
+    // per_competitor (GC) rosters carry only crewId; every other mode keeps
+    // today's contract where each pick MUST name its race/event.
+    if (!isPerCompetitor && body.picks.some((p) => !p.event_id || p.event_id.trim() === "")) {
+      return new Response(
+        JSON.stringify({ error: "Each pick must include an event." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     // Legacy templates (scoring_config NULL) keep today's required-margin contract.
@@ -174,6 +186,7 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
     if (!entry.allowed) {
       const errorMap: Record<string, { status: number; message: string }> = {
         self_excluded: { status: 403, message: "Your account is self-excluded from contest entry." },
+        duplicate_competitor: { status: 400, message: "You can only pick each competitor once." },
         duplicate_event: { status: 400, message: "You can only select one crew per event." },
         insufficient_events: { status: 400, message: "You must pick crews from at least 2 different events." },
         insufficient_picks: { status: 400, message: "You must make at least the minimum number of picks for this contest." },
