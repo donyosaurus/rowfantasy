@@ -15,6 +15,15 @@ const RaceSchema = z.object({
   round: z.string().nullable().optional(),
   distance: z.string().nullable().optional(),
   scheduled_at: z.string().nullable().optional(),
+  round_no: z.number().int().min(1).optional(),
+}).strict();
+
+// Survivor only: the elimination ladder. Round 1's lock_at must equal lockTime
+// (enforced by admin_create_contest_v2).
+const RoundSchema = z.object({
+  round_no: z.number().int().min(1),
+  lock_at: z.string().datetime({ offset: true }),
+  advance_count: z.number().int().min(1),
 }).strict();
 
 const CompetitorSchema = z.object({
@@ -47,7 +56,8 @@ const CreateContestV2Schema = z.object({
   cardBannerUrl: z.string().nullable().optional(),
   draftBannerUrl: z.string().nullable().optional(),
   contestGroupId: z.string().uuid().nullable().optional(),
-  primitive: z.enum(["placement", "time_vs_ref"]).optional(),
+  primitive: z.enum(["placement", "time_vs_ref", "survivor"]).optional(),
+  rounds: z.array(RoundSchema).min(2).optional(),
   rosterMode: z.enum(["per_race", "per_competitor"]).optional(),
   scoringConfig: ScoringConfigSchema.optional(),
   minPicks: z.number().int().optional(),
@@ -183,6 +193,23 @@ Deno.serve(withFnVersion('admin-create-contest', async (req) => {
         return bad('primitive does not match scoringConfig.primitive');
       }
 
+      if (primitive === 'survivor') {
+        if (!v2.scoringConfig) {
+          return bad('survivor contests require an explicit scoringConfig');
+        }
+        if (!v2.rounds) {
+          return bad('survivor contests require rounds');
+        }
+        if (
+          typeof v2.minPicks !== 'number' || typeof v2.maxPicks !== 'number' ||
+          v2.minPicks !== v2.maxPicks || v2.minPicks < 2
+        ) {
+          return bad('survivor contests require a fixed pick count of at least 2');
+        }
+      } else if (v2.rounds) {
+        return bad('rounds is only valid for survivor contests');
+      }
+
       const lockDate = new Date(v2.lockTime);
       if (isNaN(lockDate.getTime())) {
         return new Response(JSON.stringify({ error: 'Invalid lock time format' }), {
@@ -274,6 +301,7 @@ Deno.serve(withFnVersion('admin-create-contest', async (req) => {
         p_min_picks: v2.minPicks ?? 2,
         p_max_picks: v2.maxPicks ?? 4,
         _admin_user_id: user.id,
+        p_rounds: v2.rounds ?? null,
       });
 
       if (v2Error) {
