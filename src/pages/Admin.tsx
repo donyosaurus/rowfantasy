@@ -174,6 +174,10 @@ const Admin = () => {
     minPicks: "2",
     maxPicks: "4",
     stages: ["Stage 1", "Stage 2"],
+    rounds: [{ lockTime: "", advanceCount: "2" }, { lockTime: "", advanceCount: "1" }],
+    raceRounds: {},
+
+
 
   });
   const [newCrewInput, setNewCrewInput] = useState<NewCrew>({
