@@ -622,6 +622,7 @@ export type Database = {
           gender_category: string
           id: string
           lock_time: string
+          max_entries_per_user: number
           max_picks: number
           min_picks: number
           name: string | null
@@ -646,6 +647,7 @@ export type Database = {
           gender_category: string
           id?: string
           lock_time: string
+          max_entries_per_user?: number
           max_picks?: number
           min_picks?: number
           name?: string | null
@@ -670,6 +672,7 @@ export type Database = {
           gender_category?: string
           id?: string
           lock_time?: string
+          max_entries_per_user?: number
           max_picks?: number
           min_picks?: number
           name?: string | null

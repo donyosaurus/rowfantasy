@@ -203,6 +203,7 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
         too_many_picks: { status: 400, message: "You have selected more picks than this contest allows." },
         insufficient_competitors: { status: 400, message: "Your picks must include at least 2 different competitors." },
         invalid_pick: { status: 400, message: "One or more picks are not valid for this contest." },
+        entry_limit_reached: { status: 400, message: "You have already entered this contest the maximum number of times." },
         template_not_found: { status: 404, message: "Contest template not found." },
         wallet_not_found: { status: 404, message: "Wallet not found. Please contact support." },
         no_pool_for_tier: { status: 404, message: "No pool found for this tier." },
