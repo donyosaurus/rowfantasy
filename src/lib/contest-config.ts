@@ -9,7 +9,8 @@ export type ContestTypeKey =
   | "classic_total_time"
   | "gc_pool"
   | "team_time_trial"
-  | "deficit";
+  | "deficit"
+  | "survivor";
 
 export interface PlacementScoringConfig {
   primitive: "placement";
