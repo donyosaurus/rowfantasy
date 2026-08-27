@@ -622,7 +622,14 @@ const Admin = () => {
 
 
   const removeCrewFromForm = (crewId: string, eventId: string) => {
-    setCreateForm(prev => ({ ...prev, crews: prev.crews.filter(c => !(c.crew_id === crewId && c.event_id === eventId)) }));
+    setCreateForm(prev => {
+      const nextCrews = prev.crews.filter(c => !(c.crew_id === crewId && c.event_id === eventId));
+      const nextRaceRounds = { ...prev.raceRounds };
+      if (!nextCrews.some(c => c.event_id === eventId)) {
+        delete nextRaceRounds[eventId];
+      }
+      return { ...prev, crews: nextCrews, raceRounds: nextRaceRounds };
+    });
   };
 
   const ordinal = (n: number) => {
@@ -744,7 +751,7 @@ const Admin = () => {
     const effectiveLockTime = isSurvivor ? (createForm.rounds[0]?.lockTime || "") : createForm.lockTime;
     if (!effectiveLockTime) { toast.error("Lock time is required"); return; }
     const lockDate = new Date(effectiveLockTime);
-    if (isNaN(lockDate.getTime())) { toast.error("Lock time is required"); return; }
+    if (isSurvivor && isNaN(lockDate.getTime())) { toast.error("Lock time is required"); return; }
     if (lockDate <= new Date()) { toast.error("Lock time must be in the future"); return; }
     if (createForm.crews.length < 2) { toast.error("At least 2 crews are required"); return; }
     const maxEntries = parseInt(createForm.maxEntries);
