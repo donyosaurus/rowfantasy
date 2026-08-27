@@ -70,3 +70,5 @@ project_id = "nutshvnnrwrpieirvjbc"
     verify_jwt = true
   [functions.otp-verify]
     verify_jwt = true
+  [functions.survivor-round-picks]
+    verify_jwt = true

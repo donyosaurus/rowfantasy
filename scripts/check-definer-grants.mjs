@@ -58,6 +58,8 @@ const GUARDED_FUNCTIONS = [
   'delete_email',
   'move_to_dlq',
   'auto_lock_expired_contests',
+  'submit_survivor_round_picks',
+  'score_survivor_round_atomic',
 ];
 
 const FORBIDDEN_ROLES = ['public', 'anon', 'authenticated'];

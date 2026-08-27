@@ -201,6 +201,68 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Template scoring_config drives routing. Fetched here (before the legacy
+    // sibling-copy block and the poolsToScore loop) so survivor templates never
+    // reach the pool-by-pool scorer.
+    const { data: templateRow } = await supabaseAdmin
+      .from('contest_templates')
+      .select('scoring_config')
+      .eq('id', requestedPool.contest_template_id)
+      .single();
+    const templateScoringConfig = templateRow?.scoring_config ?? null;
+
+    if ((templateScoringConfig as any)?.primitive === 'survivor') {
+      if (forceRescore) {
+        return new Response(JSON.stringify({
+          error: 'Rescoring a scored survivor round is not supported — void the contest if results were entered incorrectly.',
+        }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      const terminal = ['settled', 'voided', 'cancelled'];
+      if (terminal.includes(requestedPool.status)) {
+        const skipReason = requestedPool.status === 'settled'
+          ? 'Pool already settled — refusing to rescore'
+          : `Status '${requestedPool.status}' not ready`;
+        return new Response(JSON.stringify({
+          success: true,
+          poolsScored: 0,
+          poolsSkipped: 1,
+          totalEntriesScored: 0,
+          message: 'Batch scoring completed: 0 pool(s) scored, 1 skipped',
+          details: [{ success: true, poolId: contestPoolId, skipped: true, skipReason }],
+        }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      const { data: survivorData, error: survivorError } = await supabaseAdmin.rpc(
+        'score_survivor_round_atomic',
+        { p_template_id: requestedPool.contest_template_id, _admin_user_id: user.id },
+      );
+
+      if (survivorError) {
+        const msg = String(survivorError.message ?? '');
+        const expected = [
+          'results incomplete',
+          'no round is ready',
+          'rounds must be scored in order',
+          'concurrent scoring run',
+        ];
+        if (expected.some((e) => msg.includes(e))) {
+          console.warn('[scoring] survivor round not scorable:', msg);
+          return new Response(JSON.stringify({ error: msg }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        console.error('[scoring] survivor scoring failed:', survivorError);
+        return new Response(JSON.stringify({ error: 'An internal error occurred during scoring' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      return new Response(JSON.stringify({ success: true, survivor: true, ...(survivorData ?? {}) }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Find ALL sibling pools
     const { data: siblingPools, error: siblingsError } = await supabaseAdmin
       .from('contest_pools')
@@ -214,13 +276,6 @@ Deno.serve(async (req) => {
     }
 
     // Legacy templates only: copy crew results to siblings missing them.
-    const { data: templateRow } = await supabaseAdmin
-      .from('contest_templates')
-      .select('scoring_config')
-      .eq('id', requestedPool.contest_template_id)
-      .single();
-    const templateScoringConfig = templateRow?.scoring_config ?? null;
-
     if (templateScoringConfig === null) {
       // Copy crew results to siblings missing them
       const { data: sourceCrews } = await supabaseAdmin
