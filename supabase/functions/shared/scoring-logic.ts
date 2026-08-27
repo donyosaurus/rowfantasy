@@ -148,10 +148,21 @@ export const TimeVsRefConfigSchema = z.object({
   tiebreak: z.literal("none"),
 }).strict();
 
+// Survivor is scored round-by-round by score_survivor_round_atomic in Postgres.
+// The schema lives here only so create-side validation shares one source of truth;
+// scoreConfiguredPool refuses survivor configs outright (see below).
+export const SurvivorConfigSchema = z.object({
+  primitive: z.literal("survivor"),
+  points_table: z.record(z.string(), z.number().int().min(0).max(100000)),
+  direction: z.literal("high"),
+  dnf_policy: z.literal("zero"),
+  tiebreak: z.literal("none"),
+}).strict();
+
 // zod 3.22 rejects superRefine'd object schemas as discriminated-union members,
 // so the cross-field placement checks live on the union itself.
 export const ScoringConfigSchema = z
-  .discriminatedUnion("primitive", [PlacementConfigSchema, TimeVsRefConfigSchema])
+  .discriminatedUnion("primitive", [PlacementConfigSchema, TimeVsRefConfigSchema, SurvivorConfigSchema])
   .superRefine((c, ctx) => {
     if (c.primitive === "placement") {
       if (c.direction === "high" && c.dnf_policy !== "zero") {
@@ -168,6 +179,7 @@ export const ScoringConfigSchema = z
 
 export type PlacementScoringConfig = z.infer<typeof PlacementConfigSchema>;
 export type TimeVsRefScoringConfig = z.infer<typeof TimeVsRefConfigSchema>;
+export type SurvivorScoringConfig = z.infer<typeof SurvivorConfigSchema>;
 
 
 export type ScoringConfig = z.infer<typeof ScoringConfigSchema>;
@@ -752,6 +764,14 @@ async function scoreConfiguredPool(
     );
   }
   const cfg = parsed.data;
+
+  // Defense in depth: survivor outcomes are written ONLY by
+  // score_survivor_round_atomic. The handler gates on template primitive, but
+  // forceRescore bypasses the status gate, so refuse here too.
+  if (cfg.primitive === "survivor") {
+    throw new Error("survivor pools are scored via score_survivor_round_atomic");
+  }
+
   const template = pool.contest_templates;
   const templateId = pool.contest_template_id;
 
