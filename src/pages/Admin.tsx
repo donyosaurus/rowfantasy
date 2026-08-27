@@ -861,17 +861,75 @@ const Admin = () => {
             : `Picks must satisfy 2 ≤ Min picks ≤ Max picks ≤ number of races (${rosterSize})`
         ); return;
       }
+
+      // ---- Survivor-only validation (mirrors the backend) ----
+      let survivorRounds: { round_no: number; lock_at: string; advance_count: number }[] = [];
+      if (isSurvivor) {
+        const rounds = createForm.rounds;
+        if (rounds.length < 2) { toast.error("Survivor contests need at least 2 rounds"); return; }
+        if (minPicks < 2) { toast.error("Survivor contests need at least 2 picks per entry"); return; }
+        let prevLock: number | null = null;
+        let prevAdvance: number | null = null;
+        for (let i = 0; i < rounds.length; i++) {
+          const r = rounds[i];
+          if (!r.lockTime) { toast.error(`Round ${i + 1} needs a lock time`); return; }
+          const t = new Date(r.lockTime).getTime();
+          if (isNaN(t)) { toast.error(`Round ${i + 1} needs a valid lock time`); return; }
+          if (prevLock !== null && t <= prevLock) { toast.error("Each round must lock after the previous one"); return; }
+          prevLock = t;
+          const adv = Number(r.advanceCount);
+          if (!Number.isInteger(adv) || adv < 1 || adv > 2147483647) {
+            toast.error(`Round ${i + 1} advances must be a whole number between 1 and 2147483647`); return;
+          }
+          if (prevAdvance !== null && adv >= prevAdvance) {
+            toast.error("Each Survivor round must advance fewer entries than the round before it"); return;
+          }
+          prevAdvance = adv;
+        }
+        if (Number(rounds[rounds.length - 1].advanceCount) !== 1) {
+          toast.error("The final Survivor round must advance exactly 1"); return;
+        }
+        for (const key of raceKeys) {
+          const assigned = Number(createForm.raceRounds[key]);
+          if (!Number.isInteger(assigned) || assigned < 1 || assigned > rounds.length) {
+            toast.error("Every race must be assigned to a round"); return;
+          }
+        }
+        for (let i = 0; i < rounds.length; i++) {
+          const roundNo = i + 1;
+          const roundRaces = raceKeys.filter(k => Number(createForm.raceRounds[k]) === roundNo);
+          if (roundRaces.length < minPicks) { toast.error(`Round ${roundNo} needs at least ${minPicks} races`); return; }
+          const competitorsInRound = new Set(
+            createForm.crews.filter(c => roundRaces.includes(c.event_id)).map(c => c.crew_id)
+          );
+          if (competitorsInRound.size < 2) { toast.error(`Round ${roundNo} needs at least 2 different competitors`); return; }
+        }
+        survivorRounds = rounds.map((r, i) => ({
+          round_no: i + 1,
+          lock_at: i === 0 ? lockDate.toISOString() : new Date(r.lockTime).toISOString(),
+          advance_count: Number(r.advanceCount),
+        }));
+      }
+
       v2Body = {
         name: createForm.regattaName.trim(),
         sport: createForm.sport,
         genderCategory: createForm.genderCategory,
         lockTime: lockDate.toISOString(),
-        races: raceKeys.map((key, i) => ({
-          race_key: key,
-          name: key,
-          race_order: i + 1,
-          event_class: eventClass || null,
-        })),
+        races: isSurvivor
+          ? raceKeys.map((key, i) => ({
+              race_key: key,
+              name: key,
+              race_order: i + 1,
+              event_class: null,
+              round_no: Number(createForm.raceRounds[key]),
+            }))
+          : raceKeys.map((key, i) => ({
+              race_key: key,
+              name: key,
+              race_order: i + 1,
+              event_class: eventClass || null,
+            })),
         competitors,
         // GC: every competitor is entered in every stage (backend requires the full cross-product).
         raceEntries: isGc
@@ -880,9 +938,9 @@ const Admin = () => {
         entryFeeCents,
         maxEntries,
         payouts,
-        entryTiers: entryTiersPayload,
+        entryTiers: isSurvivor ? null : entryTiersPayload,
         allowOverflow: createForm.allowOverflow,
-        voidUnfilledOnSettle: createForm.voidUnfilledOnSettle,
+        voidUnfilledOnSettle: isSurvivor ? true : createForm.voidUnfilledOnSettle,
         cardBannerUrl: createForm.cardBannerUrl.trim() || null,
         draftBannerUrl: createForm.draftBannerUrl.trim() || null,
         contestGroupId: (createForm.contestGroupId && createForm.contestGroupId !== "none") ? createForm.contestGroupId : null,
@@ -891,6 +949,7 @@ const Admin = () => {
         scoringConfig,
         minPicks,
         maxPicks: effectiveMax,
+        ...(isSurvivor ? { rounds: survivorRounds } : {}),
 
       };
     }
