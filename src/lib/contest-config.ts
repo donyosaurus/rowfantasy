@@ -99,6 +99,14 @@ export const CONTEST_TYPES: {
     fixedRoster: true,
     requiresEventClass: false,
   },
+  {
+    key: "survivor",
+    label: "Survivor",
+    subtitle: "Multi-round elimination — survive each round to advance; last entry standing wins",
+    fixedRoster: true,
+    requiresEventClass: false,
+    rounds: true,
+  },
 ];
 
 export function getScoringPreset(key: ContestTypeKey): ScoringConfig {
