@@ -601,6 +601,10 @@ const Admin = () => {
       minPicks: "2",
       maxPicks: "4",
       stages: ["Stage 1", "Stage 2"],
+      rounds: [{ lockTime: "", advanceCount: "2" }, { lockTime: "", advanceCount: "1" }],
+      raceRounds: {},
+
+
 
     });
     setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
