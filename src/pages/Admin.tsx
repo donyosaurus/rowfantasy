@@ -1557,7 +1557,81 @@ const Admin = () => {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
+            </div>
+              {createForm.contestType === "survivor" && (
+                <div className="space-y-4">
+                  <div className="border rounded-lg p-3 space-y-2">
+                    <Label className="text-sm font-semibold">Rounds *</Label>
+                    <p className="text-xs text-muted-foreground">Each round locks at its own time. Entries that fail to advance are eliminated. The final round must advance exactly 1.</p>
+                    {createForm.rounds.map((r, idx) => (
+                      <div key={idx} className="flex items-end gap-2">
+                        <span className="text-xs text-muted-foreground w-16 pb-2">Round {idx + 1}</span>
+                        <div className="flex-1">
+                          <Label className="text-xs">Lock time</Label>
+                          <Input
+                            type="datetime-local"
+                            value={r.lockTime}
+                            onChange={(e) => { const v = e.target.value; setCreateForm(prev => ({ ...prev, rounds: prev.rounds.map((x, i) => i === idx ? { ...x, lockTime: v } : x) })); }}
+                          />
+                        </div>
+                        <div className="w-28">
+                          <Label className="text-xs">Advances</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={r.advanceCount}
+                            onChange={(e) => { const v = e.target.value; setCreateForm(prev => ({ ...prev, rounds: prev.rounds.map((x, i) => i === idx ? { ...x, advanceCount: v } : x) })); }}
+                          />
+                        </div>
+                        {createForm.rounds.length > 2 && (
+                          <Button size="sm" variant="ghost" onClick={() => setCreateForm(prev => {
+                            const removed = idx + 1;
+                            const nextRaceRounds: Record<string, string> = {};
+                            for (const [k, v] of Object.entries(prev.raceRounds)) {
+                              const n = Number(v);
+                              if (n === removed) continue;
+                              nextRaceRounds[k] = n > removed ? String(n - 1) : v;
+                            }
+                            return { ...prev, rounds: prev.rounds.filter((_, i) => i !== idx), raceRounds: nextRaceRounds };
+                          })}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    <Button size="sm" variant="outline" onClick={() => setCreateForm(prev => ({ ...prev, rounds: [...prev.rounds, { lockTime: "", advanceCount: "1" }] }))}>
+                      <Plus className="mr-2 h-4 w-4" />Add Round
+                    </Button>
+                    <p className="text-xs text-muted-foreground">Survivor contests always void if unfilled at settle time.</p>
+                  </div>
+                  <div className="border rounded-lg p-3 space-y-2">
+                    <Label className="text-sm font-semibold">Race → Round *</Label>
+                    <p className="text-xs text-muted-foreground">Every race must belong to a round. Each round needs at least as many races as the picks-per-entry, and at least 2 different competitors.</p>
+                    {Array.from(new Set(createForm.crews.map(c => c.event_id))).map(key => (
+                      <div key={key} className="flex items-center gap-2">
+                        <span className="text-sm flex-1 truncate">{key}</span>
+                        <div className="w-40">
+                          <Select
+                            value={createForm.raceRounds[key] || ""}
+                            onValueChange={(value) => setCreateForm(prev => ({ ...prev, raceRounds: { ...prev.raceRounds, [key]: value } }))}
+                          >
+                            <SelectTrigger><SelectValue placeholder="Round" /></SelectTrigger>
+                            <SelectContent>
+                              {createForm.rounds.map((_, i) => (
+                                <SelectItem key={i} value={String(i + 1)}>Round {i + 1}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    ))}
+                    {createForm.crews.length === 0 && (
+                      <p className="text-xs text-muted-foreground">Add competitors below to assign their races to rounds.</p>
+                    )}
+                  </div>
+                </div>
+              )}
               {CONTEST_TYPES.find(t => t.key === createForm.contestType)?.requiresEventClass && (
                 <div>
                   <Label htmlFor="eventClass">Event Class *</Label>
