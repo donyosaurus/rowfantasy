@@ -59,6 +59,8 @@ export const CONTEST_TYPES: {
   fixedRoster: boolean;
   requiresEventClass: boolean;
   perCompetitor?: boolean;
+  /** Survivor only: multi-round elimination with a rounds builder. */
+  rounds?: boolean;
 }[] = [
   {
     key: "classic",
