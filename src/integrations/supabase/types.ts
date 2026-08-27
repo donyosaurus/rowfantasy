@@ -271,6 +271,57 @@ export type Database = {
           },
         ]
       }
+      contest_entry_rounds: {
+        Row: {
+          advanced: boolean | null
+          entry_id: string
+          picks: Json
+          points: number | null
+          round_no: number
+          round_rank: number | null
+          submitted_at: string
+          template_id: string
+          updated_at: string
+        }
+        Insert: {
+          advanced?: boolean | null
+          entry_id: string
+          picks: Json
+          points?: number | null
+          round_no: number
+          round_rank?: number | null
+          submitted_at?: string
+          template_id: string
+          updated_at?: string
+        }
+        Update: {
+          advanced?: boolean | null
+          entry_id?: string
+          picks?: Json
+          points?: number | null
+          round_no?: number
+          round_rank?: number | null
+          submitted_at?: string
+          template_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contest_entry_rounds_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "contest_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contest_entry_rounds_template_id_round_no_fkey"
+            columns: ["template_id", "round_no"]
+            isOneToOne: false
+            referencedRelation: "contest_rounds"
+            referencedColumns: ["template_id", "round_no"]
+          },
+        ]
+      }
       contest_groups: {
         Row: {
           created_at: string | null
@@ -501,6 +552,7 @@ export type Database = {
           race_key: string
           race_order: number
           round: string | null
+          round_no: number | null
           scheduled_at: string | null
           template_id: string
         }
@@ -514,6 +566,7 @@ export type Database = {
           race_key: string
           race_order?: number
           round?: string | null
+          round_no?: number | null
           scheduled_at?: string | null
           template_id: string
         }
@@ -527,12 +580,54 @@ export type Database = {
           race_key?: string
           race_order?: number
           round?: string | null
+          round_no?: number | null
           scheduled_at?: string | null
           template_id?: string
         }
         Relationships: [
           {
             foreignKeyName: "contest_races_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "contest_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contest_rounds: {
+        Row: {
+          advance_count: number
+          created_at: string
+          id: string
+          lock_at: string
+          round_no: number
+          scored_at: string | null
+          status: string
+          template_id: string
+        }
+        Insert: {
+          advance_count: number
+          created_at?: string
+          id?: string
+          lock_at: string
+          round_no: number
+          scored_at?: string | null
+          status?: string
+          template_id: string
+        }
+        Update: {
+          advance_count?: number
+          created_at?: string
+          id?: string
+          lock_at?: string
+          round_no?: number
+          scored_at?: string | null
+          status?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contest_rounds_template_id_fkey"
             columns: ["template_id"]
             isOneToOne: false
             referencedRelation: "contest_templates"
@@ -1740,6 +1835,7 @@ export type Database = {
           p_race_entries: Json
           p_races: Json
           p_roster_mode?: string
+          p_rounds?: Json
           p_scoring_config?: Json
           p_sport: string
           p_void_unfilled_on_settle?: boolean
@@ -2003,6 +2099,10 @@ export type Database = {
           inserted: boolean
         }[]
       }
+      score_survivor_round_atomic: {
+        Args: { _admin_user_id: string; p_template_id: string }
+        Returns: Json
+      }
       settle_contest_pool_atomic: {
         Args: { _admin_user_id: string; _pool_id: string }
         Returns: {
@@ -2020,6 +2120,15 @@ export type Database = {
           _admin_user_id: string
           _reason: string
           _target_user_id: string
+        }
+        Returns: Json
+      }
+      submit_survivor_round_picks: {
+        Args: {
+          _entry_id: string
+          _picks: Json
+          _round_no: number
+          _user_id: string
         }
         Returns: Json
       }
