@@ -1629,8 +1629,8 @@ const Admin = () => {
 
               <div>
                 <Label htmlFor="lockTime">Lock Time *</Label>
-                <Input id="lockTime" type="datetime-local" value={createForm.lockTime} onChange={(e) => setCreateForm(prev => ({ ...prev, lockTime: e.target.value }))} />
-                <p className="text-xs text-muted-foreground mt-1">Entries will be locked at this time</p>
+                <Input id="lockTime" type="datetime-local" disabled={createForm.contestType === "survivor"} value={createForm.contestType === "survivor" ? (createForm.rounds[0]?.lockTime || "") : createForm.lockTime} onChange={(e) => setCreateForm(prev => ({ ...prev, lockTime: e.target.value }))} />
+                <p className="text-xs text-muted-foreground mt-1">{createForm.contestType === "survivor" ? "Set by Round 1" : "Entries will be locked at this time"}</p>
               </div>
             </div>
 
