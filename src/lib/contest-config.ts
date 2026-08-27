@@ -28,7 +28,19 @@ export interface TimeVsRefScoringConfig {
   tiebreak: "none";
 }
 
-export type ScoringConfig = PlacementScoringConfig | TimeVsRefScoringConfig;
+export interface SurvivorScoringConfig {
+  primitive: "survivor";
+  points_table: Record<string, number>;
+  direction: "high";
+  dnf_policy: "zero";
+  tiebreak: "none";
+}
+
+export type ScoringConfig =
+  | PlacementScoringConfig
+  | TimeVsRefScoringConfig
+  | SurvivorScoringConfig;
+
 
 const CLASSIC_POINTS_TABLE: Record<string, number> = {
   "1": 100,
