@@ -102,6 +102,15 @@ export const CONTEST_TYPES: {
 ];
 
 export function getScoringPreset(key: ContestTypeKey): ScoringConfig {
+  if (key === "survivor") {
+    return {
+      primitive: "survivor",
+      points_table: { ...CLASSIC_POINTS_TABLE },
+      direction: "high",
+      dnf_policy: "zero",
+      tiebreak: "none",
+    };
+  }
   if (key === "gc_pool" || key === "team_time_trial") {
     return {
       primitive: "time_vs_ref",
