@@ -737,10 +737,14 @@ const Admin = () => {
   };
 
   const submitCreateContest = async () => {
+    const isSurvivor = createForm.contestType === "survivor";
+    if (isSurvivor && createForm.multiTier) { toast.error("Survivor contests don't support entry tiers"); return; }
     if (!createForm.regattaName.trim()) { toast.error("Regatta name is required"); return; }
     if (!createForm.genderCategory) { toast.error("Gender category is required"); return; }
-    if (!createForm.lockTime) { toast.error("Lock time is required"); return; }
-    const lockDate = new Date(createForm.lockTime);
+    const effectiveLockTime = isSurvivor ? (createForm.rounds[0]?.lockTime || "") : createForm.lockTime;
+    if (!effectiveLockTime) { toast.error("Lock time is required"); return; }
+    const lockDate = new Date(effectiveLockTime);
+    if (isNaN(lockDate.getTime())) { toast.error("Lock time is required"); return; }
     if (lockDate <= new Date()) { toast.error("Lock time must be in the future"); return; }
     if (createForm.crews.length < 2) { toast.error("At least 2 crews are required"); return; }
     const maxEntries = parseInt(createForm.maxEntries);
