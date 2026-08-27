@@ -9,7 +9,8 @@ export type ContestTypeKey =
   | "classic_total_time"
   | "gc_pool"
   | "team_time_trial"
-  | "deficit";
+  | "deficit"
+  | "survivor";
 
 export interface PlacementScoringConfig {
   primitive: "placement";
@@ -27,7 +28,19 @@ export interface TimeVsRefScoringConfig {
   tiebreak: "none";
 }
 
-export type ScoringConfig = PlacementScoringConfig | TimeVsRefScoringConfig;
+export interface SurvivorScoringConfig {
+  primitive: "survivor";
+  points_table: Record<string, number>;
+  direction: "high";
+  dnf_policy: "zero";
+  tiebreak: "none";
+}
+
+export type ScoringConfig =
+  | PlacementScoringConfig
+  | TimeVsRefScoringConfig
+  | SurvivorScoringConfig;
+
 
 const CLASSIC_POINTS_TABLE: Record<string, number> = {
   "1": 100,
@@ -46,6 +59,8 @@ export const CONTEST_TYPES: {
   fixedRoster: boolean;
   requiresEventClass: boolean;
   perCompetitor?: boolean;
+  /** Survivor only: multi-round elimination with a rounds builder. */
+  rounds?: boolean;
 }[] = [
   {
     key: "classic",
@@ -84,9 +99,26 @@ export const CONTEST_TYPES: {
     fixedRoster: true,
     requiresEventClass: false,
   },
+  {
+    key: "survivor",
+    label: "Survivor",
+    subtitle: "Multi-round elimination — survive each round to advance; last entry standing wins",
+    fixedRoster: true,
+    requiresEventClass: false,
+    rounds: true,
+  },
 ];
 
 export function getScoringPreset(key: ContestTypeKey): ScoringConfig {
+  if (key === "survivor") {
+    return {
+      primitive: "survivor",
+      points_table: { ...CLASSIC_POINTS_TABLE },
+      direction: "high",
+      dnf_policy: "zero",
+      tiebreak: "none",
+    };
+  }
   if (key === "gc_pool" || key === "team_time_trial") {
     return {
       primitive: "time_vs_ref",

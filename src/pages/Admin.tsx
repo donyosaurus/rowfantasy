@@ -91,6 +91,12 @@ interface CreateContestForm {
   maxPicks: string;
   /** GC / stage-race only: ordered stage names. Ignored by every other type. */
   stages: string[];
+  /** Survivor only: ordered rounds. Array index + 1 is the round_no. */
+  rounds: { lockTime: string; advanceCount: string }[];
+  /** Survivor only: race key (event_id) -> round number as a string. */
+  raceRounds: Record<string, string>;
+
+
 
 }
 
@@ -168,6 +174,10 @@ const Admin = () => {
     minPicks: "2",
     maxPicks: "4",
     stages: ["Stage 1", "Stage 2"],
+    rounds: [{ lockTime: "", advanceCount: "2" }, { lockTime: "", advanceCount: "1" }],
+    raceRounds: {},
+
+
 
   });
   const [newCrewInput, setNewCrewInput] = useState<NewCrew>({
@@ -591,6 +601,10 @@ const Admin = () => {
       minPicks: "2",
       maxPicks: "4",
       stages: ["Stage 1", "Stage 2"],
+      rounds: [{ lockTime: "", advanceCount: "2" }, { lockTime: "", advanceCount: "1" }],
+      raceRounds: {},
+
+
 
     });
     setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
@@ -723,10 +737,14 @@ const Admin = () => {
   };
 
   const submitCreateContest = async () => {
+    const isSurvivor = createForm.contestType === "survivor";
+    if (isSurvivor && createForm.multiTier) { toast.error("Survivor contests don't support entry tiers"); return; }
     if (!createForm.regattaName.trim()) { toast.error("Regatta name is required"); return; }
     if (!createForm.genderCategory) { toast.error("Gender category is required"); return; }
-    if (!createForm.lockTime) { toast.error("Lock time is required"); return; }
-    const lockDate = new Date(createForm.lockTime);
+    const effectiveLockTime = isSurvivor ? (createForm.rounds[0]?.lockTime || "") : createForm.lockTime;
+    if (!effectiveLockTime) { toast.error("Lock time is required"); return; }
+    const lockDate = new Date(effectiveLockTime);
+    if (isNaN(lockDate.getTime())) { toast.error("Lock time is required"); return; }
     if (lockDate <= new Date()) { toast.error("Lock time must be in the future"); return; }
     if (createForm.crews.length < 2) { toast.error("At least 2 crews are required"); return; }
     const maxEntries = parseInt(createForm.maxEntries);
@@ -843,17 +861,75 @@ const Admin = () => {
             : `Picks must satisfy 2 ≤ Min picks ≤ Max picks ≤ number of races (${rosterSize})`
         ); return;
       }
+
+      // ---- Survivor-only validation (mirrors the backend) ----
+      let survivorRounds: { round_no: number; lock_at: string; advance_count: number }[] = [];
+      if (isSurvivor) {
+        const rounds = createForm.rounds;
+        if (rounds.length < 2) { toast.error("Survivor contests need at least 2 rounds"); return; }
+        if (minPicks < 2) { toast.error("Survivor contests need at least 2 picks per entry"); return; }
+        let prevLock: number | null = null;
+        let prevAdvance: number | null = null;
+        for (let i = 0; i < rounds.length; i++) {
+          const r = rounds[i];
+          if (!r.lockTime) { toast.error(`Round ${i + 1} needs a lock time`); return; }
+          const t = new Date(r.lockTime).getTime();
+          if (isNaN(t)) { toast.error(`Round ${i + 1} needs a valid lock time`); return; }
+          if (prevLock !== null && t <= prevLock) { toast.error("Each round must lock after the previous one"); return; }
+          prevLock = t;
+          const adv = Number(r.advanceCount);
+          if (!Number.isInteger(adv) || adv < 1 || adv > 2147483647) {
+            toast.error(`Round ${i + 1} advances must be a whole number between 1 and 2147483647`); return;
+          }
+          if (prevAdvance !== null && adv >= prevAdvance) {
+            toast.error("Each Survivor round must advance fewer entries than the round before it"); return;
+          }
+          prevAdvance = adv;
+        }
+        if (Number(rounds[rounds.length - 1].advanceCount) !== 1) {
+          toast.error("The final Survivor round must advance exactly 1"); return;
+        }
+        for (const key of raceKeys) {
+          const assigned = Number(createForm.raceRounds[key]);
+          if (!Number.isInteger(assigned) || assigned < 1 || assigned > rounds.length) {
+            toast.error("Every race must be assigned to a round"); return;
+          }
+        }
+        for (let i = 0; i < rounds.length; i++) {
+          const roundNo = i + 1;
+          const roundRaces = raceKeys.filter(k => Number(createForm.raceRounds[k]) === roundNo);
+          if (roundRaces.length < minPicks) { toast.error(`Round ${roundNo} needs at least ${minPicks} races`); return; }
+          const competitorsInRound = new Set(
+            createForm.crews.filter(c => roundRaces.includes(c.event_id)).map(c => c.crew_id)
+          );
+          if (competitorsInRound.size < 2) { toast.error(`Round ${roundNo} needs at least 2 different competitors`); return; }
+        }
+        survivorRounds = rounds.map((r, i) => ({
+          round_no: i + 1,
+          lock_at: i === 0 ? lockDate.toISOString() : new Date(r.lockTime).toISOString(),
+          advance_count: Number(r.advanceCount),
+        }));
+      }
+
       v2Body = {
         name: createForm.regattaName.trim(),
         sport: createForm.sport,
         genderCategory: createForm.genderCategory,
         lockTime: lockDate.toISOString(),
-        races: raceKeys.map((key, i) => ({
-          race_key: key,
-          name: key,
-          race_order: i + 1,
-          event_class: eventClass || null,
-        })),
+        races: isSurvivor
+          ? raceKeys.map((key, i) => ({
+              race_key: key,
+              name: key,
+              race_order: i + 1,
+              event_class: null,
+              round_no: Number(createForm.raceRounds[key]),
+            }))
+          : raceKeys.map((key, i) => ({
+              race_key: key,
+              name: key,
+              race_order: i + 1,
+              event_class: eventClass || null,
+            })),
         competitors,
         // GC: every competitor is entered in every stage (backend requires the full cross-product).
         raceEntries: isGc
@@ -862,9 +938,9 @@ const Admin = () => {
         entryFeeCents,
         maxEntries,
         payouts,
-        entryTiers: entryTiersPayload,
+        entryTiers: isSurvivor ? null : entryTiersPayload,
         allowOverflow: createForm.allowOverflow,
-        voidUnfilledOnSettle: createForm.voidUnfilledOnSettle,
+        voidUnfilledOnSettle: isSurvivor ? true : createForm.voidUnfilledOnSettle,
         cardBannerUrl: createForm.cardBannerUrl.trim() || null,
         draftBannerUrl: createForm.draftBannerUrl.trim() || null,
         contestGroupId: (createForm.contestGroupId && createForm.contestGroupId !== "none") ? createForm.contestGroupId : null,
@@ -873,6 +949,7 @@ const Admin = () => {
         scoringConfig,
         minPicks,
         maxPicks: effectiveMax,
+        ...(isSurvivor ? { rounds: survivorRounds } : {}),
 
       };
     }
@@ -1480,7 +1557,81 @@ const Admin = () => {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
+            </div>
+              {createForm.contestType === "survivor" && (
+                <div className="space-y-4">
+                  <div className="border rounded-lg p-3 space-y-2">
+                    <Label className="text-sm font-semibold">Rounds *</Label>
+                    <p className="text-xs text-muted-foreground">Each round locks at its own time. Entries that fail to advance are eliminated. The final round must advance exactly 1.</p>
+                    {createForm.rounds.map((r, idx) => (
+                      <div key={idx} className="flex items-end gap-2">
+                        <span className="text-xs text-muted-foreground w-16 pb-2">Round {idx + 1}</span>
+                        <div className="flex-1">
+                          <Label className="text-xs">Lock time</Label>
+                          <Input
+                            type="datetime-local"
+                            value={r.lockTime}
+                            onChange={(e) => { const v = e.target.value; setCreateForm(prev => ({ ...prev, rounds: prev.rounds.map((x, i) => i === idx ? { ...x, lockTime: v } : x) })); }}
+                          />
+                        </div>
+                        <div className="w-28">
+                          <Label className="text-xs">Advances</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={r.advanceCount}
+                            onChange={(e) => { const v = e.target.value; setCreateForm(prev => ({ ...prev, rounds: prev.rounds.map((x, i) => i === idx ? { ...x, advanceCount: v } : x) })); }}
+                          />
+                        </div>
+                        {createForm.rounds.length > 2 && (
+                          <Button size="sm" variant="ghost" onClick={() => setCreateForm(prev => {
+                            const removed = idx + 1;
+                            const nextRaceRounds: Record<string, string> = {};
+                            for (const [k, v] of Object.entries(prev.raceRounds)) {
+                              const n = Number(v);
+                              if (n === removed) continue;
+                              nextRaceRounds[k] = n > removed ? String(n - 1) : v;
+                            }
+                            return { ...prev, rounds: prev.rounds.filter((_, i) => i !== idx), raceRounds: nextRaceRounds };
+                          })}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    <Button size="sm" variant="outline" onClick={() => setCreateForm(prev => ({ ...prev, rounds: [...prev.rounds, { lockTime: "", advanceCount: "1" }] }))}>
+                      <Plus className="mr-2 h-4 w-4" />Add Round
+                    </Button>
+                    <p className="text-xs text-muted-foreground">Survivor contests always void if unfilled at settle time.</p>
+                  </div>
+                  <div className="border rounded-lg p-3 space-y-2">
+                    <Label className="text-sm font-semibold">Race → Round *</Label>
+                    <p className="text-xs text-muted-foreground">Every race must belong to a round. Each round needs at least as many races as the picks-per-entry, and at least 2 different competitors.</p>
+                    {Array.from(new Set(createForm.crews.map(c => c.event_id))).map(key => (
+                      <div key={key} className="flex items-center gap-2">
+                        <span className="text-sm flex-1 truncate">{key}</span>
+                        <div className="w-40">
+                          <Select
+                            value={createForm.raceRounds[key] || ""}
+                            onValueChange={(value) => setCreateForm(prev => ({ ...prev, raceRounds: { ...prev.raceRounds, [key]: value } }))}
+                          >
+                            <SelectTrigger><SelectValue placeholder="Round" /></SelectTrigger>
+                            <SelectContent>
+                              {createForm.rounds.map((_, i) => (
+                                <SelectItem key={i} value={String(i + 1)}>Round {i + 1}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    ))}
+                    {createForm.crews.length === 0 && (
+                      <p className="text-xs text-muted-foreground">Add competitors below to assign their races to rounds.</p>
+                    )}
+                  </div>
+                </div>
+              )}
               {CONTEST_TYPES.find(t => t.key === createForm.contestType)?.requiresEventClass && (
                 <div>
                   <Label htmlFor="eventClass">Event Class *</Label>
@@ -1552,8 +1703,8 @@ const Admin = () => {
 
               <div>
                 <Label htmlFor="lockTime">Lock Time *</Label>
-                <Input id="lockTime" type="datetime-local" value={createForm.lockTime} onChange={(e) => setCreateForm(prev => ({ ...prev, lockTime: e.target.value }))} />
-                <p className="text-xs text-muted-foreground mt-1">Entries will be locked at this time</p>
+                <Input id="lockTime" type="datetime-local" disabled={createForm.contestType === "survivor"} value={createForm.contestType === "survivor" ? (createForm.rounds[0]?.lockTime || "") : createForm.lockTime} onChange={(e) => setCreateForm(prev => ({ ...prev, lockTime: e.target.value }))} />
+                <p className="text-xs text-muted-foreground mt-1">{createForm.contestType === "survivor" ? "Set by Round 1" : "Entries will be locked at this time"}</p>
               </div>
             </div>
 
@@ -1578,7 +1729,7 @@ const Admin = () => {
               </div>
             </div>
             <div className="flex items-start space-x-3">
-              <Checkbox id="voidUnfilled" checked={createForm.voidUnfilledOnSettle} onCheckedChange={(checked) => setCreateForm(prev => ({ ...prev, voidUnfilledOnSettle: checked === true }))} />
+              <Checkbox id="voidUnfilled" disabled={createForm.contestType === "survivor"} checked={createForm.contestType === "survivor" ? true : createForm.voidUnfilledOnSettle} onCheckedChange={(checked) => setCreateForm(prev => ({ ...prev, voidUnfilledOnSettle: checked === true }))} />
               <div className="grid gap-1.5 leading-none">
                 <Label htmlFor="voidUnfilled" className="text-sm font-medium cursor-pointer">Auto-void unfilled pools on settlement</Label>
                 <p className="text-xs text-muted-foreground">Pools that don't completely fill will be voided and entry fees refunded when the contest is settled. Applies to parent and overflow pools alike.</p>
