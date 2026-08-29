@@ -328,7 +328,6 @@ SUPABASE_SERVICE_ROLE_KEY=<service-key>
 # ACH_WEBHOOK_SECRET=<secret>
 
 # Geolocation
-IPBASE_API_KEY=<key>
 ```
 
 ### Supabase Auth Settings
