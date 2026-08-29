@@ -120,6 +120,15 @@ const RegattaDetail = () => {
   const walletBalanceCents: number | null = wallet.status === 'ready' ? wallet.availableCents : null;
   const [selectedTier, setSelectedTier] = useState<EntryTier | null>(null);
 
+  // ── Survivor (primitive === 'survivor') state. Unused by every other contest type. ──
+  const [survivorRaces, setSurvivorRaces] = useState<SurvivorRace[]>([]);
+  const [survivorRounds, setSurvivorRounds] = useState<SurvivorRound[]>([]);
+  const [survivorEntry, setSurvivorEntry] = useState<{ id: string; status: string } | null>(null);
+  const [survivorEntryRounds, setSurvivorEntryRounds] = useState<SurvivorEntryRound[]>([]);
+  const [roundPicks, setRoundPicks] = useState<Map<string, string>>(new Map()); // race_key -> crew_id
+  const [roundSubmitting, setRoundSubmitting] = useState(false);
+  const [survivorRefreshKey, setSurvivorRefreshKey] = useState(0);
+
   useEffect(() => {
     if (!id) { setError("No contest ID provided"); setLoading(false); return; }
     const fetchPoolData = async () => {
@@ -131,15 +140,19 @@ const RegattaDetail = () => {
       if (fetchError || !data) { setError("Contest not found"); setLoading(false); return; }
 
       const pool = data as unknown as ContestPool;
+      const isSurvivorTemplate =
+        (pool.contest_templates?.scoring_config as ScoringConfigLite | null)?.primitive === "survivor";
 
       // Multi-race (v2) templates carry no contest_pool_crews rows — rebuild the same
       // structure from the engine tables. Legacy/single-race contests skip this entirely.
-      if (!pool.contest_pool_crews || pool.contest_pool_crews.length === 0) {
+      // Survivor templates ALWAYS load the graph (rounds 2+ need it even when crews exist).
+      const needsCrewRebuild = !pool.contest_pool_crews || pool.contest_pool_crews.length === 0;
+      if (needsCrewRebuild || isSurvivorTemplate) {
         const templateId = pool.contest_template_id;
         const [racesRes, compsRes] = await Promise.all([
           supabase
             .from("contest_races")
-            .select("id, race_key, name, race_order")
+            .select("id, race_key, name, race_order, round_no")
             .eq("template_id", templateId)
             .order("race_order", { ascending: true }),
           supabase
@@ -155,7 +168,9 @@ const RegattaDetail = () => {
         }
         const races = racesRes.data || [];
         const comps = compsRes.data || [];
-        setStageList(races.map((r: any) => ({ race_key: r.race_key, name: r.name ?? null })));
+        if (needsCrewRebuild) {
+          setStageList(races.map((r: any) => ({ race_key: r.race_key, name: r.name ?? null })));
+        }
 
         if (races.length > 0 && comps.length > 0) {
           const { data: entryRows, error: entriesError } = await supabase
@@ -171,7 +186,7 @@ const RegattaDetail = () => {
           const raceKeyById = new Map(races.map((r) => [r.id, r.race_key]));
           const raceOrderById = new Map(races.map((r, i) => [r.id, i]));
           const compById = new Map(comps.map((c) => [c.id, c]));
-          pool.contest_pool_crews = (entryRows || [])
+          const builtCrews: PoolCrew[] = (entryRows || [])
             .slice()
             .sort((a, b) => (raceOrderById.get(a.race_id) ?? 0) - (raceOrderById.get(b.race_id) ?? 0))
             .map((re) => {
@@ -185,6 +200,35 @@ const RegattaDetail = () => {
               };
             })
             .filter((c) => c.crew_id && c.event_id);
+
+          if (isSurvivorTemplate) {
+            // Keep the FULL race graph — rounds 2+ are played from this panel.
+            const byRaceKey = new Map<string, PoolCrew[]>();
+            for (const c of builtCrews) {
+              if (!byRaceKey.has(c.event_id)) byRaceKey.set(c.event_id, []);
+              byRaceKey.get(c.event_id)!.push(c);
+            }
+            const graph: SurvivorRace[] = races.map((r: any) => ({
+              race_key: r.race_key,
+              name: r.name ?? null,
+              round_no: r.round_no ?? null,
+              race_order: r.race_order,
+              competitors: (byRaceKey.get(r.race_key) || []).map((c) => ({
+                crew_id: c.crew_id,
+                crew_name: c.crew_name,
+                logo_url: c.logo_url ?? null,
+              })),
+            }));
+            setSurvivorRaces(graph);
+
+            // Round-1 entry must offer ONLY round-1 races.
+            const roundOneKeys = new Set(
+              races.filter((r: any) => r.round_no === 1).map((r: any) => r.race_key)
+            );
+            pool.contest_pool_crews = builtCrews.filter((c) => roundOneKeys.has(c.event_id));
+          } else if (needsCrewRebuild) {
+            pool.contest_pool_crews = builtCrews;
+          }
         }
       }
 
@@ -216,11 +260,70 @@ const RegattaDetail = () => {
         (pool as any).entry_tiers = tiers;
       }
 
+      if (isSurvivorTemplate) {
+        const { data: roundRows, error: roundsError } = await supabase
+          .from("contest_rounds")
+          .select("round_no, lock_at, advance_count, status")
+          .eq("template_id", pool.contest_template_id)
+          .order("round_no", { ascending: true });
+        if (roundsError) {
+          console.error("Failed to load survivor rounds", roundsError);
+          setError("Failed to load contest rounds");
+          setLoading(false);
+          return;
+        }
+        setSurvivorRounds((roundRows || []) as SurvivorRound[]);
+      }
+
       setContestPool(pool);
       setLoading(false);
     };
     fetchPoolData();
   }, [id]);
+
+  // Owner-scoped survivor reads. Keyed by user?.id so they re-run once auth resolves.
+  useEffect(() => {
+    const poolId = contestPool?.id;
+    const isSurvivorTemplate =
+      (contestPool?.contest_templates?.scoring_config as ScoringConfigLite | null)?.primitive === "survivor";
+    if (!poolId || !isSurvivorTemplate) return;
+    if (authLoading) return;
+    if (!user) { setSurvivorEntry(null); setSurvivorEntryRounds([]); return; }
+
+    let cancelled = false;
+    const loadOwnerData = async () => {
+      const { data: entryRow, error: entryError } = await supabase
+        .from("contest_entries")
+        .select("id, status")
+        .eq("pool_id", poolId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      if (entryError) {
+        console.error("Failed to load survivor entry", entryError);
+        toast.error("Failed to load your elimination-round status");
+        return;
+      }
+      if (!entryRow) { setSurvivorEntry(null); setSurvivorEntryRounds([]); return; }
+      setSurvivorEntry(entryRow as { id: string; status: string });
+
+      const { data: erRows, error: erError } = await supabase
+        .from("contest_entry_rounds")
+        .select("round_no, picks, points, round_rank, advanced")
+        .eq("entry_id", entryRow.id)
+        .order("round_no", { ascending: true });
+      if (cancelled) return;
+      if (erError) {
+        console.error("Failed to load survivor entry rounds", erError);
+        toast.error("Failed to load your round history");
+        return;
+      }
+      setSurvivorEntryRounds((erRows || []) as unknown as SurvivorEntryRound[]);
+    };
+    loadOwnerData();
+    return () => { cancelled = true; };
+  }, [contestPool?.id, contestPool?.contest_templates?.scoring_config, user?.id, authLoading, survivorRefreshKey]);
+
 
   // (Wave 1 #6) Direct .from('wallets') read removed — useWalletBalance hook
   // handles the load through get_user_wallet_balances() RPC.
