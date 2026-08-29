@@ -47,6 +47,30 @@ interface ScoringConfigLite {
   tiebreak?: string;
 }
 
+/** Survivor-only shapes — unused by every other contest primitive. */
+interface SurvivorRace {
+  race_key: string;
+  name: string | null;
+  round_no: number | null;
+  race_order: number;
+  competitors: { crew_id: string; crew_name: string; logo_url: string | null }[];
+}
+
+interface SurvivorRound {
+  round_no: number;
+  lock_at: string;
+  advance_count: number;
+  status: string;
+}
+
+interface SurvivorEntryRound {
+  round_no: number;
+  picks: unknown;
+  points: number | null;
+  round_rank: number | null;
+  advanced: boolean | null;
+}
+
 
 interface ContestPool {
   id: string;
@@ -120,6 +144,15 @@ const RegattaDetail = () => {
   const walletBalanceCents: number | null = wallet.status === 'ready' ? wallet.availableCents : null;
   const [selectedTier, setSelectedTier] = useState<EntryTier | null>(null);
 
+  // ── Survivor (primitive === 'survivor') state. Unused by every other contest type. ──
+  const [survivorRaces, setSurvivorRaces] = useState<SurvivorRace[]>([]);
+  const [survivorRounds, setSurvivorRounds] = useState<SurvivorRound[]>([]);
+  const [survivorEntry, setSurvivorEntry] = useState<{ id: string; status: string } | null>(null);
+  const [survivorEntryRounds, setSurvivorEntryRounds] = useState<SurvivorEntryRound[]>([]);
+  const [roundPicks, setRoundPicks] = useState<Map<string, string>>(new Map()); // race_key -> crew_id
+  const [roundSubmitting, setRoundSubmitting] = useState(false);
+  const [survivorRefreshKey, setSurvivorRefreshKey] = useState(0);
+
   useEffect(() => {
     if (!id) { setError("No contest ID provided"); setLoading(false); return; }
     const fetchPoolData = async () => {
@@ -131,15 +164,19 @@ const RegattaDetail = () => {
       if (fetchError || !data) { setError("Contest not found"); setLoading(false); return; }
 
       const pool = data as unknown as ContestPool;
+      const isSurvivorTemplate =
+        (pool.contest_templates?.scoring_config as ScoringConfigLite | null)?.primitive === "survivor";
 
       // Multi-race (v2) templates carry no contest_pool_crews rows — rebuild the same
       // structure from the engine tables. Legacy/single-race contests skip this entirely.
-      if (!pool.contest_pool_crews || pool.contest_pool_crews.length === 0) {
+      // Survivor templates ALWAYS load the graph (rounds 2+ need it even when crews exist).
+      const needsCrewRebuild = !pool.contest_pool_crews || pool.contest_pool_crews.length === 0;
+      if (needsCrewRebuild || isSurvivorTemplate) {
         const templateId = pool.contest_template_id;
         const [racesRes, compsRes] = await Promise.all([
           supabase
             .from("contest_races")
-            .select("id, race_key, name, race_order")
+            .select("id, race_key, name, race_order, round_no")
             .eq("template_id", templateId)
             .order("race_order", { ascending: true }),
           supabase
@@ -155,7 +192,9 @@ const RegattaDetail = () => {
         }
         const races = racesRes.data || [];
         const comps = compsRes.data || [];
-        setStageList(races.map((r: any) => ({ race_key: r.race_key, name: r.name ?? null })));
+        if (needsCrewRebuild) {
+          setStageList(races.map((r: any) => ({ race_key: r.race_key, name: r.name ?? null })));
+        }
 
         if (races.length > 0 && comps.length > 0) {
           const { data: entryRows, error: entriesError } = await supabase
@@ -171,7 +210,7 @@ const RegattaDetail = () => {
           const raceKeyById = new Map(races.map((r) => [r.id, r.race_key]));
           const raceOrderById = new Map(races.map((r, i) => [r.id, i]));
           const compById = new Map(comps.map((c) => [c.id, c]));
-          pool.contest_pool_crews = (entryRows || [])
+          const builtCrews: PoolCrew[] = (entryRows || [])
             .slice()
             .sort((a, b) => (raceOrderById.get(a.race_id) ?? 0) - (raceOrderById.get(b.race_id) ?? 0))
             .map((re) => {
@@ -185,6 +224,35 @@ const RegattaDetail = () => {
               };
             })
             .filter((c) => c.crew_id && c.event_id);
+
+          if (isSurvivorTemplate) {
+            // Keep the FULL race graph — rounds 2+ are played from this panel.
+            const byRaceKey = new Map<string, PoolCrew[]>();
+            for (const c of builtCrews) {
+              if (!byRaceKey.has(c.event_id)) byRaceKey.set(c.event_id, []);
+              byRaceKey.get(c.event_id)!.push(c);
+            }
+            const graph: SurvivorRace[] = races.map((r: any) => ({
+              race_key: r.race_key,
+              name: r.name ?? null,
+              round_no: r.round_no ?? null,
+              race_order: r.race_order,
+              competitors: (byRaceKey.get(r.race_key) || []).map((c) => ({
+                crew_id: c.crew_id,
+                crew_name: c.crew_name,
+                logo_url: c.logo_url ?? null,
+              })),
+            }));
+            setSurvivorRaces(graph);
+
+            // Round-1 entry must offer ONLY round-1 races.
+            const roundOneKeys = new Set(
+              races.filter((r: any) => r.round_no === 1).map((r: any) => r.race_key)
+            );
+            pool.contest_pool_crews = builtCrews.filter((c) => roundOneKeys.has(c.event_id));
+          } else if (needsCrewRebuild) {
+            pool.contest_pool_crews = builtCrews;
+          }
         }
       }
 
@@ -216,11 +284,70 @@ const RegattaDetail = () => {
         (pool as any).entry_tiers = tiers;
       }
 
+      if (isSurvivorTemplate) {
+        const { data: roundRows, error: roundsError } = await supabase
+          .from("contest_rounds")
+          .select("round_no, lock_at, advance_count, status")
+          .eq("template_id", pool.contest_template_id)
+          .order("round_no", { ascending: true });
+        if (roundsError) {
+          console.error("Failed to load survivor rounds", roundsError);
+          setError("Failed to load contest rounds");
+          setLoading(false);
+          return;
+        }
+        setSurvivorRounds((roundRows || []) as SurvivorRound[]);
+      }
+
       setContestPool(pool);
       setLoading(false);
     };
     fetchPoolData();
   }, [id]);
+
+  // Owner-scoped survivor reads. Keyed by user?.id so they re-run once auth resolves.
+  useEffect(() => {
+    const poolId = contestPool?.id;
+    const isSurvivorTemplate =
+      (contestPool?.contest_templates?.scoring_config as ScoringConfigLite | null)?.primitive === "survivor";
+    if (!poolId || !isSurvivorTemplate) return;
+    if (authLoading) return;
+    if (!user) { setSurvivorEntry(null); setSurvivorEntryRounds([]); return; }
+
+    let cancelled = false;
+    const loadOwnerData = async () => {
+      const { data: entryRow, error: entryError } = await supabase
+        .from("contest_entries")
+        .select("id, status")
+        .eq("pool_id", poolId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      if (entryError) {
+        console.error("Failed to load survivor entry", entryError);
+        toast.error("Failed to load your elimination-round status");
+        return;
+      }
+      if (!entryRow) { setSurvivorEntry(null); setSurvivorEntryRounds([]); return; }
+      setSurvivorEntry(entryRow as { id: string; status: string });
+
+      const { data: erRows, error: erError } = await supabase
+        .from("contest_entry_rounds")
+        .select("round_no, picks, points, round_rank, advanced")
+        .eq("entry_id", entryRow.id)
+        .order("round_no", { ascending: true });
+      if (cancelled) return;
+      if (erError) {
+        console.error("Failed to load survivor entry rounds", erError);
+        toast.error("Failed to load your round history");
+        return;
+      }
+      setSurvivorEntryRounds((erRows || []) as unknown as SurvivorEntryRound[]);
+    };
+    loadOwnerData();
+    return () => { cancelled = true; };
+  }, [contestPool?.id, contestPool?.contest_templates?.scoring_config, user?.id, authLoading, survivorRefreshKey]);
+
 
   // (Wave 1 #6) Direct .from('wallets') read removed — useWalletBalance hook
   // handles the load through get_user_wallet_balances() RPC.
@@ -242,6 +369,8 @@ const RegattaDetail = () => {
   // GC / stage races: one roster of competitors, every stage counts.
   const isPerCompetitor = !!scoringConfig && template?.roster_mode === "per_competitor";
   const isTimeScored = scoringConfig?.primitive === "time_vs_ref";
+  const isSurvivor = scoringConfig?.primitive === "survivor";
+
   const sport = template?.sport ?? null;
   const t = terms(sport);
   const displayName = template?.name || template?.regatta_name || "";
@@ -318,6 +447,124 @@ const RegattaDetail = () => {
   const formattedLockTime = contestPool?.lock_time
     ? new Date(contestPool.lock_time).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
     : "";
+
+  // ── Survivor derived state (all gated on isSurvivor) ──
+  const fmtRoundTime = (iso: string) =>
+    new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+  const entryRoundByNo = useMemo(() => {
+    const m = new Map<number, SurvivorEntryRound>();
+    for (const r of survivorEntryRounds) m.set(r.round_no, r);
+    return m;
+  }, [survivorEntryRounds]);
+
+  /** Mirrors the backend rule: any scored round without an advanced===true entry-round row eliminates. */
+  const eliminatedInRound = useMemo(() => {
+    if (!isSurvivor || !survivorEntry) return null;
+    for (const r of survivorRounds) {
+      if (r.status !== "scored") continue;
+      const er = entryRoundByNo.get(r.round_no);
+      if (!er || er.advanced !== true) return r.round_no;
+    }
+    return null;
+  }, [isSurvivor, survivorEntry, survivorRounds, entryRoundByNo]);
+
+  const actionableRound = useMemo(() => {
+    if (!isSurvivor || !survivorEntry || eliminatedInRound !== null) return null;
+    const now = Date.now();
+    const candidates = survivorRounds
+      .filter((r) => r.status === "scheduled" && r.round_no >= 2 && new Date(r.lock_at).getTime() > now)
+      .sort((a, b) => a.round_no - b.round_no);
+    return candidates[0] ?? null;
+  }, [isSurvivor, survivorEntry, eliminatedInRound, survivorRounds]);
+
+  const actionableRaces = useMemo(() => {
+    if (!actionableRound) return [] as SurvivorRace[];
+    return survivorRaces
+      .filter((r) => r.round_no === actionableRound.round_no)
+      .sort((a, b) => a.race_order - b.race_order);
+  }, [actionableRound, survivorRaces]);
+
+  const survivorRoundMinPicks = useMemo(() => {
+    const tplMin = contestPool?.contest_templates?.min_picks ?? 2;
+    return Math.min(tplMin, actionableRaces.length || tplMin);
+  }, [contestPool?.contest_templates?.min_picks, actionableRaces.length]);
+
+  const hasExistingRoundPicks = actionableRound ? entryRoundByNo.has(actionableRound.round_no) : false;
+
+  // Pre-fill the pick form from an already-submitted round row.
+  useEffect(() => {
+    if (!isSurvivor || !actionableRound) { setRoundPicks(new Map()); return; }
+    const existing = entryRoundByNo.get(actionableRound.round_no);
+    const next = new Map<string, string>();
+    const raw = existing?.picks;
+    if (Array.isArray(raw)) {
+      for (const p of raw as any[]) {
+        const eventId = p?.event_id ?? p?.eventId;
+        const crewId = p?.crewId ?? p?.crew_id;
+        if (eventId && crewId) next.set(String(eventId), String(crewId));
+      }
+    }
+    setRoundPicks(next);
+  }, [isSurvivor, actionableRound?.round_no, entryRoundByNo]);
+
+  const handleSubmitRoundPicks = async () => {
+    if (!survivorEntry || !actionableRound) return;
+    const picks = Array.from(roundPicks.entries()).map(([event_id, crewId]) => ({ crewId, event_id }));
+
+    if (picks.length !== survivorRoundMinPicks) {
+      toast.error(`Please select exactly ${survivorRoundMinPicks} picks for this round`);
+      return;
+    }
+    if (new Set(picks.map((p) => p.event_id)).size !== picks.length) {
+      toast.error("You can only select one crew per race");
+      return;
+    }
+    if (new Set(picks.map((p) => p.event_id)).size < 2) {
+      toast.error("You must pick from at least 2 different races");
+      return;
+    }
+    if (new Set(picks.map((p) => p.crewId)).size < 2) {
+      toast.error("You must pick at least 2 different competitors");
+      return;
+    }
+
+    setRoundSubmitting(true);
+    try {
+      const { data, error } = await invokeGeoFunction("survivor-round-picks", {
+        body: { entryId: survivorEntry.id, roundNo: actionableRound.round_no, picks },
+      });
+      if (error) {
+        // Proxied path already carries the body's error string on error.message.
+        let message = error.message || "Failed to submit picks";
+        const ctx = (error as any).context;
+        if (ctx && typeof ctx.json === "function") {
+          try {
+            const body = await ctx.json();
+            message = body?.error || body?.message || message;
+          } catch { /* keep message */ }
+        }
+        toast.error(message);
+        return;
+      }
+      toast.success(data?.message || "Picks saved");
+      setSurvivorRefreshKey((k) => k + 1);
+    } catch (err: any) {
+      let message = err?.message || "Failed to submit picks";
+      const ctx = err?.context;
+      if (ctx && typeof ctx.json === "function") {
+        try {
+          const body = await ctx.json();
+          message = body?.error || body?.message || message;
+        } catch { /* keep message */ }
+      }
+      toast.error(message);
+    } finally {
+      setRoundSubmitting(false);
+    }
+  };
+
+
 
   const allMarginsValid = useMemo(() => {
     if (!needsMargin) return true;
@@ -533,7 +780,116 @@ const RegattaDetail = () => {
                     ? `Pick ${minPicks} ${t.competitors} — every stage counts toward your combined time.`
                     : `Draft a ${t.competitor} from each ${t.event}. Your entry will be matched against other players.`}
                 </p>
+                {isSurvivor && (
+                  <p className="text-sm text-white/60 mt-1">
+                    {`Round 1 of ${survivorRounds.length} — pick ${minPicks} from these races. Survive each round to advance.`}
+                  </p>
+                )}
               </div>
+
+              {/* ── Survivor: Elimination rounds (entry-scoped, renders even when locked) ── */}
+              {isSurvivor && survivorEntry && (
+                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/20">
+                  <CardContent className="p-4 space-y-4">
+                    <h3 className="font-heading text-sm font-bold text-slate-900">Elimination rounds</h3>
+
+                    <div className="space-y-2">
+                      {survivorRounds.map((r) => {
+                        const er = entryRoundByNo.get(r.round_no);
+                        const statusChip =
+                          r.status === "scored" ? "Complete" : r.status === "locked" ? "In progress" : "Upcoming";
+                        return (
+                          <div key={r.round_no} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-900">Round {r.round_no}</p>
+                              <p className="text-xs text-slate-500">
+                                Locks {fmtRoundTime(r.lock_at)} · Advances: {r.advance_count}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className="rounded-full bg-slate-200 px-2 py-0.5 font-medium text-slate-700">{statusChip}</span>
+                              {er && er.points !== null && (
+                                <span className="font-medium text-slate-700">{er.points} pts</span>
+                              )}
+                              {er && er.advanced === true && (
+                                <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-medium text-emerald-700">Advanced</span>
+                              )}
+                              {er && er.advanced === false && (
+                                <span className="rounded-full bg-red-100 px-2 py-0.5 font-medium text-red-700">Eliminated</span>
+                              )}
+                              {er && er.advanced === null && er.points === null && (
+                                <span className="rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-700">Picks in</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {eliminatedInRound !== null ? (
+                      <p className="text-sm font-semibold text-red-600">Eliminated in round {eliminatedInRound}</p>
+                    ) : actionableRound ? (
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-sm font-bold text-slate-900">
+                            Round {actionableRound.round_no} picks — choose {survivorRoundMinPicks}
+                          </p>
+                          <p className="text-xs text-slate-500">Locks {fmtRoundTime(actionableRound.lock_at)}</p>
+                        </div>
+                        {actionableRaces.map((race) => (
+                          <div key={race.race_key}>
+                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+                              {race.name || race.race_key}
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {race.competitors.map((c) => {
+                                const selected = roundPicks.get(race.race_key) === c.crew_id;
+                                return (
+                                  <button
+                                    key={`${race.race_key}::${c.crew_id}`}
+                                    type="button"
+                                    onClick={() =>
+                                      setRoundPicks((prev) => {
+                                        const next = new Map(prev);
+                                        if (next.get(race.race_key) === c.crew_id) next.delete(race.race_key);
+                                        else next.set(race.race_key, c.crew_id);
+                                        return next;
+                                      })
+                                    }
+                                    className={`flex items-center gap-3 rounded-lg border-2 px-3 py-2 text-left transition-all ${
+                                      selected ? "border-teal-400 bg-teal-50" : "border-slate-200 bg-white hover:bg-slate-50"
+                                    }`}
+                                  >
+                                    <CrewLogo logoUrl={c.logo_url} crewName={c.crew_name} size={32} />
+                                    <span className="text-sm font-semibold text-slate-900 truncate">{c.crew_name}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                        <Button
+                          variant="hero"
+                          className="w-full rounded-xl font-semibold"
+                          disabled={roundSubmitting || roundPicks.size !== survivorRoundMinPicks}
+                          onClick={handleSubmitRoundPicks}
+                        >
+                          {roundSubmitting ? (
+                            <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
+                          ) : hasExistingRoundPicks ? (
+                            "Update picks"
+                          ) : (
+                            "Submit picks"
+                          )}
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-600">No round is open for picks right now.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
 
               {isPerCompetitor && stageList.length > 0 && (
                 <div className="rounded-xl border border-white/15 bg-white/5 p-3">
