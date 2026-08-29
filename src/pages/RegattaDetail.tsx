@@ -780,7 +780,116 @@ const RegattaDetail = () => {
                     ? `Pick ${minPicks} ${t.competitors} — every stage counts toward your combined time.`
                     : `Draft a ${t.competitor} from each ${t.event}. Your entry will be matched against other players.`}
                 </p>
+                {isSurvivor && (
+                  <p className="text-sm text-white/60 mt-1">
+                    {`Round 1 of ${survivorRounds.length} — pick ${minPicks} from these races. Survive each round to advance.`}
+                  </p>
+                )}
               </div>
+
+              {/* ── Survivor: Elimination rounds (entry-scoped, renders even when locked) ── */}
+              {isSurvivor && survivorEntry && (
+                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/20">
+                  <CardContent className="p-4 space-y-4">
+                    <h3 className="font-heading text-sm font-bold text-slate-900">Elimination rounds</h3>
+
+                    <div className="space-y-2">
+                      {survivorRounds.map((r) => {
+                        const er = entryRoundByNo.get(r.round_no);
+                        const statusChip =
+                          r.status === "scored" ? "Complete" : r.status === "locked" ? "In progress" : "Upcoming";
+                        return (
+                          <div key={r.round_no} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-900">Round {r.round_no}</p>
+                              <p className="text-xs text-slate-500">
+                                Locks {fmtRoundTime(r.lock_at)} · Advances: {r.advance_count}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className="rounded-full bg-slate-200 px-2 py-0.5 font-medium text-slate-700">{statusChip}</span>
+                              {er && er.points !== null && (
+                                <span className="font-medium text-slate-700">{er.points} pts</span>
+                              )}
+                              {er && er.advanced === true && (
+                                <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-medium text-emerald-700">Advanced</span>
+                              )}
+                              {er && er.advanced === false && (
+                                <span className="rounded-full bg-red-100 px-2 py-0.5 font-medium text-red-700">Eliminated</span>
+                              )}
+                              {er && er.advanced === null && er.points === null && (
+                                <span className="rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-700">Picks in</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {eliminatedInRound !== null ? (
+                      <p className="text-sm font-semibold text-red-600">Eliminated in round {eliminatedInRound}</p>
+                    ) : actionableRound ? (
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-sm font-bold text-slate-900">
+                            Round {actionableRound.round_no} picks — choose {survivorRoundMinPicks}
+                          </p>
+                          <p className="text-xs text-slate-500">Locks {fmtRoundTime(actionableRound.lock_at)}</p>
+                        </div>
+                        {actionableRaces.map((race) => (
+                          <div key={race.race_key}>
+                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+                              {race.name || race.race_key}
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {race.competitors.map((c) => {
+                                const selected = roundPicks.get(race.race_key) === c.crew_id;
+                                return (
+                                  <button
+                                    key={`${race.race_key}::${c.crew_id}`}
+                                    type="button"
+                                    onClick={() =>
+                                      setRoundPicks((prev) => {
+                                        const next = new Map(prev);
+                                        if (next.get(race.race_key) === c.crew_id) next.delete(race.race_key);
+                                        else next.set(race.race_key, c.crew_id);
+                                        return next;
+                                      })
+                                    }
+                                    className={`flex items-center gap-3 rounded-lg border-2 px-3 py-2 text-left transition-all ${
+                                      selected ? "border-teal-400 bg-teal-50" : "border-slate-200 bg-white hover:bg-slate-50"
+                                    }`}
+                                  >
+                                    <CrewLogo logoUrl={c.logo_url} crewName={c.crew_name} size={32} />
+                                    <span className="text-sm font-semibold text-slate-900 truncate">{c.crew_name}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                        <Button
+                          variant="hero"
+                          className="w-full rounded-xl font-semibold"
+                          disabled={roundSubmitting || roundPicks.size !== survivorRoundMinPicks}
+                          onClick={handleSubmitRoundPicks}
+                        >
+                          {roundSubmitting ? (
+                            <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
+                          ) : hasExistingRoundPicks ? (
+                            "Update picks"
+                          ) : (
+                            "Submit picks"
+                          )}
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-600">No round is open for picks right now.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
 
               {isPerCompetitor && stageList.length > 0 && (
                 <div className="rounded-xl border border-white/15 bg-white/5 p-3">
