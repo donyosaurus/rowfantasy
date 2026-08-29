@@ -1,7 +1,7 @@
 // Compliance Gating Functions
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
-import { checkGeoEligibility, getVerifiedWorkerState } from './geo-eligibility.ts';
+import { getVerifiedWorkerState } from './geo-eligibility.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -14,7 +14,7 @@ export interface ComplianceCheckResult {
   // and its provenance. Callers MUST persist `resolvedStateCode` downstream
   // instead of the caller-supplied (spoofable) header/body value.
   resolvedStateCode: string;
-  stateCodeSource: 'worker' | 'ipbase' | 'unverified';
+  stateCodeSource: 'worker' | 'unverified';
 }
 
 export interface ComplianceContext {
@@ -32,8 +32,8 @@ export async function performComplianceChecks(
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   // Track the provenance of the state code used for gating.
-  // 'worker' or 'ipbase' = trusted; 'unverified' = admin bypass or caller-supplied fallback.
-  let stateCodeSource: 'worker' | 'ipbase' | 'unverified' = 'unverified';
+  // 'worker' = trusted; 'unverified' = admin bypass or caller-supplied fallback.
+  let stateCodeSource: 'worker' | 'unverified' = 'unverified';
 
   // Local helper to build return objects with the resolved state + source.
   const result = (partial: { allowed: boolean; reason?: string; metadata?: Record<string, any> }): ComplianceCheckResult => ({
@@ -42,24 +42,14 @@ export async function performComplianceChecks(
     stateCodeSource,
   });
 
-  // P0-W4 Step 1: Try Worker-verified state FIRST. If present and valid, use it
-  // directly and skip the IPBase call entirely. Falls through to existing IPBase
-  // path if no Worker header is present (direct PostgREST calls, local dev, etc.).
+  // P0-W4 Step 1: The Worker-verified state header is the ONLY trusted geo source.
+  // If it is present and valid, use it; otherwise the request fails closed below.
   const workerVerifiedState = req ? await getVerifiedWorkerState(req) : null;
   if (workerVerifiedState) {
     context.stateCode = workerVerifiedState.stateCode;
     stateCodeSource = 'worker';
     // Intentionally no audit-log row: Worker-verified is the expected steady state.
   }
-
-  // 0. Check if geo restrictions are enabled via feature flag
-  const { data: flag } = await supabase
-    .from('feature_flags')
-    .select('value')
-    .eq('key', 'ipbase_enabled')
-    .single();
-
-  const geoEnabled = (flag?.value as any)?.enabled === true;
 
   // 0b. Check if user is admin — admins bypass geo and compliance geo checks
   let isAdmin = false;
@@ -73,42 +63,18 @@ export async function performComplianceChecks(
     isAdmin = !!adminRole;
   }
 
-  // No trusted geo source (no Worker-verified state AND IPBase disabled) → fail-closed.
+  // No trusted geo source (no Worker-verified state) → fail-closed.
   // Never trust caller-supplied x-user-state for the geo gate.
-  if (!workerVerifiedState && !geoEnabled && !isAdmin) {
+  if (!workerVerifiedState && !isAdmin) {
     await logComplianceEvent(supabase, {
       userId: context.userId,
       eventType: 'geo_no_trusted_source',
       severity: 'warning',
-      description: 'No Worker-verified geo state and IPBase disabled — failing closed',
+      description: 'No Worker-verified geo state — failing closed',
       stateCode: context.stateCode,
       ipAddress: context.ipAddress,
     });
     return result({ allowed: false, reason: 'Geolocation verification required' });
-  }
-
-  // 1. Check geo eligibility first (only if enabled, not admin, and not already Worker-verified)
-  if (!workerVerifiedState && geoEnabled && !isAdmin && context.ipAddress && context.ipAddress !== 'unknown') {
-    const geoResult = await checkGeoEligibility(context.ipAddress, context.userId);
-
-    if (!geoResult.allowed) {
-      await logComplianceEvent(supabase, {
-        userId: context.userId,
-        eventType: 'geo_blocked',
-        severity: 'warning',
-        description: geoResult.reason || 'Geolocation check failed',
-        stateCode: geoResult.stateCode,
-        ipAddress: context.ipAddress,
-      });
-
-      return result({ allowed: false, reason: geoResult.reason });
-    }
-
-    // Update context with detected state if available
-    if (geoResult.stateCode) {
-      context.stateCode = geoResult.stateCode;
-      stateCodeSource = 'ipbase';
-    }
   }
 
   // 2. Check state regulations (skip for admins when geo is the concern)
