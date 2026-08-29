@@ -47,6 +47,30 @@ interface ScoringConfigLite {
   tiebreak?: string;
 }
 
+/** Survivor-only shapes — unused by every other contest primitive. */
+interface SurvivorRace {
+  race_key: string;
+  name: string | null;
+  round_no: number | null;
+  race_order: number;
+  competitors: { crew_id: string; crew_name: string; logo_url: string | null }[];
+}
+
+interface SurvivorRound {
+  round_no: number;
+  lock_at: string;
+  advance_count: number;
+  status: string;
+}
+
+interface SurvivorEntryRound {
+  round_no: number;
+  picks: unknown;
+  points: number | null;
+  round_rank: number | null;
+  advanced: boolean | null;
+}
+
 
 interface ContestPool {
   id: string;
