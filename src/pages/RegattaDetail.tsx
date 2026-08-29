@@ -448,6 +448,124 @@ const RegattaDetail = () => {
     ? new Date(contestPool.lock_time).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
     : "";
 
+  // ── Survivor derived state (all gated on isSurvivor) ──
+  const fmtRoundTime = (iso: string) =>
+    new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+  const entryRoundByNo = useMemo(() => {
+    const m = new Map<number, SurvivorEntryRound>();
+    for (const r of survivorEntryRounds) m.set(r.round_no, r);
+    return m;
+  }, [survivorEntryRounds]);
+
+  /** Mirrors the backend rule: any scored round without an advanced===true entry-round row eliminates. */
+  const eliminatedInRound = useMemo(() => {
+    if (!isSurvivor || !survivorEntry) return null;
+    for (const r of survivorRounds) {
+      if (r.status !== "scored") continue;
+      const er = entryRoundByNo.get(r.round_no);
+      if (!er || er.advanced !== true) return r.round_no;
+    }
+    return null;
+  }, [isSurvivor, survivorEntry, survivorRounds, entryRoundByNo]);
+
+  const actionableRound = useMemo(() => {
+    if (!isSurvivor || !survivorEntry || eliminatedInRound !== null) return null;
+    const now = Date.now();
+    const candidates = survivorRounds
+      .filter((r) => r.status === "scheduled" && r.round_no >= 2 && new Date(r.lock_at).getTime() > now)
+      .sort((a, b) => a.round_no - b.round_no);
+    return candidates[0] ?? null;
+  }, [isSurvivor, survivorEntry, eliminatedInRound, survivorRounds]);
+
+  const actionableRaces = useMemo(() => {
+    if (!actionableRound) return [] as SurvivorRace[];
+    return survivorRaces
+      .filter((r) => r.round_no === actionableRound.round_no)
+      .sort((a, b) => a.race_order - b.race_order);
+  }, [actionableRound, survivorRaces]);
+
+  const survivorRoundMinPicks = useMemo(() => {
+    const tplMin = contestPool?.contest_templates?.min_picks ?? 2;
+    return Math.min(tplMin, actionableRaces.length || tplMin);
+  }, [contestPool?.contest_templates?.min_picks, actionableRaces.length]);
+
+  const hasExistingRoundPicks = actionableRound ? entryRoundByNo.has(actionableRound.round_no) : false;
+
+  // Pre-fill the pick form from an already-submitted round row.
+  useEffect(() => {
+    if (!isSurvivor || !actionableRound) { setRoundPicks(new Map()); return; }
+    const existing = entryRoundByNo.get(actionableRound.round_no);
+    const next = new Map<string, string>();
+    const raw = existing?.picks;
+    if (Array.isArray(raw)) {
+      for (const p of raw as any[]) {
+        const eventId = p?.event_id ?? p?.eventId;
+        const crewId = p?.crewId ?? p?.crew_id;
+        if (eventId && crewId) next.set(String(eventId), String(crewId));
+      }
+    }
+    setRoundPicks(next);
+  }, [isSurvivor, actionableRound?.round_no, entryRoundByNo]);
+
+  const handleSubmitRoundPicks = async () => {
+    if (!survivorEntry || !actionableRound) return;
+    const picks = Array.from(roundPicks.entries()).map(([event_id, crewId]) => ({ crewId, event_id }));
+
+    if (picks.length !== survivorRoundMinPicks) {
+      toast.error(`Please select exactly ${survivorRoundMinPicks} picks for this round`);
+      return;
+    }
+    if (new Set(picks.map((p) => p.event_id)).size !== picks.length) {
+      toast.error("You can only select one crew per race");
+      return;
+    }
+    if (new Set(picks.map((p) => p.event_id)).size < 2) {
+      toast.error("You must pick from at least 2 different races");
+      return;
+    }
+    if (new Set(picks.map((p) => p.crewId)).size < 2) {
+      toast.error("You must pick at least 2 different competitors");
+      return;
+    }
+
+    setRoundSubmitting(true);
+    try {
+      const { data, error } = await invokeGeoFunction("survivor-round-picks", {
+        body: { entryId: survivorEntry.id, roundNo: actionableRound.round_no, picks },
+      });
+      if (error) {
+        // Proxied path already carries the body's error string on error.message.
+        let message = error.message || "Failed to submit picks";
+        const ctx = (error as any).context;
+        if (ctx && typeof ctx.json === "function") {
+          try {
+            const body = await ctx.json();
+            message = body?.error || body?.message || message;
+          } catch { /* keep message */ }
+        }
+        toast.error(message);
+        return;
+      }
+      toast.success(data?.message || "Picks saved");
+      setSurvivorRefreshKey((k) => k + 1);
+    } catch (err: any) {
+      let message = err?.message || "Failed to submit picks";
+      const ctx = err?.context;
+      if (ctx && typeof ctx.json === "function") {
+        try {
+          const body = await ctx.json();
+          message = body?.error || body?.message || message;
+        } catch { /* keep message */ }
+      }
+      toast.error(message);
+    } finally {
+      setRoundSubmitting(false);
+    }
+  };
+
+
+
   const allMarginsValid = useMemo(() => {
     if (!needsMargin) return true;
     for (const [, pick] of crewPicks) {
