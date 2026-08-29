@@ -369,6 +369,8 @@ const RegattaDetail = () => {
   // GC / stage races: one roster of competitors, every stage counts.
   const isPerCompetitor = !!scoringConfig && template?.roster_mode === "per_competitor";
   const isTimeScored = scoringConfig?.primitive === "time_vs_ref";
+  const isSurvivor = scoringConfig?.primitive === "survivor";
+
   const sport = template?.sport ?? null;
   const t = terms(sport);
   const displayName = template?.name || template?.regatta_name || "";
