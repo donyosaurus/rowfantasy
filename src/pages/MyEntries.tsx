@@ -701,7 +701,7 @@ const MyEntries = () => {
           <div className="mb-4">
             <div className="flex items-center gap-2 mb-2 text-sm font-medium text-muted-foreground">
               <Users className="h-4 w-4" />
-              <span>Your Picks ({parsedPicks.length})</span>
+              <span>{survivorReady ? `Round 1 picks (${parsedPicks.length})` : `Your Picks (${parsedPicks.length})`}</span>
             </div>
             <div className="flex flex-wrap gap-2">
               {parsedPicks.map((pick, idx) =>
