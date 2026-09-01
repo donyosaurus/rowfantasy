@@ -101,6 +101,31 @@ interface CrewInfo {
   logo_url?: string | null;
 }
 
+interface SurvivorRound {
+  round_no: number;
+  lock_at: string;
+  advance_count: number;
+  status: string;
+}
+
+interface SurvivorEntryRound {
+  round_no: number;
+  picks: unknown;
+  points: number | null;
+  round_rank: number | null;
+  advanced: boolean | null;
+}
+
+function isSurvivorTemplate(scoringConfig: unknown): boolean {
+  return (
+    !!scoringConfig &&
+    typeof scoringConfig === "object" &&
+    (scoringConfig as { primitive?: string }).primitive === "survivor"
+  );
+}
+
+
+
 const MyEntries = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
