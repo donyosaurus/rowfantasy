@@ -4,7 +4,7 @@ import { CrewLogo } from "@/components/CrewLogo";
 import { DraftPicksList } from "@/components/DraftPicksList";
 import { CrewCard } from "@/components/CrewCard";
 import { DraftPageBackground } from "@/components/DraftPageBackground";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { invokeGeoFunction } from "@/integrations/supabase/geoFunctions";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { Header } from "@/components/Header";
@@ -152,6 +152,7 @@ const RegattaDetail = () => {
   const [roundPicks, setRoundPicks] = useState<Map<string, string>>(new Map()); // race_key -> crew_id
   const [roundSubmitting, setRoundSubmitting] = useState(false);
   const [survivorRefreshKey, setSurvivorRefreshKey] = useState(0);
+  const roundSubmitRef = useRef(false);
 
   useEffect(() => {
     if (!id) { setError("No contest ID provided"); setLoading(false); return; }
@@ -192,11 +193,67 @@ const RegattaDetail = () => {
         }
         const races = racesRes.data || [];
         const comps = compsRes.data || [];
-        if (needsCrewRebuild) {
-          setStageList(races.map((r: any) => ({ race_key: r.race_key, name: r.name ?? null })));
-        }
 
-        if (races.length > 0 && comps.length > 0) {
+        if (isSurvivorTemplate) {
+          // Survivor: build the full race graph and always assign ONLY round-1 crews
+          // to the entry grid, regardless of whether the pool has materialized rows.
+          if (races.length > 0 && comps.length > 0) {
+            const { data: entryRows, error: entriesError } = await supabase
+              .from("contest_race_entries")
+              .select("race_id, competitor_id")
+              .in("race_id", races.map((r) => r.id));
+            if (entriesError) {
+              console.error("Failed to load contest race entries", entriesError);
+              setError("Failed to load contest lineup");
+              setLoading(false);
+              return;
+            }
+            const raceKeyById = new Map(races.map((r) => [r.id, r.race_key]));
+            const raceOrderById = new Map(races.map((r, i) => [r.id, i]));
+            const compById = new Map(comps.map((c) => [c.id, c]));
+            const builtCrews: PoolCrew[] = (entryRows || [])
+              .slice()
+              .sort((a, b) => (raceOrderById.get(a.race_id) ?? 0) - (raceOrderById.get(b.race_id) ?? 0))
+              .map((re) => {
+                const c = compById.get(re.competitor_id);
+                return {
+                  id: `${re.race_id}-${re.competitor_id}`,
+                  crew_id: c?.competitor_key ?? "",
+                  crew_name: c?.name ?? c?.competitor_key ?? "",
+                  event_id: raceKeyById.get(re.race_id) ?? "",
+                  logo_url: c?.logo_url ?? null,
+                };
+              })
+              .filter((c) => c.crew_id && c.event_id);
+
+            const byRaceKey = new Map<string, PoolCrew[]>();
+            for (const c of builtCrews) {
+              if (!byRaceKey.has(c.event_id)) byRaceKey.set(c.event_id, []);
+              byRaceKey.get(c.event_id)!.push(c);
+            }
+            const graph: SurvivorRace[] = races.map((r: any) => ({
+              race_key: r.race_key,
+              name: r.name ?? null,
+              round_no: r.round_no ?? null,
+              race_order: r.race_order,
+              competitors: (byRaceKey.get(r.race_key) || []).map((c) => ({
+                crew_id: c.crew_id,
+                crew_name: c.crew_name,
+                logo_url: c.logo_url ?? null,
+              })),
+            }));
+            setSurvivorRaces(graph);
+
+            const roundOneKeys = new Set(
+              races.filter((r: any) => r.round_no === 1).map((r: any) => r.race_key)
+            );
+            pool.contest_pool_crews = builtCrews.filter((c) => roundOneKeys.has(c.event_id));
+          } else {
+            setSurvivorRaces([]);
+            pool.contest_pool_crews = [];
+          }
+        } else if (needsCrewRebuild && races.length > 0 && comps.length > 0) {
+          setStageList(races.map((r: any) => ({ race_key: r.race_key, name: r.name ?? null })));
           const { data: entryRows, error: entriesError } = await supabase
             .from("contest_race_entries")
             .select("race_id, competitor_id")
@@ -224,35 +281,7 @@ const RegattaDetail = () => {
               };
             })
             .filter((c) => c.crew_id && c.event_id);
-
-          if (isSurvivorTemplate) {
-            // Keep the FULL race graph — rounds 2+ are played from this panel.
-            const byRaceKey = new Map<string, PoolCrew[]>();
-            for (const c of builtCrews) {
-              if (!byRaceKey.has(c.event_id)) byRaceKey.set(c.event_id, []);
-              byRaceKey.get(c.event_id)!.push(c);
-            }
-            const graph: SurvivorRace[] = races.map((r: any) => ({
-              race_key: r.race_key,
-              name: r.name ?? null,
-              round_no: r.round_no ?? null,
-              race_order: r.race_order,
-              competitors: (byRaceKey.get(r.race_key) || []).map((c) => ({
-                crew_id: c.crew_id,
-                crew_name: c.crew_name,
-                logo_url: c.logo_url ?? null,
-              })),
-            }));
-            setSurvivorRaces(graph);
-
-            // Round-1 entry must offer ONLY round-1 races.
-            const roundOneKeys = new Set(
-              races.filter((r: any) => r.round_no === 1).map((r: any) => r.race_key)
-            );
-            pool.contest_pool_crews = builtCrews.filter((c) => roundOneKeys.has(c.event_id));
-          } else if (needsCrewRebuild) {
-            pool.contest_pool_crews = builtCrews;
-          }
+          pool.contest_pool_crews = builtCrews;
         }
       }
 
@@ -310,9 +339,14 @@ const RegattaDetail = () => {
     const poolId = contestPool?.id;
     const isSurvivorTemplate =
       (contestPool?.contest_templates?.scoring_config as ScoringConfigLite | null)?.primitive === "survivor";
+
+    setSurvivorEntry(null);
+    setSurvivorEntryRounds([]);
+    setRoundPicks(new Map());
+
     if (!poolId || !isSurvivorTemplate) return;
     if (authLoading) return;
-    if (!user) { setSurvivorEntry(null); setSurvivorEntryRounds([]); return; }
+    if (!user) { setSurvivorEntry(null); setSurvivorEntryRounds([]); setRoundPicks(new Map()); return; }
 
     let cancelled = false;
     const loadOwnerData = async () => {
@@ -324,11 +358,14 @@ const RegattaDetail = () => {
         .maybeSingle();
       if (cancelled) return;
       if (entryError) {
+        setSurvivorEntry(null);
+        setSurvivorEntryRounds([]);
+        setRoundPicks(new Map());
         console.error("Failed to load survivor entry", entryError);
         toast.error("Failed to load your elimination-round status");
         return;
       }
-      if (!entryRow) { setSurvivorEntry(null); setSurvivorEntryRounds([]); return; }
+      if (!entryRow) { setSurvivorEntry(null); setSurvivorEntryRounds([]); setRoundPicks(new Map()); return; }
       setSurvivorEntry(entryRow as { id: string; status: string });
 
       const { data: erRows, error: erError } = await supabase
@@ -338,6 +375,8 @@ const RegattaDetail = () => {
         .order("round_no", { ascending: true });
       if (cancelled) return;
       if (erError) {
+        setSurvivorEntryRounds([]);
+        setRoundPicks(new Map());
         console.error("Failed to load survivor entry rounds", erError);
         toast.error("Failed to load your round history");
         return;
@@ -485,10 +524,8 @@ const RegattaDetail = () => {
       .sort((a, b) => a.race_order - b.race_order);
   }, [actionableRound, survivorRaces]);
 
-  const survivorRoundMinPicks = useMemo(() => {
-    const tplMin = contestPool?.contest_templates?.min_picks ?? 2;
-    return Math.min(tplMin, actionableRaces.length || tplMin);
-  }, [contestPool?.contest_templates?.min_picks, actionableRaces.length]);
+  const survivorRoundMinPicks = contestPool?.contest_templates?.min_picks ?? 2;
+  const roundMisconfigured = actionableRaces.length < survivorRoundMinPicks;
 
   const hasExistingRoundPicks = actionableRound ? entryRoundByNo.has(actionableRound.round_no) : false;
 
@@ -509,23 +546,42 @@ const RegattaDetail = () => {
   }, [isSurvivor, actionableRound?.round_no, entryRoundByNo]);
 
   const handleSubmitRoundPicks = async () => {
-    if (!survivorEntry || !actionableRound) return;
+    if (roundSubmitRef.current || roundSubmitting || !survivorEntry || !actionableRound) return;
+    roundSubmitRef.current = true;
+
     const picks = Array.from(roundPicks.entries()).map(([event_id, crewId]) => ({ crewId, event_id }));
+
+    const raceMap = new Map(actionableRaces.map((r) => [r.race_key, r]));
+    const pickValid = picks.every((p) => {
+      const race = raceMap.get(p.event_id);
+      if (!race) return false;
+      return race.competitors.some((c) => c.crew_id === p.crewId);
+    });
+    if (!pickValid) {
+      toast.error("One of your picks is no longer valid for this round — please reselect.");
+      setRoundPicks(new Map());
+      roundSubmitRef.current = false;
+      return;
+    }
 
     if (picks.length !== survivorRoundMinPicks) {
       toast.error(`Please select exactly ${survivorRoundMinPicks} picks for this round`);
+      roundSubmitRef.current = false;
       return;
     }
     if (new Set(picks.map((p) => p.event_id)).size !== picks.length) {
       toast.error("You can only select one crew per race");
+      roundSubmitRef.current = false;
       return;
     }
     if (new Set(picks.map((p) => p.event_id)).size < 2) {
       toast.error("You must pick from at least 2 different races");
+      roundSubmitRef.current = false;
       return;
     }
     if (new Set(picks.map((p) => p.crewId)).size < 2) {
       toast.error("You must pick at least 2 different competitors");
+      roundSubmitRef.current = false;
       return;
     }
 
@@ -561,6 +617,7 @@ const RegattaDetail = () => {
       toast.error(message);
     } finally {
       setRoundSubmitting(false);
+      roundSubmitRef.current = false;
     }
   };
 
@@ -836,52 +893,60 @@ const RegattaDetail = () => {
                           </p>
                           <p className="text-xs text-slate-500">Locks {fmtRoundTime(actionableRound.lock_at)}</p>
                         </div>
-                        {actionableRaces.map((race) => (
-                          <div key={race.race_key}>
-                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
-                              {race.name || race.race_key}
-                            </p>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                              {race.competitors.map((c) => {
-                                const selected = roundPicks.get(race.race_key) === c.crew_id;
-                                return (
-                                  <button
-                                    key={`${race.race_key}::${c.crew_id}`}
-                                    type="button"
-                                    onClick={() =>
-                                      setRoundPicks((prev) => {
-                                        const next = new Map(prev);
-                                        if (next.get(race.race_key) === c.crew_id) next.delete(race.race_key);
-                                        else next.set(race.race_key, c.crew_id);
-                                        return next;
-                                      })
-                                    }
-                                    className={`flex items-center gap-3 rounded-lg border-2 px-3 py-2 text-left transition-all ${
-                                      selected ? "border-teal-400 bg-teal-50" : "border-slate-200 bg-white hover:bg-slate-50"
-                                    }`}
-                                  >
-                                    <CrewLogo logoUrl={c.logo_url} crewName={c.crew_name} size={32} />
-                                    <span className="text-sm font-semibold text-slate-900 truncate">{c.crew_name}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
-                        <Button
-                          variant="hero"
-                          className="w-full rounded-xl font-semibold"
-                          disabled={roundSubmitting || roundPicks.size !== survivorRoundMinPicks}
-                          onClick={handleSubmitRoundPicks}
-                        >
-                          {roundSubmitting ? (
-                            <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
-                          ) : hasExistingRoundPicks ? (
-                            "Update picks"
-                          ) : (
-                            "Submit picks"
-                          )}
-                        </Button>
+                        {roundMisconfigured ? (
+                          <p className="text-sm text-slate-600">
+                            This round isn't ready for picks yet. Please check back shortly or contact support.
+                          </p>
+                        ) : (
+                          <>
+                            {actionableRaces.map((race) => (
+                              <div key={race.race_key}>
+                                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+                                  {race.name || race.race_key}
+                                </p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                  {race.competitors.map((c) => {
+                                    const selected = roundPicks.get(race.race_key) === c.crew_id;
+                                    return (
+                                      <button
+                                        key={`${race.race_key}::${c.crew_id}`}
+                                        type="button"
+                                        onClick={() =>
+                                          setRoundPicks((prev) => {
+                                            const next = new Map(prev);
+                                            if (next.get(race.race_key) === c.crew_id) next.delete(race.race_key);
+                                            else next.set(race.race_key, c.crew_id);
+                                            return next;
+                                          })
+                                        }
+                                        className={`flex items-center gap-3 rounded-lg border-2 px-3 py-2 text-left transition-all ${
+                                          selected ? "border-teal-400 bg-teal-50" : "border-slate-200 bg-white hover:bg-slate-50"
+                                        }`}
+                                      >
+                                        <CrewLogo logoUrl={c.logo_url} crewName={c.crew_name} size={32} />
+                                        <span className="text-sm font-semibold text-slate-900 truncate">{c.crew_name}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                            <Button
+                              variant="hero"
+                              className="w-full rounded-xl font-semibold"
+                              disabled={roundSubmitting || roundPicks.size !== survivorRoundMinPicks || roundMisconfigured}
+                              onClick={handleSubmitRoundPicks}
+                            >
+                              {roundSubmitting ? (
+                                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
+                              ) : hasExistingRoundPicks ? (
+                                "Update picks"
+                              ) : (
+                                "Submit picks"
+                              )}
+                            </Button>
+                          </>
+                        )}
                       </div>
                     ) : (
                       <p className="text-sm text-slate-600">No round is open for picks right now.</p>
