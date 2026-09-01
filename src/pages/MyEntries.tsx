@@ -144,6 +144,7 @@ const MyEntries = () => {
   const wallet = useWalletBalance();
   const walletBalanceCents: number | null = wallet.status === 'ready' ? wallet.availableCents : null;
   const poolChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const loadGenRef = useRef(0);
   const [stats, setStats] = useState({
     totalEntries: 0,
     activeEntries: 0,
