@@ -542,21 +542,29 @@ const MyEntries = () => {
       return [];
     }
 
-    const resolveCrew = (crewId: string) =>
-      (crewMap.get(`${entry.pool_id}-${crewId}`) as { crew_name?: string; name?: string; logo_url?: string | null } | undefined) ??
-      (competitorMap.get(`${entry.contest_template_id}-${crewId}`) as { crew_name?: string; name?: string; logo_url?: string | null } | undefined);
-
     return picksArray.map((pick) => {
       if (typeof pick === 'object' && pick !== null && 'crewId' in pick) {
         const pickObj = pick as PickNew;
-        const resolved = resolveCrew(pickObj.crewId);
-        const name = resolved?.crew_name ?? resolved?.name ?? pickObj.crewId;
-        return { crewName: name, margin: pickObj.predictedMargin, logoUrl: getCircleFlagUrl(name) || resolved?.logo_url };
+        const crewId = pickObj.crewId;
+        const crewInfo = crewMap.get(`${entry.pool_id}-${crewId}`);
+        if (crewInfo) {
+          const name = crewInfo.crew_name || crewId;
+          return { crewName: name, margin: pickObj.predictedMargin, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url };
+        }
+        const comp = competitorMap.get(`${entry.contest_template_id}-${crewId}`);
+        const name = comp?.name || crewId;
+        return { crewName: name, margin: pickObj.predictedMargin, logoUrl: getCircleFlagUrl(name) || comp?.logo_url };
       }
       if (typeof pick === 'string') {
-        const resolved = resolveCrew(pick);
-        const name = resolved?.crew_name ?? resolved?.name ?? pick;
-        return { crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || resolved?.logo_url };
+        const crewId = pick;
+        const crewInfo = crewMap.get(`${entry.pool_id}-${crewId}`);
+        if (crewInfo) {
+          const name = crewInfo.crew_name || crewId;
+          return { crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url };
+        }
+        const comp = competitorMap.get(`${entry.contest_template_id}-${crewId}`);
+        const name = comp?.name || crewId;
+        return { crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || comp?.logo_url };
       }
       return { crewName: 'Unknown', margin: null, logoUrl: null };
     });
