@@ -193,11 +193,67 @@ const RegattaDetail = () => {
         }
         const races = racesRes.data || [];
         const comps = compsRes.data || [];
-        if (needsCrewRebuild) {
-          setStageList(races.map((r: any) => ({ race_key: r.race_key, name: r.name ?? null })));
-        }
 
-        if (races.length > 0 && comps.length > 0) {
+        if (isSurvivorTemplate) {
+          // Survivor: build the full race graph and always assign ONLY round-1 crews
+          // to the entry grid, regardless of whether the pool has materialized rows.
+          if (races.length > 0 && comps.length > 0) {
+            const { data: entryRows, error: entriesError } = await supabase
+              .from("contest_race_entries")
+              .select("race_id, competitor_id")
+              .in("race_id", races.map((r) => r.id));
+            if (entriesError) {
+              console.error("Failed to load contest race entries", entriesError);
+              setError("Failed to load contest lineup");
+              setLoading(false);
+              return;
+            }
+            const raceKeyById = new Map(races.map((r) => [r.id, r.race_key]));
+            const raceOrderById = new Map(races.map((r, i) => [r.id, i]));
+            const compById = new Map(comps.map((c) => [c.id, c]));
+            const builtCrews: PoolCrew[] = (entryRows || [])
+              .slice()
+              .sort((a, b) => (raceOrderById.get(a.race_id) ?? 0) - (raceOrderById.get(b.race_id) ?? 0))
+              .map((re) => {
+                const c = compById.get(re.competitor_id);
+                return {
+                  id: `${re.race_id}-${re.competitor_id}`,
+                  crew_id: c?.competitor_key ?? "",
+                  crew_name: c?.name ?? c?.competitor_key ?? "",
+                  event_id: raceKeyById.get(re.race_id) ?? "",
+                  logo_url: c?.logo_url ?? null,
+                };
+              })
+              .filter((c) => c.crew_id && c.event_id);
+
+            const byRaceKey = new Map<string, PoolCrew[]>();
+            for (const c of builtCrews) {
+              if (!byRaceKey.has(c.event_id)) byRaceKey.set(c.event_id, []);
+              byRaceKey.get(c.event_id)!.push(c);
+            }
+            const graph: SurvivorRace[] = races.map((r: any) => ({
+              race_key: r.race_key,
+              name: r.name ?? null,
+              round_no: r.round_no ?? null,
+              race_order: r.race_order,
+              competitors: (byRaceKey.get(r.race_key) || []).map((c) => ({
+                crew_id: c.crew_id,
+                crew_name: c.crew_name,
+                logo_url: c.logo_url ?? null,
+              })),
+            }));
+            setSurvivorRaces(graph);
+
+            const roundOneKeys = new Set(
+              races.filter((r: any) => r.round_no === 1).map((r: any) => r.race_key)
+            );
+            pool.contest_pool_crews = builtCrews.filter((c) => roundOneKeys.has(c.event_id));
+          } else {
+            setSurvivorRaces([]);
+            pool.contest_pool_crews = [];
+          }
+        } else if (needsCrewRebuild && races.length > 0 && comps.length > 0) {
+          setStageList(races.map((r: any) => ({ race_key: r.race_key, name: r.name ?? null })));
           const { data: entryRows, error: entriesError } = await supabase
             .from("contest_race_entries")
             .select("race_id, competitor_id")
@@ -225,35 +281,7 @@ const RegattaDetail = () => {
               };
             })
             .filter((c) => c.crew_id && c.event_id);
-
-          if (isSurvivorTemplate) {
-            // Keep the FULL race graph — rounds 2+ are played from this panel.
-            const byRaceKey = new Map<string, PoolCrew[]>();
-            for (const c of builtCrews) {
-              if (!byRaceKey.has(c.event_id)) byRaceKey.set(c.event_id, []);
-              byRaceKey.get(c.event_id)!.push(c);
-            }
-            const graph: SurvivorRace[] = races.map((r: any) => ({
-              race_key: r.race_key,
-              name: r.name ?? null,
-              round_no: r.round_no ?? null,
-              race_order: r.race_order,
-              competitors: (byRaceKey.get(r.race_key) || []).map((c) => ({
-                crew_id: c.crew_id,
-                crew_name: c.crew_name,
-                logo_url: c.logo_url ?? null,
-              })),
-            }));
-            setSurvivorRaces(graph);
-
-            // Round-1 entry must offer ONLY round-1 races.
-            const roundOneKeys = new Set(
-              races.filter((r: any) => r.round_no === 1).map((r: any) => r.race_key)
-            );
-            pool.contest_pool_crews = builtCrews.filter((c) => roundOneKeys.has(c.event_id));
-          } else if (needsCrewRebuild) {
-            pool.contest_pool_crews = builtCrews;
-          }
+          pool.contest_pool_crews = builtCrews;
         }
       }
 
