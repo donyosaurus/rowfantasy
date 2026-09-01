@@ -524,10 +524,8 @@ const RegattaDetail = () => {
       .sort((a, b) => a.race_order - b.race_order);
   }, [actionableRound, survivorRaces]);
 
-  const survivorRoundMinPicks = useMemo(() => {
-    const tplMin = contestPool?.contest_templates?.min_picks ?? 2;
-    return Math.min(tplMin, actionableRaces.length || tplMin);
-  }, [contestPool?.contest_templates?.min_picks, actionableRaces.length]);
+  const survivorRoundMinPicks = contestPool?.contest_templates?.min_picks ?? 2;
+  const roundMisconfigured = actionableRaces.length < survivorRoundMinPicks;
 
   const hasExistingRoundPicks = actionableRound ? entryRoundByNo.has(actionableRound.round_no) : false;
 
