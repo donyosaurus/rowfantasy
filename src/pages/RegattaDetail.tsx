@@ -339,9 +339,14 @@ const RegattaDetail = () => {
     const poolId = contestPool?.id;
     const isSurvivorTemplate =
       (contestPool?.contest_templates?.scoring_config as ScoringConfigLite | null)?.primitive === "survivor";
+
+    setSurvivorEntry(null);
+    setSurvivorEntryRounds([]);
+    setRoundPicks(new Map());
+
     if (!poolId || !isSurvivorTemplate) return;
     if (authLoading) return;
-    if (!user) { setSurvivorEntry(null); setSurvivorEntryRounds([]); return; }
+    if (!user) { setSurvivorEntry(null); setSurvivorEntryRounds([]); setRoundPicks(new Map()); return; }
 
     let cancelled = false;
     const loadOwnerData = async () => {
@@ -353,11 +358,14 @@ const RegattaDetail = () => {
         .maybeSingle();
       if (cancelled) return;
       if (entryError) {
+        setSurvivorEntry(null);
+        setSurvivorEntryRounds([]);
+        setRoundPicks(new Map());
         console.error("Failed to load survivor entry", entryError);
         toast.error("Failed to load your elimination-round status");
         return;
       }
-      if (!entryRow) { setSurvivorEntry(null); setSurvivorEntryRounds([]); return; }
+      if (!entryRow) { setSurvivorEntry(null); setSurvivorEntryRounds([]); setRoundPicks(new Map()); return; }
       setSurvivorEntry(entryRow as { id: string; status: string });
 
       const { data: erRows, error: erError } = await supabase
@@ -367,6 +375,8 @@ const RegattaDetail = () => {
         .order("round_no", { ascending: true });
       if (cancelled) return;
       if (erError) {
+        setSurvivorEntryRounds([]);
+        setRoundPicks(new Map());
         console.error("Failed to load survivor entry rounds", erError);
         toast.error("Failed to load your round history");
         return;
