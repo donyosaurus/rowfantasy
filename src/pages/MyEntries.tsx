@@ -260,6 +260,85 @@ const MyEntries = () => {
         }
       }
 
+      // --- Competitor-name fallback for v2 (scoring_config non-null) templates ---
+      const v2TemplateIds = [
+        ...new Set(
+          entriesData
+            .filter((e) => !!e.contest_templates?.scoring_config)
+            .map((e) => e.contest_template_id)
+            .filter(Boolean)
+        ),
+      ];
+      setCompetitorMap(new Map());
+      if (v2TemplateIds.length > 0) {
+        const { data: compData, error: compError } = await supabase
+          .from('contest_competitors')
+          .select('template_id, competitor_key, name, logo_url')
+          .in('template_id', v2TemplateIds);
+        if (compError) {
+          console.error('Error loading competitors:', compError);
+        } else if (compData) {
+          const newCompMap = new Map<string, { name: string; logo_url: string | null }>();
+          compData.forEach((c) => {
+            newCompMap.set(`${c.template_id}-${c.competitor_key}`, { name: c.name, logo_url: c.logo_url ?? null });
+          });
+          setCompetitorMap(newCompMap);
+        }
+      }
+
+      // --- Survivor round data ---
+      const survivorEntries = entriesData.filter((e) => isSurvivorTemplate(e.contest_templates?.scoring_config));
+      setRoundsByTemplate(new Map());
+      setEntryRoundsByEntry(new Map());
+      if (survivorEntries.length > 0) {
+        const survivorTemplateIds = [...new Set(survivorEntries.map((e) => e.contest_template_id).filter(Boolean))];
+        const survivorEntryIds = survivorEntries.map((e) => e.id);
+
+        const { data: roundsData, error: roundsError } = await supabase
+          .from('contest_rounds')
+          .select('template_id, round_no, lock_at, advance_count, status')
+          .in('template_id', survivorTemplateIds)
+          .order('round_no');
+        if (roundsError) {
+          console.error('Error loading survivor rounds:', roundsError);
+        } else if (roundsData) {
+          const nextRounds = new Map<string, SurvivorRound[]>();
+          roundsData.forEach((r) => {
+            const arr = nextRounds.get(r.template_id) ?? [];
+            arr.push({ round_no: r.round_no, lock_at: r.lock_at, advance_count: r.advance_count, status: r.status });
+            nextRounds.set(r.template_id, arr);
+          });
+          nextRounds.forEach((arr) => arr.sort((a, b) => a.round_no - b.round_no));
+          setRoundsByTemplate(nextRounds);
+        }
+
+        const { data: erData, error: erError } = await supabase
+          .from('contest_entry_rounds')
+          .select('entry_id, round_no, picks, points, round_rank, advanced')
+          .in('entry_id', survivorEntryIds)
+          .order('round_no');
+        if (erError) {
+          console.error('Error loading survivor entry rounds:', erError);
+        } else if (erData) {
+          const nextEntryRounds = new Map<string, SurvivorEntryRound[]>();
+          erData.forEach((r) => {
+            const arr = nextEntryRounds.get(r.entry_id) ?? [];
+            arr.push({
+              round_no: r.round_no,
+              picks: r.picks,
+              points: r.points === null ? null : Number(r.points),
+              round_rank: r.round_rank,
+              advanced: r.advanced,
+            });
+            nextEntryRounds.set(r.entry_id, arr);
+          });
+          nextEntryRounds.forEach((arr) => arr.sort((a, b) => a.round_no - b.round_no));
+          setEntryRoundsByEntry(nextEntryRounds);
+        }
+      }
+
+
+
       const completed = entriesData.filter((e) => e.contest_pools?.status === 'settled');
       const wins = completed.filter((e) => e.contest_scores?.[0]?.is_winner);
       const totalWinnings = completed.reduce(
