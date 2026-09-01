@@ -581,6 +581,63 @@ const MyEntries = () => {
     const poolStatus = entry.contest_pools?.status || '';
     const isSettled = ['settled', 'completed', 'voided'].includes(poolStatus) || ['settled', 'voided'].includes(entry.status);
 
+    // ---- Survivor derivation (only active when the template's rounds loaded) ----
+    const isSurvivor = isSurvivorTemplate(entry.contest_templates?.scoring_config);
+    const rounds = roundsByTemplate.get(entry.contest_template_id);
+    const survivorReady = isSurvivor && Array.isArray(rounds) && rounds.length > 0;
+    const entryRounds: SurvivorEntryRound[] = survivorReady ? (entryRoundsByEntry.get(entry.id) ?? []) : [];
+    const erByRound = new Map(entryRounds.map((r) => [r.round_no, r]));
+
+    let eliminatedInRound: number | null = null;
+    let actionableRound: SurvivorRound | null = null;
+    let currentRoundNo = 0;
+    if (survivorReady && rounds) {
+      for (const r of rounds) {
+        if (r.status === 'scored') {
+          const er = erByRound.get(r.round_no);
+          if (!er || er.advanced !== true) { eliminatedInRound = r.round_no; break; }
+        }
+      }
+      const now = new Date();
+      if (eliminatedInRound === null) {
+        actionableRound =
+          rounds.find((r) => r.status === 'scheduled' && new Date(r.lock_at) > now && r.round_no >= 2) ?? null;
+      }
+      const firstUnscored = rounds.find((r) => r.status !== 'scored');
+      currentRoundNo = firstUnscored ? firstUnscored.round_no : rounds.length;
+    }
+
+    const roundStatusLabel = (s: string) =>
+      s === 'scheduled' ? 'Upcoming' : s === 'locked' ? 'In progress' : s === 'scored' ? 'Complete' : s;
+
+    const renderRoundsLadder = () => {
+      if (!survivorReady || !rounds) return null;
+      return (
+        <div className="mt-4 pt-3 border-t space-y-1.5">
+          {rounds.map((r) => {
+            const er = erByRound.get(r.round_no);
+            const parts: string[] = [];
+            if (er) {
+              if (er.points !== null) parts.push(`${er.points} pts`);
+              if (er.advanced === true) parts.push('Advanced');
+              else if (er.advanced === false) parts.push('Eliminated');
+              else if (er.points === null) parts.push('Picks in');
+            } else if (r.status === 'scored') {
+              parts.push('No picks');
+            }
+            return (
+              <div key={`${entry.id}-${r.round_no}`} className="flex items-center gap-2 text-sm">
+                <span className="font-medium">Round {r.round_no}</span>
+                <Badge variant="outline" className="text-xs">{roundStatusLabel(r.status)}</Badge>
+                {parts.length > 0 && <span className="text-muted-foreground">{parts.join(' · ')}</span>}
+              </div>
+            );
+          })}
+        </div>
+      );
+    };
+
+
     const getTopPrize = (): number | null => {
       if (!payoutStructure) return null;
       return payoutStructure['1'] || null;
