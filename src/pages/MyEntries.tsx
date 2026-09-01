@@ -131,6 +131,10 @@ const MyEntries = () => {
   const navigate = useNavigate();
   const [entries, setEntries] = useState<Entry[]>([]);
   const [crewMap, setCrewMap] = useState<Map<string, CrewInfo>>(new Map());
+  const [competitorMap, setCompetitorMap] = useState<Map<string, { name: string; logo_url: string | null }>>(new Map());
+  const [roundsByTemplate, setRoundsByTemplate] = useState<Map<string, SurvivorRound[]>>(new Map());
+  const [entryRoundsByEntry, setEntryRoundsByEntry] = useState<Map<string, SurvivorEntryRound[]>>(new Map());
+
   const [loading, setLoading] = useState(true);
   const [matchupPoolId, setMatchupPoolId] = useState<string | null>(null);
   const [matchupEntry, setMatchupEntry] = useState<Entry | null>(null);
