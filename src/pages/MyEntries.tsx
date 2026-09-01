@@ -70,7 +70,10 @@ interface Entry {
     regatta_name: string;
     lock_time: string;
     scoring_config?: unknown | null;
+    min_picks: number | null;
+    max_entries_per_user: number | null;
   };
+
   contest_pools: {
     status: string;
     prize_pool_cents: number;
