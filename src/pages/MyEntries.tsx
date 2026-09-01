@@ -381,7 +381,7 @@ const MyEntries = () => {
     } catch (error) {
       console.error('Error loading entries:', error);
     } finally {
-      setLoading(false);
+      if (gen === loadGenRef.current) setLoading(false);
     }
   };
 
