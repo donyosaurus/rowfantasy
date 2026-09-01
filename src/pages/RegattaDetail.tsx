@@ -152,6 +152,7 @@ const RegattaDetail = () => {
   const [roundPicks, setRoundPicks] = useState<Map<string, string>>(new Map()); // race_key -> crew_id
   const [roundSubmitting, setRoundSubmitting] = useState(false);
   const [survivorRefreshKey, setSurvivorRefreshKey] = useState(0);
+  const roundSubmitRef = useRef(false);
 
   useEffect(() => {
     if (!id) { setError("No contest ID provided"); setLoading(false); return; }
