@@ -717,7 +717,10 @@ const MyEntries = () => {
             </div>
           </div>
 
+          {renderRoundsLadder()}
+
           {/* Action buttons row */}
+
           <div className="flex justify-between items-center mt-3 gap-2">
             {entry.contest_pools?.status === 'open' && !isAtEntryCap(entry) && !isSurvivor ? (
               <Button
