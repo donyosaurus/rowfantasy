@@ -756,7 +756,8 @@ const MyEntries = () => {
             </Button>
           </div>
 
-          {renderRoundsLadder()}
+
+
 
 
           {showScore && score && (
