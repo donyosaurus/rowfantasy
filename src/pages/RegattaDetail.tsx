@@ -4,7 +4,7 @@ import { CrewLogo } from "@/components/CrewLogo";
 import { DraftPicksList } from "@/components/DraftPicksList";
 import { CrewCard } from "@/components/CrewCard";
 import { DraftPageBackground } from "@/components/DraftPageBackground";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { invokeGeoFunction } from "@/integrations/supabase/geoFunctions";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { Header } from "@/components/Header";
