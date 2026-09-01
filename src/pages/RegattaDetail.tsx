@@ -546,23 +546,42 @@ const RegattaDetail = () => {
   }, [isSurvivor, actionableRound?.round_no, entryRoundByNo]);
 
   const handleSubmitRoundPicks = async () => {
-    if (!survivorEntry || !actionableRound) return;
+    if (roundSubmitRef.current || roundSubmitting || !survivorEntry || !actionableRound) return;
+    roundSubmitRef.current = true;
+
     const picks = Array.from(roundPicks.entries()).map(([event_id, crewId]) => ({ crewId, event_id }));
+
+    const raceMap = new Map(actionableRaces.map((r) => [r.race_key, r]));
+    const pickValid = picks.every((p) => {
+      const race = raceMap.get(p.event_id);
+      if (!race) return false;
+      return race.competitors.some((c) => c.crew_id === p.crewId);
+    });
+    if (!pickValid) {
+      toast.error("One of your picks is no longer valid for this round — please reselect.");
+      setRoundPicks(new Map());
+      roundSubmitRef.current = false;
+      return;
+    }
 
     if (picks.length !== survivorRoundMinPicks) {
       toast.error(`Please select exactly ${survivorRoundMinPicks} picks for this round`);
+      roundSubmitRef.current = false;
       return;
     }
     if (new Set(picks.map((p) => p.event_id)).size !== picks.length) {
       toast.error("You can only select one crew per race");
+      roundSubmitRef.current = false;
       return;
     }
     if (new Set(picks.map((p) => p.event_id)).size < 2) {
       toast.error("You must pick from at least 2 different races");
+      roundSubmitRef.current = false;
       return;
     }
     if (new Set(picks.map((p) => p.crewId)).size < 2) {
       toast.error("You must pick at least 2 different competitors");
+      roundSubmitRef.current = false;
       return;
     }
 
@@ -598,6 +617,7 @@ const RegattaDetail = () => {
       toast.error(message);
     } finally {
       setRoundSubmitting(false);
+      roundSubmitRef.current = false;
     }
   };
 
