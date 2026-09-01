@@ -362,8 +362,22 @@ const MyEntries = () => {
     }
   };
 
+  /** Mirrors the enter RPC's max_entries_per_user rule (default 1). */
+  const isAtEntryCap = (entry: Entry): boolean => {
+    const cap = entry.contest_templates?.max_entries_per_user ?? 1;
+    const count = entries.filter(
+      (e) => e.contest_template_id === entry.contest_template_id && ['active', 'scored', 'settled'].includes(e.status)
+    ).length;
+    return count >= cap;
+  };
+
   const openResubmit = (entry: Entry) => {
+    if (isAtEntryCap(entry)) {
+      toast.error("You've already entered this contest the maximum number of times.");
+      return;
+    }
     if (entry.contest_pools?.status !== 'open') {
+
       toast.error('This contest has locked and is no longer accepting entries.');
       return;
     }
