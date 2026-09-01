@@ -893,52 +893,60 @@ const RegattaDetail = () => {
                           </p>
                           <p className="text-xs text-slate-500">Locks {fmtRoundTime(actionableRound.lock_at)}</p>
                         </div>
-                        {actionableRaces.map((race) => (
-                          <div key={race.race_key}>
-                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
-                              {race.name || race.race_key}
-                            </p>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                              {race.competitors.map((c) => {
-                                const selected = roundPicks.get(race.race_key) === c.crew_id;
-                                return (
-                                  <button
-                                    key={`${race.race_key}::${c.crew_id}`}
-                                    type="button"
-                                    onClick={() =>
-                                      setRoundPicks((prev) => {
-                                        const next = new Map(prev);
-                                        if (next.get(race.race_key) === c.crew_id) next.delete(race.race_key);
-                                        else next.set(race.race_key, c.crew_id);
-                                        return next;
-                                      })
-                                    }
-                                    className={`flex items-center gap-3 rounded-lg border-2 px-3 py-2 text-left transition-all ${
-                                      selected ? "border-teal-400 bg-teal-50" : "border-slate-200 bg-white hover:bg-slate-50"
-                                    }`}
-                                  >
-                                    <CrewLogo logoUrl={c.logo_url} crewName={c.crew_name} size={32} />
-                                    <span className="text-sm font-semibold text-slate-900 truncate">{c.crew_name}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
-                        <Button
-                          variant="hero"
-                          className="w-full rounded-xl font-semibold"
-                          disabled={roundSubmitting || roundPicks.size !== survivorRoundMinPicks}
-                          onClick={handleSubmitRoundPicks}
-                        >
-                          {roundSubmitting ? (
-                            <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
-                          ) : hasExistingRoundPicks ? (
-                            "Update picks"
-                          ) : (
-                            "Submit picks"
-                          )}
-                        </Button>
+                        {roundMisconfigured ? (
+                          <p className="text-sm text-slate-600">
+                            This round isn't ready for picks yet. Please check back shortly or contact support.
+                          </p>
+                        ) : (
+                          <>
+                            {actionableRaces.map((race) => (
+                              <div key={race.race_key}>
+                                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+                                  {race.name || race.race_key}
+                                </p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                  {race.competitors.map((c) => {
+                                    const selected = roundPicks.get(race.race_key) === c.crew_id;
+                                    return (
+                                      <button
+                                        key={`${race.race_key}::${c.crew_id}`}
+                                        type="button"
+                                        onClick={() =>
+                                          setRoundPicks((prev) => {
+                                            const next = new Map(prev);
+                                            if (next.get(race.race_key) === c.crew_id) next.delete(race.race_key);
+                                            else next.set(race.race_key, c.crew_id);
+                                            return next;
+                                          })
+                                        }
+                                        className={`flex items-center gap-3 rounded-lg border-2 px-3 py-2 text-left transition-all ${
+                                          selected ? "border-teal-400 bg-teal-50" : "border-slate-200 bg-white hover:bg-slate-50"
+                                        }`}
+                                      >
+                                        <CrewLogo logoUrl={c.logo_url} crewName={c.crew_name} size={32} />
+                                        <span className="text-sm font-semibold text-slate-900 truncate">{c.crew_name}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                            <Button
+                              variant="hero"
+                              className="w-full rounded-xl font-semibold"
+                              disabled={roundSubmitting || roundPicks.size !== survivorRoundMinPicks || roundMisconfigured}
+                              onClick={handleSubmitRoundPicks}
+                            >
+                              {roundSubmitting ? (
+                                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
+                              ) : hasExistingRoundPicks ? (
+                                "Update picks"
+                              ) : (
+                                "Submit picks"
+                              )}
+                            </Button>
+                          </>
+                        )}
                       </div>
                     ) : (
                       <p className="text-sm text-slate-600">No round is open for picks right now.</p>
