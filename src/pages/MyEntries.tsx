@@ -719,7 +719,7 @@ const MyEntries = () => {
 
           {/* Action buttons row */}
           <div className="flex justify-between items-center mt-3 gap-2">
-            {entry.contest_pools?.status === 'open' ? (
+            {entry.contest_pools?.status === 'open' && !isAtEntryCap(entry) && !isSurvivor ? (
               <Button
                 type="button"
                 size="sm"
@@ -728,6 +728,18 @@ const MyEntries = () => {
               >
                 <Plus className="h-4 w-4" />
                 Submit Another Entry
+              </Button>
+            ) : survivorReady && !showScore && eliminatedInRound === null && actionableRound ? (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => navigate(`/regatta/${entry.pool_id}`)}
+                className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-accent transition-smooth font-semibold"
+              >
+                <Plus className="h-4 w-4" />
+                {erByRound.has(actionableRound.round_no)
+                  ? `Update Round ${actionableRound.round_no} picks`
+                  : `Play Round ${actionableRound.round_no}`}
               </Button>
             ) : <span />}
             <Button
@@ -740,6 +752,9 @@ const MyEntries = () => {
               View Matchup
             </Button>
           </div>
+
+          {renderRoundsLadder()}
+
 
           {showScore && score && (
             <div className="flex flex-wrap items-center gap-4 text-sm pt-3 border-t text-muted-foreground">
