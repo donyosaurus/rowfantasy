@@ -676,14 +676,25 @@ const MyEntries = () => {
                   Entry: {formatCents(entry.entry_fee_cents)}
                   {prizeText && <span className="text-gold font-medium"> • {prizeText}</span>}
                 </div>
-                {!showScore && <div>Locks: {new Date(entry.contest_templates.lock_time).toLocaleString()}</div>}
+                {!showScore && !survivorReady && <div>Locks: {new Date(entry.contest_templates.lock_time).toLocaleString()}</div>}
+                {!showScore && survivorReady && eliminatedInRound === null && (
+                  actionableRound
+                    ? <div>Round {actionableRound.round_no} picks lock: {new Date(actionableRound.lock_at).toLocaleString()}</div>
+                    : <div>Round {currentRoundNo} in progress</div>
+                )}
                 {showScore && <div>Entered: {new Date(entry.created_at).toLocaleDateString()}</div>}
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
               {showScore && resultDisplay}
-              {!showScore && getStatusBadge(entry.contest_pools?.status || 'open')}
+              {!showScore && survivorReady && (
+                eliminatedInRound !== null
+                  ? <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">Eliminated · Round {eliminatedInRound}</Badge>
+                  : <Badge variant="outline" className="bg-gold/10 text-gold border-gold/30">Alive · Round {currentRoundNo} of {rounds!.length}</Badge>
+              )}
+              {!showScore && !survivorReady && getStatusBadge(entry.contest_pools?.status || 'open')}
             </div>
+
           </div>
         </CardHeader>
         <CardContent>
