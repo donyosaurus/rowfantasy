@@ -391,7 +391,12 @@ const MyEntries = () => {
   const handleResubmit = async () => {
     if (!resubmitEntry || !user) return;
     const entry = resubmitEntry;
+    if (isAtEntryCap(entry)) {
+      toast.error("You've already entered this contest the maximum number of times.");
+      return;
+    }
     const fee = entry.contest_pools?.entry_fee_cents ?? entry.entry_fee_cents;
+
 
     if (entry.contest_pools?.status !== 'open' || new Date(entry.contest_templates.lock_time) <= new Date()) {
       toast.error('This contest has locked and is no longer accepting entries.');
