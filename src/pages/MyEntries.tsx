@@ -70,7 +70,10 @@ interface Entry {
     regatta_name: string;
     lock_time: string;
     scoring_config?: unknown | null;
+    min_picks: number | null;
+    max_entries_per_user: number | null;
   };
+
   contest_pools: {
     status: string;
     prize_pool_cents: number;
@@ -98,11 +101,40 @@ interface CrewInfo {
   logo_url?: string | null;
 }
 
+interface SurvivorRound {
+  round_no: number;
+  lock_at: string;
+  advance_count: number;
+  status: string;
+}
+
+interface SurvivorEntryRound {
+  round_no: number;
+  picks: unknown;
+  points: number | null;
+  round_rank: number | null;
+  advanced: boolean | null;
+}
+
+function isSurvivorTemplate(scoringConfig: unknown): boolean {
+  return (
+    !!scoringConfig &&
+    typeof scoringConfig === "object" &&
+    (scoringConfig as { primitive?: string }).primitive === "survivor"
+  );
+}
+
+
+
 const MyEntries = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [entries, setEntries] = useState<Entry[]>([]);
   const [crewMap, setCrewMap] = useState<Map<string, CrewInfo>>(new Map());
+  const [competitorMap, setCompetitorMap] = useState<Map<string, { name: string; logo_url: string | null }>>(new Map());
+  const [roundsByTemplate, setRoundsByTemplate] = useState<Map<string, SurvivorRound[]>>(new Map());
+  const [entryRoundsByEntry, setEntryRoundsByEntry] = useState<Map<string, SurvivorEntryRound[]>>(new Map());
+
   const [loading, setLoading] = useState(true);
   const [matchupPoolId, setMatchupPoolId] = useState<string | null>(null);
   const [matchupEntry, setMatchupEntry] = useState<Entry | null>(null);
@@ -160,7 +192,7 @@ const MyEntries = () => {
       from('contest_entries').
       select(`
           id, created_at, status, entry_fee_cents, pool_id, contest_template_id, picks, payout_cents, rank, tier_name,
-          contest_templates!inner (regatta_name, lock_time, scoring_config, roster_mode),
+          contest_templates!inner (regatta_name, lock_time, scoring_config, roster_mode, min_picks, max_entries_per_user),
           contest_pools!inner (status, prize_pool_cents, max_entries, current_entries, payout_structure, tier_id, entry_fee_cents, contest_template_id),
           contest_scores (rank, total_points, margin_bonus, is_winner, payout_cents)
         `).
@@ -228,6 +260,85 @@ const MyEntries = () => {
         }
       }
 
+      // --- Competitor-name fallback for v2 (scoring_config non-null) templates ---
+      const v2TemplateIds = [
+        ...new Set(
+          entriesData
+            .filter((e) => !!e.contest_templates?.scoring_config)
+            .map((e) => e.contest_template_id)
+            .filter(Boolean)
+        ),
+      ];
+      setCompetitorMap(new Map());
+      if (v2TemplateIds.length > 0) {
+        const { data: compData, error: compError } = await supabase
+          .from('contest_competitors')
+          .select('template_id, competitor_key, name, logo_url')
+          .in('template_id', v2TemplateIds);
+        if (compError) {
+          console.error('Error loading competitors:', compError);
+        } else if (compData) {
+          const newCompMap = new Map<string, { name: string; logo_url: string | null }>();
+          compData.forEach((c) => {
+            newCompMap.set(`${c.template_id}-${c.competitor_key}`, { name: c.name, logo_url: c.logo_url ?? null });
+          });
+          setCompetitorMap(newCompMap);
+        }
+      }
+
+      // --- Survivor round data ---
+      const survivorEntries = entriesData.filter((e) => isSurvivorTemplate(e.contest_templates?.scoring_config));
+      setRoundsByTemplate(new Map());
+      setEntryRoundsByEntry(new Map());
+      if (survivorEntries.length > 0) {
+        const survivorTemplateIds = [...new Set(survivorEntries.map((e) => e.contest_template_id).filter(Boolean))];
+        const survivorEntryIds = survivorEntries.map((e) => e.id);
+
+        const { data: roundsData, error: roundsError } = await supabase
+          .from('contest_rounds')
+          .select('template_id, round_no, lock_at, advance_count, status')
+          .in('template_id', survivorTemplateIds)
+          .order('round_no');
+        if (roundsError) {
+          console.error('Error loading survivor rounds:', roundsError);
+        } else if (roundsData) {
+          const nextRounds = new Map<string, SurvivorRound[]>();
+          roundsData.forEach((r) => {
+            const arr = nextRounds.get(r.template_id) ?? [];
+            arr.push({ round_no: r.round_no, lock_at: r.lock_at, advance_count: r.advance_count, status: r.status });
+            nextRounds.set(r.template_id, arr);
+          });
+          nextRounds.forEach((arr) => arr.sort((a, b) => a.round_no - b.round_no));
+          setRoundsByTemplate(nextRounds);
+        }
+
+        const { data: erData, error: erError } = await supabase
+          .from('contest_entry_rounds')
+          .select('entry_id, round_no, picks, points, round_rank, advanced')
+          .in('entry_id', survivorEntryIds)
+          .order('round_no');
+        if (erError) {
+          console.error('Error loading survivor entry rounds:', erError);
+        } else if (erData) {
+          const nextEntryRounds = new Map<string, SurvivorEntryRound[]>();
+          erData.forEach((r) => {
+            const arr = nextEntryRounds.get(r.entry_id) ?? [];
+            arr.push({
+              round_no: r.round_no,
+              picks: r.picks,
+              points: r.points === null ? null : Number(r.points),
+              round_rank: r.round_rank,
+              advanced: r.advanced,
+            });
+            nextEntryRounds.set(r.entry_id, arr);
+          });
+          nextEntryRounds.forEach((arr) => arr.sort((a, b) => a.round_no - b.round_no));
+          setEntryRoundsByEntry(nextEntryRounds);
+        }
+      }
+
+
+
       const completed = entriesData.filter((e) => e.contest_pools?.status === 'settled');
       const wins = completed.filter((e) => e.contest_scores?.[0]?.is_winner);
       const totalWinnings = completed.reduce(
@@ -251,8 +362,22 @@ const MyEntries = () => {
     }
   };
 
+  /** Mirrors the enter RPC's max_entries_per_user rule (default 1). */
+  const isAtEntryCap = (entry: Entry): boolean => {
+    const cap = entry.contest_templates?.max_entries_per_user ?? 1;
+    const count = entries.filter(
+      (e) => e.contest_template_id === entry.contest_template_id && ['active', 'scored', 'settled'].includes(e.status)
+    ).length;
+    return count >= cap;
+  };
+
   const openResubmit = (entry: Entry) => {
+    if (isAtEntryCap(entry)) {
+      toast.error("You've already entered this contest the maximum number of times.");
+      return;
+    }
     if (entry.contest_pools?.status !== 'open') {
+
       toast.error('This contest has locked and is no longer accepting entries.');
       return;
     }
@@ -266,7 +391,12 @@ const MyEntries = () => {
   const handleResubmit = async () => {
     if (!resubmitEntry || !user) return;
     const entry = resubmitEntry;
+    if (isAtEntryCap(entry)) {
+      toast.error("You've already entered this contest the maximum number of times.");
+      return;
+    }
     const fee = entry.contest_pools?.entry_fee_cents ?? entry.entry_fee_cents;
+
 
     if (entry.contest_pools?.status !== 'open' || new Date(entry.contest_templates.lock_time) <= new Date()) {
       toast.error('This contest has locked and is no longer accepting entries.');
@@ -389,20 +519,25 @@ const MyEntries = () => {
       return [];
     }
 
+    const resolveCrew = (crewId: string) =>
+      (crewMap.get(`${entry.pool_id}-${crewId}`) as { crew_name?: string; name?: string; logo_url?: string | null } | undefined) ??
+      (competitorMap.get(`${entry.contest_template_id}-${crewId}`) as { crew_name?: string; name?: string; logo_url?: string | null } | undefined);
+
     return picksArray.map((pick) => {
       if (typeof pick === 'object' && pick !== null && 'crewId' in pick) {
         const pickObj = pick as PickNew;
-        const crewInfo = crewMap.get(`${entry.pool_id}-${pickObj.crewId}`);
-        const name = crewInfo?.crew_name || pickObj.crewId;
-        return { crewName: name, margin: pickObj.predictedMargin, logoUrl: getCircleFlagUrl(name) || crewInfo?.logo_url };
+        const resolved = resolveCrew(pickObj.crewId);
+        const name = resolved?.crew_name ?? resolved?.name ?? pickObj.crewId;
+        return { crewName: name, margin: pickObj.predictedMargin, logoUrl: getCircleFlagUrl(name) || resolved?.logo_url };
       }
       if (typeof pick === 'string') {
-        const crewInfo = crewMap.get(`${entry.pool_id}-${pick}`);
-        const name = crewInfo?.crew_name || pick;
-        return { crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || crewInfo?.logo_url };
+        const resolved = resolveCrew(pick);
+        const name = resolved?.crew_name ?? resolved?.name ?? pick;
+        return { crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || resolved?.logo_url };
       }
       return { crewName: 'Unknown', margin: null, logoUrl: null };
     });
+
   };
 
   const activeEntries = entries.filter(
@@ -446,6 +581,63 @@ const MyEntries = () => {
     const poolStatus = entry.contest_pools?.status || '';
     const isSettled = ['settled', 'completed', 'voided'].includes(poolStatus) || ['settled', 'voided'].includes(entry.status);
 
+    // ---- Survivor derivation (only active when the template's rounds loaded) ----
+    const isSurvivor = isSurvivorTemplate(entry.contest_templates?.scoring_config);
+    const rounds = roundsByTemplate.get(entry.contest_template_id);
+    const survivorReady = isSurvivor && Array.isArray(rounds) && rounds.length > 0;
+    const entryRounds: SurvivorEntryRound[] = survivorReady ? (entryRoundsByEntry.get(entry.id) ?? []) : [];
+    const erByRound = new Map(entryRounds.map((r) => [r.round_no, r]));
+
+    let eliminatedInRound: number | null = null;
+    let actionableRound: SurvivorRound | null = null;
+    let currentRoundNo = 0;
+    if (survivorReady && rounds) {
+      for (const r of rounds) {
+        if (r.status === 'scored') {
+          const er = erByRound.get(r.round_no);
+          if (!er || er.advanced !== true) { eliminatedInRound = r.round_no; break; }
+        }
+      }
+      const now = new Date();
+      if (eliminatedInRound === null) {
+        actionableRound =
+          rounds.find((r) => r.status === 'scheduled' && new Date(r.lock_at) > now && r.round_no >= 2) ?? null;
+      }
+      const firstUnscored = rounds.find((r) => r.status !== 'scored');
+      currentRoundNo = firstUnscored ? firstUnscored.round_no : rounds.length;
+    }
+
+    const roundStatusLabel = (s: string) =>
+      s === 'scheduled' ? 'Upcoming' : s === 'locked' ? 'In progress' : s === 'scored' ? 'Complete' : s;
+
+    const renderRoundsLadder = () => {
+      if (!survivorReady || !rounds) return null;
+      return (
+        <div className="mt-4 pt-3 border-t space-y-1.5">
+          {rounds.map((r) => {
+            const er = erByRound.get(r.round_no);
+            const parts: string[] = [];
+            if (er) {
+              if (er.points !== null) parts.push(`${er.points} pts`);
+              if (er.advanced === true) parts.push('Advanced');
+              else if (er.advanced === false) parts.push('Eliminated');
+              else if (er.points === null) parts.push('Picks in');
+            } else if (r.status === 'scored') {
+              parts.push('No picks');
+            }
+            return (
+              <div key={`${entry.id}-${r.round_no}`} className="flex items-center gap-2 text-sm">
+                <span className="font-medium">Round {r.round_no}</span>
+                <Badge variant="outline" className="text-xs">{roundStatusLabel(r.status)}</Badge>
+                {parts.length > 0 && <span className="text-muted-foreground">{parts.join(' · ')}</span>}
+              </div>
+            );
+          })}
+        </div>
+      );
+    };
+
+
     const getTopPrize = (): number | null => {
       if (!payoutStructure) return null;
       return payoutStructure['1'] || null;
@@ -484,21 +676,32 @@ const MyEntries = () => {
                   Entry: {formatCents(entry.entry_fee_cents)}
                   {prizeText && <span className="text-gold font-medium"> • {prizeText}</span>}
                 </div>
-                {!showScore && <div>Locks: {new Date(entry.contest_templates.lock_time).toLocaleString()}</div>}
+                {!showScore && !survivorReady && <div>Locks: {new Date(entry.contest_templates.lock_time).toLocaleString()}</div>}
+                {!showScore && survivorReady && eliminatedInRound === null && (
+                  actionableRound
+                    ? <div>Round {actionableRound.round_no} picks lock: {new Date(actionableRound.lock_at).toLocaleString()}</div>
+                    : <div>Round {currentRoundNo} in progress</div>
+                )}
                 {showScore && <div>Entered: {new Date(entry.created_at).toLocaleDateString()}</div>}
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
               {showScore && resultDisplay}
-              {!showScore && getStatusBadge(entry.contest_pools?.status || 'open')}
+              {!showScore && survivorReady && (
+                eliminatedInRound !== null
+                  ? <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">Eliminated · Round {eliminatedInRound}</Badge>
+                  : <Badge variant="outline" className="bg-gold/10 text-gold border-gold/30">Alive · Round {currentRoundNo} of {rounds!.length}</Badge>
+              )}
+              {!showScore && !survivorReady && getStatusBadge(entry.contest_pools?.status || 'open')}
             </div>
+
           </div>
         </CardHeader>
         <CardContent>
           <div className="mb-4">
             <div className="flex items-center gap-2 mb-2 text-sm font-medium text-muted-foreground">
               <Users className="h-4 w-4" />
-              <span>Your Picks ({parsedPicks.length})</span>
+              <span>{survivorReady ? `Round 1 picks (${parsedPicks.length})` : `Your Picks (${parsedPicks.length})`}</span>
             </div>
             <div className="flex flex-wrap gap-2">
               {parsedPicks.map((pick, idx) =>
@@ -514,9 +717,12 @@ const MyEntries = () => {
             </div>
           </div>
 
+          {renderRoundsLadder()}
+
           {/* Action buttons row */}
+
           <div className="flex justify-between items-center mt-3 gap-2">
-            {entry.contest_pools?.status === 'open' ? (
+            {entry.contest_pools?.status === 'open' && !isAtEntryCap(entry) && !isSurvivor ? (
               <Button
                 type="button"
                 size="sm"
@@ -525,6 +731,18 @@ const MyEntries = () => {
               >
                 <Plus className="h-4 w-4" />
                 Submit Another Entry
+              </Button>
+            ) : survivorReady && !showScore && eliminatedInRound === null && actionableRound ? (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => navigate(`/regatta/${entry.pool_id}`)}
+                className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-accent transition-smooth font-semibold"
+              >
+                <Plus className="h-4 w-4" />
+                {erByRound.has(actionableRound.round_no)
+                  ? `Update Round ${actionableRound.round_no} picks`
+                  : `Play Round ${actionableRound.round_no}`}
               </Button>
             ) : <span />}
             <Button
@@ -537,6 +755,10 @@ const MyEntries = () => {
               View Matchup
             </Button>
           </div>
+
+
+
+
 
           {showScore && score && (
             <div className="flex flex-wrap items-center gap-4 text-sm pt-3 border-t text-muted-foreground">
