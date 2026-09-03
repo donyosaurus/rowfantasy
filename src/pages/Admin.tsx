@@ -1725,7 +1725,7 @@ const Admin = () => {
                   <p className="text-xs text-muted-foreground mt-1">All races share this class — required for time-based scoring.</p>
                 </div>
               )}
-              {createForm.contestType === "gc_pool" && (
+              {CONTEST_TYPES.find(t => t.key === createForm.contestType)?.perCompetitor && (
                 <div className="border rounded-lg p-3 space-y-2">
                   <Label className="text-sm font-semibold">Stages *</Label>
                   <p className="text-xs text-muted-foreground">Ordered stages. Every competitor is entered in every stage. Minimum 2.</p>
