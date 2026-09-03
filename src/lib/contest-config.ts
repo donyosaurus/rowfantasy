@@ -14,7 +14,9 @@ export type ContestTypeKey =
   | "team_time_trial"
   | "deficit"
   | "survivor"
-  | "podium_predictor";
+  | "podium_predictor"
+  | "season_accumulator"
+  | "one_and_done";
 
 
 
@@ -42,6 +44,10 @@ export interface SurvivorScoringConfig {
   direction: "high";
   dnf_policy: "zero";
   tiebreak: "none";
+  /** Phase 4f: 'accumulate' scores every round with no eliminations. */
+  round_mode?: "eliminate" | "accumulate";
+  /** One & Done only: a competitor may be used in at most one round. */
+  no_reuse?: boolean;
 }
 
 export interface PredictionScoringConfig {
@@ -168,6 +174,22 @@ export const CONTEST_TYPES: {
     freeOnly: true,
     singleRace: true,
   },
+  {
+    key: "season_accumulator",
+    label: "Season Accumulator",
+    subtitle: "Score every round, no eliminations — highest season total wins",
+    fixedRoster: true,
+    requiresEventClass: false,
+    rounds: true,
+  },
+  {
+    key: "one_and_done",
+    label: "One & Done",
+    subtitle: "Score every round, but each competitor can only be used once all season",
+    fixedRoster: true,
+    requiresEventClass: false,
+    rounds: true,
+  },
 ];
 
 export function getScoringPreset(key: ContestTypeKey): ScoringConfig {
@@ -210,6 +232,17 @@ export function getScoringPreset(key: ContestTypeKey): ScoringConfig {
       direction: "low",
       dnf_policy: "field_plus_one",
       tiebreak: "none",
+    };
+  }
+  if (key === "season_accumulator" || key === "one_and_done") {
+    return {
+      primitive: "survivor",
+      points_table: { ...CLASSIC_POINTS_TABLE },
+      direction: "high",
+      dnf_policy: "zero",
+      tiebreak: "none",
+      round_mode: "accumulate",
+      ...(key === "one_and_done" ? { no_reuse: true as const } : {}),
     };
   }
   if (key === "survivor") {
