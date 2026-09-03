@@ -11,7 +11,9 @@ export type ContestTypeKey =
   | "gc_pool"
   | "team_time_trial"
   | "deficit"
-  | "survivor";
+  | "survivor"
+  | "podium_predictor";
+
 
 export interface PlacementScoringConfig {
   primitive: "placement";
