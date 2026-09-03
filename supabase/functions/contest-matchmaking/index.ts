@@ -60,6 +60,7 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
             event_id: z.string().optional(),
             predictedMargin: z.number().optional(),
             position: z.number().int().min(1).max(10).optional(),
+            weight: z.number().int().min(1).max(50).optional(),
           }),
         )
         .min(1)
@@ -116,6 +117,19 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
         );
       }
     }
+
+    // Confidence Pick'em: every pick carries a rank. The RPC re-checks the full
+    // 1..k permutation; this is the fast, human-readable rejection.
+    if ((template as any).scoring_config?.confidence === true) {
+      if (body.picks.some((p) => typeof p.weight !== "number")) {
+        return new Response(
+          JSON.stringify({ error: "Each pick needs a confidence rank." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+    }
+
+
 
     const rosterMode = (template as any).roster_mode ?? "per_race";
     const isPerCompetitor = (template as any).scoring_config !== null && rosterMode === "per_competitor";

@@ -98,6 +98,7 @@ interface EntryPick {
   event_id?: string;
   predictedMargin: number;
   position?: number; // prediction (Podium Predictor) only
+  weight?: number; // confidence pick'em only
 }
 
 interface EntryScore {
@@ -140,6 +141,9 @@ export const PlacementConfigSchema = z.object({
   dnf_policy: z.enum(["zero", "field_plus_one"]),
   tiebreak: z.enum(["margin_error", "aggregate_time", "none"]),
   penalty_pct: z.number().min(0).max(100).optional(),
+  // Confidence Pick'em: entrants rank picks 1..k; a pick scores its own weight
+  // only when its competitor wins that race. points_table/race_multipliers unused.
+  confidence: z.literal(true).optional(),
 }).strict();
 
 export const TimeVsRefConfigSchema = z.object({
@@ -252,7 +256,11 @@ export function reducePlacement(
     const multiplier = cfg.race_multipliers?.[raceKey] ?? 1;
     let points = 0;
 
-    if (result.status === "OK") {
+    if (cfg.confidence) {
+      // Confidence Pick'em: a pick banks its own weight only on an outright win.
+      // points_table and race_multipliers are ignored in this mode.
+      points = result.status === "OK" && result.place === 1 ? (pick.weight ?? 0) : 0;
+    } else if (result.status === "OK") {
       const tablePoints = cfg.points_table[String(result.place)];
       const base = tablePoints ?? (cfg.direction === "low" ? (result.place as number) : 0);
       points = base * multiplier;
@@ -426,6 +434,7 @@ function parseEntryPicks(entry: any): EntryPick[] {
       event_id: p.event_id,
       predictedMargin: p.predictedMargin ?? p.predicted_margin ?? NaN,
       position: Number.isInteger(p.position) ? p.position : undefined,
+      weight: Number.isInteger(p.weight) ? p.weight : undefined,
     };
   });
 }
