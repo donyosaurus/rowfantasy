@@ -588,7 +588,7 @@ const MyEntries = () => {
     return null;
   };
 
-  const getParsedPicks = (entry: Entry): {crewId?: string;crewName: string;margin: number | null;logoUrl?: string | null;position?: number;}[] => {
+  const getParsedPicks = (entry: Entry): {crewId?: string;crewName: string;margin: number | null;logoUrl?: string | null;position?: number;weight?: number;}[] => {
     let picks: unknown = entry.picks;
     if (!picks) return [];
 
@@ -612,28 +612,32 @@ const MyEntries = () => {
         const position = Number.isInteger(pickObj.position) && (pickObj.position as number) > 0
           ? (pickObj.position as number)
           : idx + 1;
+        // Confidence weights are never derived from the array index — malformed data must stay visible.
+        const weight = Number.isInteger(pickObj.weight) && (pickObj.weight as number) > 0
+          ? (pickObj.weight as number)
+          : undefined;
         const crewId = pickObj.crewId;
         const crewInfo = crewMap.get(`${entry.pool_id}-${crewId}`);
         if (crewInfo) {
           const name = crewInfo.crew_name || crewId;
-          return { crewId, crewName: name, margin: Number.isFinite(pickObj.predictedMargin) ? pickObj.predictedMargin : null, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url, position };
+          return { crewId, crewName: name, margin: Number.isFinite(pickObj.predictedMargin) ? pickObj.predictedMargin : null, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url, position, weight };
         }
         const comp = competitorMap.get(`${entry.contest_template_id}-${crewId}`);
         const name = comp?.name || crewId;
-        return { crewId, crewName: name, margin: Number.isFinite(pickObj.predictedMargin) ? pickObj.predictedMargin : null, logoUrl: getCircleFlagUrl(name) || comp?.logo_url, position };
+        return { crewId, crewName: name, margin: Number.isFinite(pickObj.predictedMargin) ? pickObj.predictedMargin : null, logoUrl: getCircleFlagUrl(name) || comp?.logo_url, position, weight };
       }
       if (typeof pick === 'string') {
         const crewId = pick;
         const crewInfo = crewMap.get(`${entry.pool_id}-${crewId}`);
         if (crewInfo) {
           const name = crewInfo.crew_name || crewId;
-          return { crewId, crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url, position: undefined };
+          return { crewId, crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url, position: undefined, weight: undefined };
         }
         const comp = competitorMap.get(`${entry.contest_template_id}-${crewId}`);
         const name = comp?.name || crewId;
-        return { crewId, crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || comp?.logo_url, position: undefined };
+        return { crewId, crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || comp?.logo_url, position: undefined, weight: undefined };
       }
-      return { crewName: 'Unknown', margin: null, logoUrl: null, position: undefined };
+      return { crewName: 'Unknown', margin: null, logoUrl: null, position: undefined, weight: undefined };
     });
 
 
