@@ -870,11 +870,16 @@ const Admin = () => {
       const typeDef = CONTEST_TYPES.find(t => t.key === createForm.contestType)!;
       const scoringConfig: any = getScoringPreset(createForm.contestType);
       const isGc = !!typeDef.perCompetitor;
+      const isTierPick = !!typeDef.rosterTiers;
       const stageNames = createForm.stages.map(s => s.trim()).filter(Boolean);
       const raceKeys = isGc
         ? Array.from(new Set(stageNames))
         : Array.from(new Set(createForm.crews.map(c => c.event_id)));
-      if (isGc && raceKeys.length < 2) { toast.error("GC / Stage Race contests need at least 2 distinct stages"); return; }
+      if (isGc && raceKeys.length < 2) {
+        toast.error(isTierPick ? "Tier contests need at least 2 distinct stages" : "GC / Stage Race contests need at least 2 distinct stages");
+        return;
+      }
+
       if (raceKeys.length < 2 && entryFeeCents > 0) { toast.error("Paid contests require at least 2 races"); return; }
       const eventClass = createForm.eventClass.trim();
       if (typeDef.requiresEventClass && !eventClass) {
