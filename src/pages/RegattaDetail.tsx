@@ -1362,7 +1362,11 @@ const RegattaDetail = () => {
                       {isTierPick && (
                         <p className="text-xs text-muted-foreground mb-3">Pick one competitor from each tier.</p>
                       )}
-                      {isPrediction ? (
+                      {isConfidence ? (
+                        <p className="text-xs text-muted-foreground">
+                          {`Rank your picks by confidence. A pick earns its rank value when its ${t.competitor} wins its ${t.event}; margin predictions break ties.`}
+                        </p>
+                      ) : isPrediction ? (
 
                         <p className="text-xs text-muted-foreground">
                           {`Predict the podium in exact order. Exact position = ${Number.isFinite(Number((scoringConfig as any)?.points_exact)) ? Number((scoringConfig as any).points_exact) : 5} pts, on the podium but wrong slot = ${Number.isFinite(Number((scoringConfig as any)?.points_podium)) ? Number((scoringConfig as any).points_podium) : 2} pts. Highest total wins.`}
