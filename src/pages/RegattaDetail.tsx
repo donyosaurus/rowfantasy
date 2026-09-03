@@ -818,6 +818,15 @@ const RegattaDetail = () => {
       if (selectedDivisions.size < 2) { toast.error(`You must select ${t.competitors} from at least 2 different ${t.events}`); return; }
     }
 
+    if (isConfidence) {
+      const weights = Array.from(crewPicks.values()).map((p) => p.weight);
+      const expectedW = Array.from({ length: crewPicks.size }, (_, i) => i + 1);
+      const sortedW = weights.slice().sort((a, b) => Number(a) - Number(b));
+      if (sortedW.length !== expectedW.length || sortedW.some((v, i) => v !== expectedW[i])) {
+        toast.error("Rank all your picks 1..N by confidence.");
+        return;
+      }
+    }
 
     if (hasTiers && !selectedTier) { toast.error("Please select an entry tier"); return; }
     // (Wave 1 #6) Fail-closed: refuse submit if balance read errored.
@@ -837,6 +846,8 @@ const RegattaDetail = () => {
       // GC rosters carry only the competitor — no event, no margin.
       if (isPerCompetitor) return { crewId: p.crewId };
       const base = { crewId: p.crewId, event_id: p.eventId };
+      // Confidence: picks carry their rank weight alongside the usual margin handling.
+      if (isConfidence) return { ...base, ...(needsMargin ? { predictedMargin: p.margin } : {}), weight: p.weight! };
       return needsMargin ? { ...base, predictedMargin: p.margin } : base;
     });
 
