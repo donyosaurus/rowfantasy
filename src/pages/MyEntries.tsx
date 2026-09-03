@@ -464,6 +464,7 @@ const MyEntries = () => {
     const isPerCompetitor =
       !!entry.contest_templates?.scoring_config &&
       (entry.contest_templates as any)?.roster_mode === 'per_competitor';
+    const isPredictionEntry = isPredictionTemplate(entry.contest_templates?.scoring_config);
 
     const picks = isPerCompetitor
       ? picksArray.map((p: any) => ({
@@ -475,8 +476,20 @@ const MyEntries = () => {
             crewId: String(p.crewId || p.crew_id || p.id || ''),
             event_id: p.event_id || p.eventId || '',
             predictedMargin: Number(p.predictedMargin ?? p.predicted_margin ?? 0),
+            ...(isPredictionEntry ? { position: Number(p.position) } : {}),
           };
         });
+
+    // Prediction entries must carry a valid position on every pick — never send a positionless payload.
+    if (isPredictionEntry) {
+      const bad = (picks as any[]).some(
+        (p) => !Number.isInteger(p.position) || p.position < 1
+      );
+      if (bad || picks.length === 0) {
+        toast.error("This entry can't be resubmitted.");
+        return;
+      }
+    }
 
     // Backfill missing event_ids from crewMap (per_race / legacy only)
     if (!isPerCompetitor) {
@@ -487,6 +500,7 @@ const MyEntries = () => {
         }
       }
     }
+
 
     setResubmitting(true);
     try {
