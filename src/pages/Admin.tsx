@@ -802,7 +802,7 @@ const Admin = () => {
     const isRoundsType = submitTypeDef?.rounds === true;
     const isAccumulate =
       (getScoringPreset(createForm.contestType) as any)?.round_mode === "accumulate";
-    if (isRoundsType && createForm.multiTier) { toast.error("Survivor contests don't support entry tiers"); return; }
+    if (isRoundsType && createForm.multiTier) { toast.error(isAccumulate ? "This contest doesn't support entry tiers" : "Survivor contests don't support entry tiers"); return; }
     if (!createForm.regattaName.trim()) { toast.error("Regatta name is required"); return; }
     if (!createForm.genderCategory) { toast.error("Gender category is required"); return; }
     const effectiveLockTime = isRoundsType ? (createForm.rounds[0]?.lockTime || "") : createForm.lockTime;
