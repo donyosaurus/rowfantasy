@@ -473,11 +473,21 @@ const RegattaDetail = () => {
         newPicks.delete(key);
         if (isPrediction) {
           // Renumber remaining podium slots in their existing order.
-          const rebuilt = new Map<string, { crewId: string; eventId: string; margin: number; position?: number }>();
+          const rebuilt = new Map<string, { crewId: string; eventId: string; margin: number; position?: number; weight?: number }>();
           let i = 0;
           for (const [k, v] of newPicks) {
             i += 1;
             rebuilt.set(k, { ...v, position: i });
+          }
+          return rebuilt;
+        }
+        if (isConfidence) {
+          // True deselection: renumber remaining confidence weights 1..N in their existing order.
+          const rebuilt = new Map<string, { crewId: string; eventId: string; margin: number; position?: number; weight?: number }>();
+          let i = 0;
+          for (const [k, v] of newPicks) {
+            i += 1;
+            rebuilt.set(k, { ...v, weight: i });
           }
           return rebuilt;
         }
@@ -509,10 +519,17 @@ const RegattaDetail = () => {
 
       // One pick per race — swap out any existing pick from the same event.
       let oldMargin = 0;
+      let oldWeight: number | undefined;
+      let swapped = false;
       for (const [k, v] of newPicks) {
-        if (v.eventId === eventId) { oldMargin = v.margin; newPicks.delete(k); break; }
+        if (v.eventId === eventId) { oldMargin = v.margin; oldWeight = v.weight; swapped = true; newPicks.delete(k); break; }
       }
-      if (!oldMargin && newPicks.size >= maxPicks) { toast.error(`Maximum ${maxPicks} picks allowed`); return prev; }
+      if ((isConfidence ? !swapped : !oldMargin) && newPicks.size >= maxPicks) { toast.error(`Maximum ${maxPicks} picks allowed`); return prev; }
+      if (isConfidence) {
+        // A same-race replacement inherits its weight; a newly picked race takes the next rank.
+        newPicks.set(key, { crewId, eventId, margin: oldMargin, weight: swapped ? oldWeight : newPicks.size + 1 });
+        return newPicks;
+      }
       newPicks.set(key, { crewId, eventId, margin: oldMargin });
       return newPicks;
     });
