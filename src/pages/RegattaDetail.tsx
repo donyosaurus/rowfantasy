@@ -1059,7 +1059,9 @@ const RegattaDetail = () => {
                             <div className="flex items-center gap-2 text-xs">
                               <span className="rounded-full bg-slate-200 px-2 py-0.5 font-medium text-slate-700">{statusChip}</span>
                               {isAccumulate ? (
-                                er && er.points !== null ? (
+                                er && Array.isArray((er as any)?.picks) && ((er as any).picks as any[]).length === 0 && r.status === "scored" ? (
+                                  <span className="font-medium text-slate-500">Missed (0 pts)</span>
+                                ) : er && er.points !== null ? (
                                   <span className="font-medium text-slate-700">{er.points} pts</span>
                                 ) : r.status === "scored" ? (
                                   <span className="font-medium text-slate-500">Missed (0 pts)</span>
