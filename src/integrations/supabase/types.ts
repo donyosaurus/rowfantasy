@@ -1801,6 +1801,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _test_hello: { Args: never; Returns: string }
       admin_create_contest: {
         Args: {
           _admin_user_id?: string
