@@ -88,6 +88,9 @@ interface CreateContestForm {
   eventClass: string;
   minPicks: string;
   maxPicks: string;
+  /** Podium Predictor only: podium size (2..10). Never emitted for other types. */
+  podiumSize: string;
+
   /** GC / stage-race only: ordered stage names. Ignored by every other type. */
   stages: string[];
   /** Survivor only: ordered rounds. Array index + 1 is the round_no. */
