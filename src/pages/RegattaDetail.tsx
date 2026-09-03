@@ -1059,7 +1059,43 @@ const RegattaDetail = () => {
                 </div>
               )}
 
-              {isPerCompetitor ? (
+              {isTierPick ? (
+                <div className="space-y-6">
+                  {rosterTiers!.map((tier, tIdx) => {
+                    const members = competitorList.filter((c) => tierOfCompetitor.get(c.crew_id) === tIdx);
+                    if (members.length === 0) return null;
+                    return (
+                      <div key={`${tier.name}-${tIdx}`}>
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="flex items-center gap-2 rounded-full bg-white/10 text-white px-3 py-1 border border-white/15">
+                            <span className="font-semibold text-xs">{tier.name || `Tier ${tIdx + 1}`}</span>
+                            <span className="text-white/60 text-xs">· Pick 1</span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {members.map((crew, idx) => (
+                            <CrewCard
+                              key={crew.crew_id}
+                              crewId={crew.crew_id}
+                              crewName={crew.crew_name}
+                              eventId=""
+                              logoUrl={crew.logo_url}
+                              isSelected={crewPicks.has(crew.crew_id)}
+                              marginVal={0}
+                              isOpen={!!isContestOpen}
+                              showMargin={false}
+                              onToggle={toggleCrewSelection}
+                              onMarginChange={updateCrewMargin}
+                              animDelay={idx * 50}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : isPerCompetitor ? (
+
                 competitorList.length === 0 ? (
                   <Card className="bg-card border-border"><CardContent className="py-8 text-center text-muted-foreground">No {t.competitors} available.</CardContent></Card>
                 ) : (
