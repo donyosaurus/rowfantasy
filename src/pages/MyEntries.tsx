@@ -756,12 +756,13 @@ const MyEntries = () => {
               {parsedPicks.map((pick, idx) =>
                 <Badge key={idx} variant="secondary" className="text-sm rounded-lg bg-primary/5 border border-primary/10 flex items-center gap-1.5">
                   <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={20} />
-                  {pick.crewName}
-                  {pick.margin !== null &&
+                  {isPrediction && pick.position ? `${ordinalLabel(pick.position)} · ${pick.crewName}` : pick.crewName}
+                  {!isPrediction && pick.margin !== null &&
                     <span className="ml-1 text-accent font-semibold">(+{pick.margin.toFixed(1)}s)</span>
                   }
                 </Badge>
               )}
+
               {parsedPicks.length === 0 && <span className="text-sm text-muted-foreground">No picks recorded</span>}
             </div>
           </div>
