@@ -621,7 +621,13 @@ const Admin = () => {
     const gcMode = createForm.contestType === "gc_pool";
     if (!newCrewInput.crew_name || !newCrewInput.crew_id || (!gcMode && !newCrewInput.event_id)) { toast.error("Please fill in all crew fields"); return; }
     const eventId = gcMode ? "" : newCrewInput.event_id;
+    if (createForm.contestType === "podium_predictor") {
+      // Exactly one nominated race: every row must reuse the first race key.
+      const firstKey = createForm.crews.map(c => c.event_id).find(k => !!k);
+      if (firstKey && eventId !== firstKey) { toast.error("prediction contests take exactly one race"); return; }
+    }
     if (createForm.crews.some(c => c.crew_id === newCrewInput.crew_id && c.event_id === eventId)) { toast.error(gcMode ? "This competitor is already added" : "This competitor is already in that race"); return; }
+
     setCreateForm(prev => ({ ...prev, crews: [...prev.crews, { ...newCrewInput, event_id: eventId }] }));
     setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
   };
