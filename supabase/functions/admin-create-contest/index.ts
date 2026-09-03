@@ -183,8 +183,17 @@ Deno.serve(withFnVersion('admin-create-contest', async (req) => {
       const primitive = v2.primitive ?? v2.scoringConfig?.primitive ?? 'placement';
       const rosterMode = v2.rosterMode ?? (primitive === 'time_vs_ref' ? 'per_race' : 'per_race');
 
-      if (rosterMode === 'per_competitor' && primitive !== 'time_vs_ref') {
-        return bad("rosterMode 'per_competitor' requires primitive 'time_vs_ref'");
+      if (rosterMode === 'per_competitor' && primitive !== 'time_vs_ref' && primitive !== 'placement') {
+        return bad("rosterMode 'per_competitor' requires primitive 'time_vs_ref' or 'placement'");
+      }
+      if (rosterMode === 'per_competitor' && primitive === 'placement' && !v2.scoringConfig) {
+        return bad('per-competitor placement requires an explicit scoringConfig');
+      }
+      if (
+        rosterMode === 'per_competitor' && primitive === 'placement' &&
+        v2.scoringConfig && v2.scoringConfig.tiebreak !== 'none'
+      ) {
+        return bad("per-competitor placement requires tiebreak 'none'");
       }
       if ((primitive === 'time_vs_ref' || rosterMode === 'per_competitor') && !v2.scoringConfig) {
         return bad('time contests require an explicit scoringConfig');
