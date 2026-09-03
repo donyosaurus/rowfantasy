@@ -1254,8 +1254,31 @@ async function scoreConfiguredPool(
       continue;
     }
 
+    // Phase 4d: per_competitor placement fans each picked competitor out across
+    // EVERY race of the template, exactly like the GC time path.
+    let placementCells = picks;
+    if (placementRosterMode === "per_competitor" && cfg.primitive === "placement") {
+      placementCells = [];
+      let missing: string | null = null;
+      for (const pick of picks) {
+        const entered = placementEnteredByCompetitor.get(pick.crewId) ?? new Set<string>();
+        for (const rk of placementAllRaceKeys) {
+          if (!entered.has(rk)) {
+            missing = `crew ${pick.crewId} is not entered in race ${rk}`;
+            break;
+          }
+          placementCells.push({ crewId: pick.crewId, event_id: rk, predictedMargin: NaN });
+        }
+        if (missing) break;
+      }
+      if (missing) {
+        failures.push(`entry ${entry.id} → ${missing}`);
+        continue;
+      }
+    }
+
     try {
-      const { totalPoints, tiebreakValue, crewScores } = reducePlacement(picks, resultsByKey, cfg);
+      const { totalPoints, tiebreakValue, crewScores } = reducePlacement(placementCells, resultsByKey, cfg);
 
       const tiebreakPersist = cfg.tiebreak === "aggregate_time"
         ? Math.round(tiebreakValue) / 1000
