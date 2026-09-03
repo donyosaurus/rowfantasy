@@ -134,9 +134,30 @@ export const CONTEST_TYPES: {
     requiresEventClass: false,
     rounds: true,
   },
+  {
+    key: "podium_predictor",
+    label: "Podium Predictor",
+    subtitle: "Predict the exact podium order — free to play",
+    fixedRoster: true,
+    requiresEventClass: false,
+    freeOnly: true,
+    singleRace: true,
+  },
 ];
 
 export function getScoringPreset(key: ContestTypeKey): ScoringConfig {
+  if (key === "podium_predictor") {
+    return {
+      primitive: "prediction",
+      podium_size: 3,
+      points_exact: 5,
+      points_podium: 2,
+      direction: "high",
+      dnf_policy: "zero",
+      tiebreak: "none",
+    };
+  }
+
   if (key === "low_score") {
     return {
       primitive: "placement",
