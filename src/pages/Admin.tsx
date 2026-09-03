@@ -763,11 +763,18 @@ const Admin = () => {
     const maxEntries = parseInt(createForm.maxEntries);
     if (isNaN(maxEntries) || maxEntries < 2) { toast.error("Max entries must be at least 2"); return; }
 
+    // Podium Predictor is always free with no tiers — derived, never read from stale UI state.
+    const isPrediction = createForm.contestType === "podium_predictor";
+
     let entryFeeCents: number;
     let payouts: Record<string, number> = {};
     let entryTiersPayload: any[] | null = null;
 
-    if (createForm.multiTier) {
+    if (isPrediction) {
+      entryFeeCents = 0;
+      entryTiersPayload = null;
+    } else if (createForm.multiTier) {
+
       // Validate tiers
       for (let i = 0; i < createForm.entryTiers.length; i++) {
         const tier = createForm.entryTiers[i];
