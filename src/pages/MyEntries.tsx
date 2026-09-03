@@ -53,7 +53,21 @@ function tiebreakOf(scoringConfig: unknown): "margin_error" | "aggregate_time" |
 interface PickNew {
   crewId: string;
   predictedMargin: number;
+  position?: number;
 }
+
+/** Podium Predictor templates score ordered picks; gated everywhere on this check. */
+function isPredictionTemplate(scoringConfig: unknown): boolean {
+  return !!scoringConfig && typeof scoringConfig === "object" &&
+    (scoringConfig as { primitive?: string }).primitive === "prediction";
+}
+
+function ordinalLabel(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
 
 interface Entry {
   id: string;
