@@ -1169,6 +1169,14 @@ BEGIN
   IF v_overloads <> 1 THEN
     RAISE EXCEPTION 'admin_create_contest_v2 must have exactly 1 overload, found %', v_overloads;
   END IF;
+
+  SELECT count(*) INTO v_overloads
+  FROM pg_proc p
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'public' AND p.proname = 'enter_contest_pool_atomic';
+  IF v_overloads <> 1 THEN
+    RAISE EXCEPTION 'enter_contest_pool_atomic must have exactly 1 overload, found %', v_overloads;
+  END IF;
 END
 $do$;
 
