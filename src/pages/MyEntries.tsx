@@ -630,8 +630,10 @@ const MyEntries = () => {
     const poolStatus = entry.contest_pools?.status || '';
     const isSettled = ['settled', 'completed', 'voided'].includes(poolStatus) || ['settled', 'voided'].includes(entry.status);
 
+    const isPrediction = isPredictionTemplate(entry.contest_templates?.scoring_config);
     // ---- Survivor derivation (only active when the template's rounds loaded) ----
     const isSurvivor = isSurvivorTemplate(entry.contest_templates?.scoring_config);
+
     const rounds = roundsByTemplate.get(entry.contest_template_id);
     const survivorReady = isSurvivor && Array.isArray(rounds) && rounds.length > 0;
     const entryRounds: SurvivorEntryRound[] = survivorReady ? (entryRoundsByEntry.get(entry.id) ?? []) : [];
