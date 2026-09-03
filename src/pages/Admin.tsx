@@ -1762,16 +1762,25 @@ const Admin = () => {
             </div>
 
             {/* Multi-Tier Toggle */}
-            <div className="flex items-start space-x-3 border-t pt-4">
-              <Checkbox id="multiTier" checked={createForm.multiTier} onCheckedChange={(checked) => setCreateForm(prev => ({ ...prev, multiTier: checked === true }))} />
-              <div className="grid gap-1.5 leading-none">
-                <Label htmlFor="multiTier" className="text-sm font-medium cursor-pointer">Multiple Entry Tiers</Label>
-                <p className="text-xs text-muted-foreground">Offer multiple entry fee/payout levels within the same pool.</p>
+            {createForm.contestType !== "podium_predictor" && (
+              <div className="flex items-start space-x-3 border-t pt-4">
+                <Checkbox id="multiTier" checked={createForm.multiTier} onCheckedChange={(checked) => setCreateForm(prev => ({ ...prev, multiTier: checked === true }))} />
+                <div className="grid gap-1.5 leading-none">
+                  <Label htmlFor="multiTier" className="text-sm font-medium cursor-pointer">Multiple Entry Tiers</Label>
+                  <p className="text-xs text-muted-foreground">Offer multiple entry fee/payout levels within the same pool.</p>
+                </div>
               </div>
-            </div>
+            )}
+
+            {createForm.contestType === "podium_predictor" && (
+              <div className="border-t pt-4">
+                <p className="text-sm text-muted-foreground">Free contest — no cash prizes</p>
+              </div>
+            )}
 
             {/* Single-tier Prize Structure */}
-            {!createForm.multiTier && (
+            {!createForm.multiTier && createForm.contestType !== "podium_predictor" && (
+
               <div className="border-t pt-4">
                 <Label className="text-base font-semibold">Prize Structure</Label>
                 <p className="text-sm text-muted-foreground mb-3">
