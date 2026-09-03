@@ -918,6 +918,29 @@ const Admin = () => {
         ); return;
       }
 
+      // ---- Tiers-only validation (mirrors the backend, plus client-only strictness) ----
+      let rosterTiersPayload: { name: string; competitors: string[] }[] = [];
+      if (isTierPick) {
+        const tiers = createForm.rosterTiers;
+        if (tiers.length < 2 || tiers.length > 10) { toast.error("Tier contests need between 2 and 10 tiers"); return; }
+        if (tiers.some(t => !t.name.trim())) { toast.error("Every tier needs a name"); return; }
+        if (tiers.some(t => t.competitors.length < 2)) { toast.error("each roster tier needs at least 2 competitors"); return; }
+        const assigned = new Set<string>();
+        for (const tier of tiers) {
+          for (const key of tier.competitors) {
+            if (assigned.has(key)) { toast.error("every competitor must be assigned to a tier"); return; }
+            assigned.add(key);
+          }
+        }
+        if (competitors.some(c => !assigned.has(c.competitor_key))) {
+          toast.error("every competitor must be assigned to a tier"); return;
+        }
+        if (minPicks !== tiers.length || effectiveMax !== tiers.length) {
+          toast.error("tier contests require one pick per tier"); return;
+        }
+        rosterTiersPayload = tiers.map(t => ({ name: t.name.trim(), competitors: [...t.competitors] }));
+      }
+
 
       // ---- Survivor-only validation (mirrors the backend) ----
       let survivorRounds: { round_no: number; lock_at: string; advance_count: number }[] = [];
