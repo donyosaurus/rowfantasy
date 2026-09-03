@@ -1314,7 +1314,11 @@ const RegattaDetail = () => {
                       <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${scoringOpen ? "rotate-180" : ""}`} />
                     </CollapsibleTrigger>
                     <CollapsibleContent className="pt-3">
+                      {isTierPick && (
+                        <p className="text-xs text-muted-foreground mb-3">Pick one competitor from each tier.</p>
+                      )}
                       {isPrediction ? (
+
                         <p className="text-xs text-muted-foreground">
                           {`Predict the podium in exact order. Exact position = ${Number.isFinite(Number((scoringConfig as any)?.points_exact)) ? Number((scoringConfig as any).points_exact) : 5} pts, on the podium but wrong slot = ${Number.isFinite(Number((scoringConfig as any)?.points_podium)) ? Number((scoringConfig as any).points_podium) : 2} pts. Highest total wins.`}
                         </p>
