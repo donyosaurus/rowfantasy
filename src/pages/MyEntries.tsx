@@ -549,11 +549,11 @@ const MyEntries = () => {
         const crewInfo = crewMap.get(`${entry.pool_id}-${crewId}`);
         if (crewInfo) {
           const name = crewInfo.crew_name || crewId;
-          return { crewName: name, margin: pickObj.predictedMargin, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url };
+          return { crewName: name, margin: Number.isFinite(pickObj.predictedMargin) ? pickObj.predictedMargin : null, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url };
         }
         const comp = competitorMap.get(`${entry.contest_template_id}-${crewId}`);
         const name = comp?.name || crewId;
-        return { crewName: name, margin: pickObj.predictedMargin, logoUrl: getCircleFlagUrl(name) || comp?.logo_url };
+        return { crewName: name, margin: Number.isFinite(pickObj.predictedMargin) ? pickObj.predictedMargin : null, logoUrl: getCircleFlagUrl(name) || comp?.logo_url };
       }
       if (typeof pick === 'string') {
         const crewId = pick;
