@@ -473,6 +473,7 @@ const MyEntries = () => {
       !!entry.contest_templates?.scoring_config &&
       (entry.contest_templates as any)?.roster_mode === 'per_competitor';
     const isPredictionEntry = isPredictionTemplate(entry.contest_templates?.scoring_config);
+    const isConfidenceEntry = isConfidenceTemplate(entry.contest_templates?.scoring_config);
 
     const picks = isPerCompetitor
       ? picksArray.map((p: any) => ({
@@ -485,6 +486,7 @@ const MyEntries = () => {
             event_id: p.event_id || p.eventId || '',
             predictedMargin: Number(p.predictedMargin ?? p.predicted_margin ?? 0),
             ...(isPredictionEntry ? { position: Number(p.position) } : {}),
+            ...(isConfidenceEntry ? { weight: Number(p.weight) } : {}),
           };
         });
 
@@ -498,6 +500,20 @@ const MyEntries = () => {
         return;
       }
     }
+
+    // Confidence entries must carry the exact weight permutation 1..N — never synthesize weights.
+    if (isConfidenceEntry) {
+      const weights = (picks as any[]).map((p) => p.weight);
+      const valid =
+        picks.length > 0 &&
+        weights.every((w) => Number.isInteger(w) && w >= 1 && w <= picks.length) &&
+        new Set(weights).size === picks.length;
+      if (!valid) {
+        toast.error("This entry can't be resubmitted.");
+        return;
+      }
+    }
+
 
     // Backfill missing event_ids from crewMap (per_race / legacy only)
     if (!isPerCompetitor) {
