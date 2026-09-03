@@ -8,11 +8,13 @@ export type ContestTypeKey =
   | "classic"
   | "classic_total_time"
   | "low_score"
+  | "tier_pick"
   | "gc_pool"
   | "team_time_trial"
   | "deficit"
   | "survivor"
   | "podium_predictor";
+
 
 
 export interface PlacementScoringConfig {
@@ -80,8 +82,11 @@ export const CONTEST_TYPES: {
   freeOnly?: boolean;
   /** Podium Predictor only: exactly one race. */
   singleRace?: boolean;
+  /** Tiers only: entrants pick exactly one competitor from each roster tier. */
+  rosterTiers?: boolean;
 
 }[] = [
+
   {
     key: "classic",
     label: "Classic",
@@ -105,6 +110,16 @@ export const CONTEST_TYPES: {
     requiresEventClass: false,
   },
   {
+    key: "tier_pick",
+    label: "Tiers",
+    subtitle: "Pick one competitor from each tier — golf-pool style",
+    fixedRoster: true,
+    requiresEventClass: false,
+    perCompetitor: true,
+    rosterTiers: true,
+  },
+  {
+
     key: "gc_pool",
     label: "GC / Stage Race",
     subtitle: "Lowest combined time across all stages — pick riders, every stage counts",
@@ -158,7 +173,17 @@ export function getScoringPreset(key: ContestTypeKey): ScoringConfig {
     };
   }
 
+  if (key === "tier_pick") {
+    return {
+      primitive: "placement",
+      points_table: { ...CLASSIC_POINTS_TABLE },
+      direction: "high",
+      dnf_policy: "zero",
+      tiebreak: "none",
+    };
+  }
   if (key === "low_score") {
+
     return {
       primitive: "placement",
       points_table: {},

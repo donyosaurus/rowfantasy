@@ -725,6 +725,7 @@ export type Database = {
           regatta_name: string
           results: Json | null
           roster_mode: string
+          roster_tiers: Json | null
           scoring_config: Json | null
           sport: string
           status: string
@@ -750,6 +751,7 @@ export type Database = {
           regatta_name: string
           results?: Json | null
           roster_mode?: string
+          roster_tiers?: Json | null
           scoring_config?: Json | null
           sport?: string
           status?: string
@@ -775,6 +777,7 @@ export type Database = {
           regatta_name?: string
           results?: Json | null
           roster_mode?: string
+          roster_tiers?: Json | null
           scoring_config?: Json | null
           sport?: string
           status?: string
@@ -1835,6 +1838,7 @@ export type Database = {
           p_race_entries: Json
           p_races: Json
           p_roster_mode?: string
+          p_roster_tiers?: Json
           p_rounds?: Json
           p_scoring_config?: Json
           p_sport: string

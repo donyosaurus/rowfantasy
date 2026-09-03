@@ -86,6 +86,7 @@ interface Entry {
     scoring_config?: unknown | null;
     min_picks: number | null;
     max_entries_per_user: number | null;
+    roster_tiers?: { name: string; competitors: string[] }[] | null;
   };
 
   contest_pools: {
@@ -208,7 +209,7 @@ const MyEntries = () => {
       from('contest_entries').
       select(`
           id, created_at, status, entry_fee_cents, pool_id, contest_template_id, picks, payout_cents, rank, tier_name,
-          contest_templates!inner (regatta_name, lock_time, scoring_config, roster_mode, min_picks, max_entries_per_user),
+          contest_templates!inner (regatta_name, lock_time, scoring_config, roster_mode, min_picks, max_entries_per_user, roster_tiers),
           contest_pools!inner (status, prize_pool_cents, max_entries, current_entries, payout_structure, tier_id, entry_fee_cents, contest_template_id),
           contest_scores (rank, total_points, margin_bonus, is_winner, payout_cents)
         `).
@@ -552,7 +553,19 @@ const MyEntries = () => {
     return <Badge variant="outline" className={config.className}>{config.label}</Badge>;
   };
 
-  const getParsedPicks = (entry: Entry): {crewName: string;margin: number | null;logoUrl?: string | null;position?: number;}[] => {
+  /** Tier name for a competitor key, or null when the template has no tiers. */
+  const tierNameOf = (entry: Entry, crewId: string): string | null => {
+    const tiers = entry.contest_templates?.roster_tiers;
+    if (!Array.isArray(tiers)) return null;
+    for (let i = 0; i < tiers.length; i++) {
+      if (Array.isArray(tiers[i]?.competitors) && tiers[i].competitors.includes(crewId)) {
+        return tiers[i].name || `Tier ${i + 1}`;
+      }
+    }
+    return null;
+  };
+
+  const getParsedPicks = (entry: Entry): {crewId?: string;crewName: string;margin: number | null;logoUrl?: string | null;position?: number;}[] => {
     let picks: unknown = entry.picks;
     if (!picks) return [];
 
@@ -580,22 +593,22 @@ const MyEntries = () => {
         const crewInfo = crewMap.get(`${entry.pool_id}-${crewId}`);
         if (crewInfo) {
           const name = crewInfo.crew_name || crewId;
-          return { crewName: name, margin: Number.isFinite(pickObj.predictedMargin) ? pickObj.predictedMargin : null, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url, position };
+          return { crewId, crewName: name, margin: Number.isFinite(pickObj.predictedMargin) ? pickObj.predictedMargin : null, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url, position };
         }
         const comp = competitorMap.get(`${entry.contest_template_id}-${crewId}`);
         const name = comp?.name || crewId;
-        return { crewName: name, margin: Number.isFinite(pickObj.predictedMargin) ? pickObj.predictedMargin : null, logoUrl: getCircleFlagUrl(name) || comp?.logo_url, position };
+        return { crewId, crewName: name, margin: Number.isFinite(pickObj.predictedMargin) ? pickObj.predictedMargin : null, logoUrl: getCircleFlagUrl(name) || comp?.logo_url, position };
       }
       if (typeof pick === 'string') {
         const crewId = pick;
         const crewInfo = crewMap.get(`${entry.pool_id}-${crewId}`);
         if (crewInfo) {
           const name = crewInfo.crew_name || crewId;
-          return { crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url, position: undefined };
+          return { crewId, crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url, position: undefined };
         }
         const comp = competitorMap.get(`${entry.contest_template_id}-${crewId}`);
         const name = comp?.name || crewId;
-        return { crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || comp?.logo_url, position: undefined };
+        return { crewId, crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || comp?.logo_url, position: undefined };
       }
       return { crewName: 'Unknown', margin: null, logoUrl: null, position: undefined };
     });
@@ -772,7 +785,11 @@ const MyEntries = () => {
               {parsedPicks.map((pick, idx) =>
                 <Badge key={idx} variant="secondary" className="text-sm rounded-lg bg-primary/5 border border-primary/10 flex items-center gap-1.5">
                   <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={20} />
-                  {isPrediction && pick.position ? `${ordinalLabel(pick.position)} · ${pick.crewName}` : pick.crewName}
+                  {(() => {
+                    const tn = pick.crewId ? tierNameOf(entry, pick.crewId) : null;
+                    const base = isPrediction && pick.position ? `${ordinalLabel(pick.position)} · ${pick.crewName}` : pick.crewName;
+                    return tn ? `${tn} · ${base}` : base;
+                  })()}
                   {!isPrediction && pick.margin !== null &&
                     <span className="ml-1 text-accent font-semibold">(+{pick.margin.toFixed(1)}s)</span>
                   }
@@ -990,7 +1007,11 @@ const MyEntries = () => {
                       className="text-sm rounded-lg bg-primary/5 border border-primary/10 flex items-center gap-1.5"
                     >
                       <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={20} />
-                      {isPrediction && pick.position ? `${ordinalLabel(pick.position)} · ${pick.crewName}` : pick.crewName}
+                      {(() => {
+                        const tn = pick.crewId ? tierNameOf(resubmitEntry, pick.crewId) : null;
+                        const base = isPrediction && pick.position ? `${ordinalLabel(pick.position)} · ${pick.crewName}` : pick.crewName;
+                        return tn ? `${tn} · ${base}` : base;
+                      })()}
                       {!isPrediction && pick.margin !== null && (
                         <span className="ml-1 text-accent font-semibold">(+{pick.margin.toFixed(1)}s)</span>
                       )}

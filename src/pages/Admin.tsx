@@ -93,10 +93,13 @@ interface CreateContestForm {
 
   /** GC / stage-race only: ordered stage names. Ignored by every other type. */
   stages: string[];
+  /** Tiers only: ordered roster tiers. Ignored by every other type. */
+  rosterTiers: { name: string; competitors: string[] }[];
   /** Survivor only: ordered rounds. Array index + 1 is the round_no. */
   rounds: { lockTime: string; advanceCount: string }[];
   /** Survivor only: race key (event_id) -> round number as a string. */
   raceRounds: Record<string, string>;
+
 
 
 
@@ -178,6 +181,8 @@ const Admin = () => {
     podiumSize: "3",
 
     stages: ["Stage 1", "Stage 2"],
+    rosterTiers: [],
+
     rounds: [{ lockTime: "", advanceCount: "2" }, { lockTime: "", advanceCount: "1" }],
     raceRounds: {},
 
@@ -607,6 +612,8 @@ const Admin = () => {
       podiumSize: "3",
 
       stages: ["Stage 1", "Stage 2"],
+      rosterTiers: [],
+
       rounds: [{ lockTime: "", advanceCount: "2" }, { lockTime: "", advanceCount: "1" }],
       raceRounds: {},
 
@@ -617,8 +624,9 @@ const Admin = () => {
   };
 
   const addCrewToForm = () => {
-    // GC / stage races carry no per-row race: competitors are entered in every stage.
-    const gcMode = createForm.contestType === "gc_pool";
+    // Per-competitor types carry no per-row race: competitors are entered in every stage.
+    const gcMode = !!CONTEST_TYPES.find(t => t.key === createForm.contestType)?.perCompetitor;
+
     if (!newCrewInput.crew_name || !newCrewInput.crew_id || (!gcMode && !newCrewInput.event_id)) { toast.error("Please fill in all crew fields"); return; }
     const eventId = gcMode ? "" : newCrewInput.event_id;
     if (createForm.contestType === "podium_predictor") {
@@ -640,7 +648,11 @@ const Admin = () => {
       if (!nextCrews.some(c => c.event_id === eventId)) {
         delete nextRaceRounds[eventId];
       }
-      return { ...prev, crews: nextCrews, raceRounds: nextRaceRounds };
+      const nextRosterTiers = prev.rosterTiers.length === 0
+        ? prev.rosterTiers
+        : prev.rosterTiers.map(t => ({ ...t, competitors: t.competitors.filter(k => k !== crewId) }));
+      return { ...prev, crews: nextCrews, raceRounds: nextRaceRounds, rosterTiers: nextRosterTiers };
+
     });
   };
 
@@ -858,11 +870,16 @@ const Admin = () => {
       const typeDef = CONTEST_TYPES.find(t => t.key === createForm.contestType)!;
       const scoringConfig: any = getScoringPreset(createForm.contestType);
       const isGc = !!typeDef.perCompetitor;
+      const isTierPick = !!typeDef.rosterTiers;
       const stageNames = createForm.stages.map(s => s.trim()).filter(Boolean);
       const raceKeys = isGc
         ? Array.from(new Set(stageNames))
         : Array.from(new Set(createForm.crews.map(c => c.event_id)));
-      if (isGc && raceKeys.length < 2) { toast.error("GC / Stage Race contests need at least 2 distinct stages"); return; }
+      if (isGc && raceKeys.length < 2) {
+        toast.error(isTierPick ? "Tier contests need at least 2 distinct stages" : "GC / Stage Race contests need at least 2 distinct stages");
+        return;
+      }
+
       if (raceKeys.length < 2 && entryFeeCents > 0) { toast.error("Paid contests require at least 2 races"); return; }
       const eventClass = createForm.eventClass.trim();
       if (typeDef.requiresEventClass && !eventClass) {
@@ -899,6 +916,29 @@ const Admin = () => {
             ? `Picks must satisfy 2 ≤ picks per entry ≤ number of competitors (${rosterSize})`
             : `Picks must satisfy 2 ≤ Min picks ≤ Max picks ≤ number of races (${rosterSize})`
         ); return;
+      }
+
+      // ---- Tiers-only validation (mirrors the backend, plus client-only strictness) ----
+      let rosterTiersPayload: { name: string; competitors: string[] }[] = [];
+      if (isTierPick) {
+        const tiers = createForm.rosterTiers;
+        if (tiers.length < 2 || tiers.length > 10) { toast.error("Tier contests need between 2 and 10 tiers"); return; }
+        if (tiers.some(t => !t.name.trim())) { toast.error("Every tier needs a name"); return; }
+        if (tiers.some(t => t.competitors.length < 2)) { toast.error("each roster tier needs at least 2 competitors"); return; }
+        const assigned = new Set<string>();
+        for (const tier of tiers) {
+          for (const key of tier.competitors) {
+            if (assigned.has(key)) { toast.error("every competitor must be assigned to a tier"); return; }
+            assigned.add(key);
+          }
+        }
+        if (competitors.some(c => !assigned.has(c.competitor_key))) {
+          toast.error("every competitor must be assigned to a tier"); return;
+        }
+        if (minPicks !== tiers.length || effectiveMax !== tiers.length) {
+          toast.error("tier contests require one pick per tier"); return;
+        }
+        rosterTiersPayload = tiers.map(t => ({ name: t.name.trim(), competitors: [...t.competitors] }));
       }
 
 
@@ -991,6 +1031,8 @@ const Admin = () => {
         maxPicks: effectiveMax,
 
         ...(isSurvivor ? { rounds: survivorRounds } : {}),
+        ...(isTierPick ? { rosterTiers: rosterTiersPayload } : {}),
+
 
       };
     }
@@ -1555,16 +1597,28 @@ const Admin = () => {
                     const modeChanged = !!newType?.perCompetitor !== !!oldType?.perCompetitor;
                     const toPrediction = value === "podium_predictor";
                     const fromPrediction = createForm.contestType === "podium_predictor" && !toPrediction;
-                    setCreateForm(prev => ({
+                    const toTiers = value === "tier_pick";
+                    setCreateForm(prev => {
+                      // Tiers: two empty tiers on entry; cleared when leaving.
+                      const nextTiers = toTiers
+                        ? (prev.rosterTiers.length >= 2
+                            ? prev.rosterTiers
+                            : [{ name: "Tier 1", competitors: [] }, { name: "Tier 2", competitors: [] }])
+                        : [];
+                      return {
                       ...prev,
                       contestType: value as ContestTypeKey,
                       maxPicks: newType?.fixedRoster ? prev.minPicks : prev.maxPicks,
                       crews: modeChanged ? [] : prev.crews,
+                      rosterTiers: modeChanged ? nextTiers.map(t => ({ ...t, competitors: [] })) : nextTiers,
+                      ...(toTiers ? { minPicks: String(nextTiers.length), maxPicks: String(nextTiers.length) } : {}),
                       // Podium Predictor is always free, single-tier, and picks == podium size.
                       ...(toPrediction ? { entryFee: "0", multiTier: false, minPicks: "3", maxPicks: "3", podiumSize: "3" } : {}),
                       // Switching away restores the initial-fixture defaults so nothing leaks.
                       ...(fromPrediction ? { entryFee: "", multiTier: false, minPicks: "2", maxPicks: newType?.fixedRoster ? "2" : "4" } : {}),
-                    }));
+                      };
+                    });
+
                     if (modeChanged) {
                       setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
                       toast.info("Lineup cleared — competitor entry differs for this contest type");
@@ -1671,7 +1725,7 @@ const Admin = () => {
                   <p className="text-xs text-muted-foreground mt-1">All races share this class — required for time-based scoring.</p>
                 </div>
               )}
-              {createForm.contestType === "gc_pool" && (
+              {CONTEST_TYPES.find(t => t.key === createForm.contestType)?.perCompetitor && (
                 <div className="border rounded-lg p-3 space-y-2">
                   <Label className="text-sm font-semibold">Stages *</Label>
                   <p className="text-xs text-muted-foreground">Ordered stages. Every competitor is entered in every stage. Minimum 2.</p>
@@ -1695,17 +1749,93 @@ const Admin = () => {
                   </Button>
                 </div>
               )}
+              {createForm.contestType === "tier_pick" && (
+                <div className="border rounded-lg p-3 space-y-3">
+                  <Label className="text-sm font-semibold">Roster Tiers *</Label>
+                  <p className="text-xs text-muted-foreground">Entrants pick exactly one competitor from each tier.</p>
+                  {createForm.rosterTiers.map((tier, idx) => (
+                    <div key={idx} className="border rounded-md p-2 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground w-6">{idx + 1}.</span>
+                        <Input
+                          value={tier.name}
+                          placeholder={`Tier ${idx + 1}`}
+                          onChange={(e) => { const v = e.target.value; setCreateForm(prev => ({ ...prev, rosterTiers: prev.rosterTiers.map((t, i) => i === idx ? { ...t, name: v } : t) })); }}
+                        />
+                        {createForm.rosterTiers.length > 2 && (
+                          <Button size="sm" variant="ghost" onClick={() => setCreateForm(prev => {
+                            const next = prev.rosterTiers.filter((_, i) => i !== idx);
+                            return { ...prev, rosterTiers: next, minPicks: String(next.length), maxPicks: String(next.length) };
+                          })}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      {createForm.crews.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">Add competitors below to assign them to tiers.</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {Array.from(new Map(createForm.crews.map(c => [c.crew_id, c])).values()).map((c) => {
+                            const selected = tier.competitors.includes(c.crew_id);
+                            return (
+                              <Button
+                                key={c.crew_id}
+                                size="sm"
+                                variant={selected ? "default" : "outline"}
+                                onClick={() => setCreateForm(prev => {
+                                  const movedFrom = prev.rosterTiers.findIndex((t, i) => i !== idx && t.competitors.includes(c.crew_id));
+                                  if (!selected && movedFrom >= 0) {
+                                    toast.info(`${c.crew_name} moved from ${prev.rosterTiers[movedFrom].name || `Tier ${movedFrom + 1}`}`);
+                                  }
+                                  return {
+                                    ...prev,
+                                    rosterTiers: prev.rosterTiers.map((t, i) => {
+                                      if (i === idx) {
+                                        return {
+                                          ...t,
+                                          competitors: selected
+                                            ? t.competitors.filter(k => k !== c.crew_id)
+                                            : [...t.competitors, c.crew_id],
+                                        };
+                                      }
+                                      // A competitor belongs to at most one tier.
+                                      return selected ? t : { ...t, competitors: t.competitors.filter(k => k !== c.crew_id) };
+                                    }),
+                                  };
+                                })}
+                              >
+                                {c.crew_name}
+                              </Button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {createForm.rosterTiers.length < 10 && (
+                    <Button size="sm" variant="outline" onClick={() => setCreateForm(prev => {
+                      const next = [...prev.rosterTiers, { name: `Tier ${prev.rosterTiers.length + 1}`, competitors: [] }];
+                      return { ...prev, rosterTiers: next, minPicks: String(next.length), maxPicks: String(next.length) };
+                    })}>
+                      <Plus className="mr-2 h-4 w-4" />Add Tier
+                    </Button>
+                  )}
+                </div>
+              )}
               {CONTEST_TYPES.find(t => t.key === createForm.contestType)?.fixedRoster ? (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="picksPerEntry">Picks per entry *</Label>
-                    <Input id="picksPerEntry" type="number" min={2} disabled={createForm.contestType === "podium_predictor"} value={createForm.minPicks} onChange={(e) => { const v = e.target.value; setCreateForm(prev => ({ ...prev, minPicks: v, maxPicks: v })); }} />
+                    <Input id="picksPerEntry" type="number" min={2} disabled={createForm.contestType === "podium_predictor" || createForm.contestType === "tier_pick"} value={createForm.minPicks} onChange={(e) => { const v = e.target.value; setCreateForm(prev => ({ ...prev, minPicks: v, maxPicks: v })); }} />
                     <p className="text-xs text-muted-foreground mt-1">
                       {createForm.contestType === "podium_predictor"
                         ? "Set by podium size"
-                        : createForm.contestType === "gc_pool"
-                          ? "Fixed roster — must be ≤ the number of competitors."
-                          : "Fixed roster — must be ≤ the number of races."}
+                        : createForm.contestType === "tier_pick"
+                          ? "Set by tier count"
+                          : createForm.contestType === "gc_pool"
+                            ? "Fixed roster — must be ≤ the number of competitors."
+                            : "Fixed roster — must be ≤ the number of races."}
+
                     </p>
                   </div>
                   {createForm.contestType === "podium_predictor" && (
@@ -1941,11 +2071,12 @@ const Admin = () => {
 
             {/* Crew Management */}
             <div className="border-t pt-4">
-              <Label className="text-base font-semibold">{createForm.contestType === "gc_pool" ? "Competitors" : "Crews"} ({createForm.crews.length})</Label>
+              <Label className="text-base font-semibold">{CONTEST_TYPES.find(t => t.key === createForm.contestType)?.perCompetitor ? "Competitors" : "Crews"} ({createForm.crews.length})</Label>
               <p className="text-sm text-muted-foreground mb-3">
-                {createForm.contestType === "gc_pool"
+                {CONTEST_TYPES.find(t => t.key === createForm.contestType)?.perCompetitor
                   ? "Add at least 2 competitors — each one is entered in every stage"
                   : "Add at least 2 crews to the contest"}
+
               </p>
               {createForm.crews.length > 0 && (
                 <div className="space-y-2 mb-4">
@@ -1961,10 +2092,11 @@ const Admin = () => {
 
               <div className="flex items-end gap-2">
                 <LogoPicker logoUrl={newCrewInput.logo_url} crewName={newCrewInput.crew_name || "?"} onSelect={(url) => setNewCrewInput(prev => ({ ...prev, logo_url: url }))} />
-                <div className={`flex-1 grid gap-2 ${createForm.contestType === "gc_pool" ? "grid-cols-2" : "grid-cols-3"}`}>
+                <div className={`flex-1 grid gap-2 ${CONTEST_TYPES.find(t => t.key === createForm.contestType)?.perCompetitor ? "grid-cols-2" : "grid-cols-3"}`}>
                   <div><Label htmlFor="crewName" className="text-xs">Name</Label><Input id="crewName" placeholder="Yale" value={newCrewInput.crew_name} onChange={(e) => { const name = e.target.value; const autoLogo = getCircleFlagUrl(name) || getCollegeLogoUrl(name); setNewCrewInput(prev => ({ ...prev, crew_name: name, ...(autoLogo ? { logo_url: autoLogo } : {}) })); }} /></div>
                   <div><Label htmlFor="crewId" className="text-xs">Crew ID</Label><Input id="crewId" placeholder="yale_1v" value={newCrewInput.crew_id} onChange={(e) => setNewCrewInput(prev => ({ ...prev, crew_id: e.target.value }))} /></div>
-                  {createForm.contestType !== "gc_pool" && (
+                  {!CONTEST_TYPES.find(t => t.key === createForm.contestType)?.perCompetitor && (
+
                     <div><Label htmlFor="eventId" className="text-xs">Event ID</Label><Input id="eventId" placeholder="mens_8" value={newCrewInput.event_id} onChange={(e) => setNewCrewInput(prev => ({ ...prev, event_id: e.target.value }))} /></div>
                   )}
                 </div>

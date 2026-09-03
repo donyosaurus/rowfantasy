@@ -98,6 +98,8 @@ interface ContestPool {
     name?: string | null;
     scoring_config?: ScoringConfigLite | null;
     roster_mode?: string | null;
+    roster_tiers?: { name: string; competitors: string[] }[] | null;
+
 
   };
   contest_pool_crews: PoolCrew[];
@@ -160,7 +162,7 @@ const RegattaDetail = () => {
     const fetchPoolData = async () => {
       const { data, error: fetchError } = await supabase
         .from("contest_pools")
-        .select(`id, contest_template_id, created_at, current_entries, entry_fee_cents, entry_tiers, lock_time, max_entries, payout_structure, prize_pool_cents, prize_structure, settled_at, status, tier_id, tier_name, allow_overflow, void_unfilled_on_settle, contest_templates!inner (id, regatta_name, gender_category, min_picks, max_picks, card_banner_url, draft_banner_url, sport, name, scoring_config, roster_mode), contest_pool_crews (id, crew_id, crew_name, event_id, logo_url)`)
+        .select(`id, contest_template_id, created_at, current_entries, entry_fee_cents, entry_tiers, lock_time, max_entries, payout_structure, prize_pool_cents, prize_structure, settled_at, status, tier_id, tier_name, allow_overflow, void_unfilled_on_settle, contest_templates!inner (id, regatta_name, gender_category, min_picks, max_picks, card_banner_url, draft_banner_url, sport, name, scoring_config, roster_mode, roster_tiers), contest_pool_crews (id, crew_id, crew_name, event_id, logo_url)`)
         .eq("id", id)
         .single();
       if (fetchError || !data) { setError("Contest not found"); setLoading(false); return; }
@@ -416,6 +418,23 @@ const RegattaDetail = () => {
     ? Number((scoringConfig as any).podium_size)
     : 3;
 
+  // Tiers: pick exactly one competitor from each tier.
+  const rosterTiers = (Array.isArray(template?.roster_tiers) && template!.roster_tiers!.length > 0)
+    ? template!.roster_tiers!
+    : null;
+  const isTierPick = !!rosterTiers;
+  const tierOfCompetitor = useMemo(() => {
+    const map = new Map<string, number>();
+    if (rosterTiers) {
+      rosterTiers.forEach((tier, i) => {
+        (tier.competitors || []).forEach((k) => { if (!map.has(k)) map.set(k, i); });
+      });
+    }
+    return map;
+  }, [rosterTiers]);
+
+
+
 
   const sport = template?.sport ?? null;
   const t = terms(sport);
@@ -468,7 +487,18 @@ const RegattaDetail = () => {
         newPicks.set(key, { crewId, eventId, margin: 0, position: newPicks.size + 1 });
         return newPicks;
       }
+      if (isTierPick) {
+        // Tiers: one pick per tier — swap out any existing pick from the same tier.
+        const tierIdx = tierOfCompetitor.get(crewId);
+        if (tierIdx === undefined) return prev;
+        for (const [k, v] of newPicks) {
+          if (tierOfCompetitor.get(v.crewId) === tierIdx) { newPicks.delete(k); break; }
+        }
+        newPicks.set(key, { crewId, eventId: "", margin: 0 });
+        return newPicks;
+      }
       if (isPerCompetitor) {
+
         // GC: a flat roster, no per-race swap.
         if (newPicks.size >= maxPicks) { toast.error(`Maximum ${maxPicks} picks allowed`); return prev; }
         newPicks.set(key, { crewId, eventId: "", margin: 0 });
@@ -734,7 +764,17 @@ const RegattaDetail = () => {
       return;
     }
     if (!id || !contestPool) return;
-    if (crewPicks.size < minPicks) { toast.error(`Please select at least ${minPicks} ${t.competitors}`); return; }
+    if (isTierPick) {
+      const covered = new Set<number>();
+      for (const p of crewPicks.values()) {
+        const ti = tierOfCompetitor.get(p.crewId);
+        if (ti === undefined) { toast.error("Pick exactly one competitor from each tier."); return; }
+        if (covered.has(ti)) { toast.error("Pick exactly one competitor from each tier."); return; }
+        covered.add(ti);
+      }
+      if (covered.size !== rosterTiers!.length) { toast.error("Pick exactly one competitor from each tier."); return; }
+    } else if (crewPicks.size < minPicks) { toast.error(`Please select at least ${minPicks} ${t.competitors}`); return; }
+
     if (needsMargin) {
       for (const [, p] of crewPicks) {
         if (!(p.margin > 0)) {
@@ -1019,7 +1059,43 @@ const RegattaDetail = () => {
                 </div>
               )}
 
-              {isPerCompetitor ? (
+              {isTierPick ? (
+                <div className="space-y-6">
+                  {rosterTiers!.map((tier, tIdx) => {
+                    const members = competitorList.filter((c) => tierOfCompetitor.get(c.crew_id) === tIdx);
+                    if (members.length === 0) return null;
+                    return (
+                      <div key={`${tier.name}-${tIdx}`}>
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="flex items-center gap-2 rounded-full bg-white/10 text-white px-3 py-1 border border-white/15">
+                            <span className="font-semibold text-xs">{tier.name || `Tier ${tIdx + 1}`}</span>
+                            <span className="text-white/60 text-xs">· Pick 1</span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {members.map((crew, idx) => (
+                            <CrewCard
+                              key={crew.crew_id}
+                              crewId={crew.crew_id}
+                              crewName={crew.crew_name}
+                              eventId=""
+                              logoUrl={crew.logo_url}
+                              isSelected={crewPicks.has(crew.crew_id)}
+                              marginVal={0}
+                              isOpen={!!isContestOpen}
+                              showMargin={false}
+                              onToggle={toggleCrewSelection}
+                              onMarginChange={updateCrewMargin}
+                              animDelay={idx * 50}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : isPerCompetitor ? (
+
                 competitorList.length === 0 ? (
                   <Card className="bg-card border-border"><CardContent className="py-8 text-center text-muted-foreground">No {t.competitors} available.</CardContent></Card>
                 ) : (
@@ -1238,7 +1314,11 @@ const RegattaDetail = () => {
                       <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${scoringOpen ? "rotate-180" : ""}`} />
                     </CollapsibleTrigger>
                     <CollapsibleContent className="pt-3">
+                      {isTierPick && (
+                        <p className="text-xs text-muted-foreground mb-3">Pick one competitor from each tier.</p>
+                      )}
                       {isPrediction ? (
+
                         <p className="text-xs text-muted-foreground">
                           {`Predict the podium in exact order. Exact position = ${Number.isFinite(Number((scoringConfig as any)?.points_exact)) ? Number((scoringConfig as any).points_exact) : 5} pts, on the podium but wrong slot = ${Number.isFinite(Number((scoringConfig as any)?.points_podium)) ? Number((scoringConfig as any).points_podium) : 2} pts. Highest total wins.`}
                         </p>
