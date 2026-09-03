@@ -1146,7 +1146,24 @@ async function scoreConfiguredPool(
     return { entriesScored: timeScores.length, winnerId: timeWinnerIds[0], isTieRefund: timeTieRefund };
   }
 
-  const fixedRosterRequired = cfg.direction === "low" || cfg.tiebreak === "aggregate_time";
+  // ---- Phase 4d: placement with per_competitor roster ----
+  // Placement-local equivalents of the time branch's fan-out inputs (the time
+  // branch's allRaceKeys/enteredByCompetitor are scoped inside that branch).
+  const placementRosterMode: string = template?.roster_mode ?? "per_race";
+  const placementAllRaceKeys: string[] = races.map((r: any) => r.race_key);
+  const placementEnteredByCompetitor = new Map<string, Set<string>>();
+  if (placementRosterMode === "per_competitor") {
+    for (const re of templateRaceEntries) {
+      const ck = compKeyById.get(re.competitor_id);
+      const rk = raceKeyById.get(re.race_id);
+      if (!ck || !rk) continue;
+      if (!placementEnteredByCompetitor.has(ck)) placementEnteredByCompetitor.set(ck, new Set<string>());
+      placementEnteredByCompetitor.get(ck)!.add(rk);
+    }
+  }
+
+  const fixedRosterRequired = cfg.direction === "low" || cfg.tiebreak === "aggregate_time" ||
+    (placementRosterMode === "per_competitor" && cfg.primitive === "placement");
 
   const minPicks = template?.min_picks ?? null;
   const maxPicks = template?.max_picks ?? null;
@@ -1237,8 +1254,31 @@ async function scoreConfiguredPool(
       continue;
     }
 
+    // Phase 4d: per_competitor placement fans each picked competitor out across
+    // EVERY race of the template, exactly like the GC time path.
+    let placementCells = picks;
+    if (placementRosterMode === "per_competitor" && cfg.primitive === "placement") {
+      placementCells = [];
+      let missing: string | null = null;
+      for (const pick of picks) {
+        const entered = placementEnteredByCompetitor.get(pick.crewId) ?? new Set<string>();
+        for (const rk of placementAllRaceKeys) {
+          if (!entered.has(rk)) {
+            missing = `crew ${pick.crewId} is not entered in race ${rk}`;
+            break;
+          }
+          placementCells.push({ crewId: pick.crewId, event_id: rk, predictedMargin: NaN });
+        }
+        if (missing) break;
+      }
+      if (missing) {
+        failures.push(`entry ${entry.id} → ${missing}`);
+        continue;
+      }
+    }
+
     try {
-      const { totalPoints, tiebreakValue, crewScores } = reducePlacement(picks, resultsByKey, cfg);
+      const { totalPoints, tiebreakValue, crewScores } = reducePlacement(placementCells, resultsByKey, cfg);
 
       const tiebreakPersist = cfg.tiebreak === "aggregate_time"
         ? Math.round(tiebreakValue) / 1000
