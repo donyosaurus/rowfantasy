@@ -486,7 +486,7 @@ const MyEntries = () => {
             event_id: p.event_id || p.eventId || '',
             predictedMargin: Number(p.predictedMargin ?? p.predicted_margin ?? 0),
             ...(isPredictionEntry ? { position: Number(p.position) } : {}),
-            ...(isConfidenceEntry ? { weight: Number(p.weight) } : {}),
+            ...(isConfidenceEntry ? { weight: p.weight } : {}),
           };
         });
 
@@ -689,6 +689,9 @@ const MyEntries = () => {
     // ---- Survivor derivation (only active when the template's rounds loaded) ----
     const isSurvivor = isSurvivorTemplate(entry.contest_templates?.scoring_config);
 
+    const isAccumulate =
+      (entry.contest_templates?.scoring_config as any)?.round_mode === 'accumulate';
+
     const rounds = roundsByTemplate.get(entry.contest_template_id);
     const survivorReady = isSurvivor && Array.isArray(rounds) && rounds.length > 0;
     const entryRounds: SurvivorEntryRound[] = survivorReady ? (entryRoundsByEntry.get(entry.id) ?? []) : [];
@@ -697,15 +700,19 @@ const MyEntries = () => {
     let eliminatedInRound: number | null = null;
     let actionableRound: SurvivorRound | null = null;
     let currentRoundNo = 0;
+    let cumulativePoints = 0;
     if (survivorReady && rounds) {
-      for (const r of rounds) {
-        if (r.status === 'scored') {
-          const er = erByRound.get(r.round_no);
-          if (!er || er.advanced !== true) { eliminatedInRound = r.round_no; break; }
+      if (!isAccumulate) {
+        for (const r of rounds) {
+          if (r.status === 'scored') {
+            const er = erByRound.get(r.round_no);
+            if (!er || er.advanced !== true) { eliminatedInRound = r.round_no; break; }
+          }
         }
       }
+      cumulativePoints = entryRounds.reduce((sum, er) => sum + (er.points ?? 0), 0);
       const now = new Date();
-      if (eliminatedInRound === null) {
+      if (isAccumulate || eliminatedInRound === null) {
         actionableRound =
           rounds.find((r) => r.status === 'scheduled' && new Date(r.lock_at) > now && r.round_no >= 2) ?? null;
       }
@@ -723,7 +730,13 @@ const MyEntries = () => {
           {rounds.map((r) => {
             const er = erByRound.get(r.round_no);
             const parts: string[] = [];
-            if (er) {
+            if (isAccumulate) {
+              const hasPicks = Array.isArray((er as any)?.picks) && ((er as any).picks as any[]).length > 0;
+              if (er && er.points !== null) parts.push(`${er.points} pts`);
+              else if (r.status === 'scored' && !hasPicks) parts.push('Missed (0 pts)');
+              else if (er) parts.push('Picks in');
+              else if (r.status === 'scored') parts.push('Missed (0 pts)');
+            } else if (er) {
               if (er.points !== null) parts.push(`${er.points} pts`);
               if (er.advanced === true) parts.push('Advanced');
               else if (er.advanced === false) parts.push('Eliminated');
@@ -783,7 +796,7 @@ const MyEntries = () => {
                   {prizeText && <span className="text-gold font-medium"> • {prizeText}</span>}
                 </div>
                 {!showScore && !survivorReady && <div>Locks: {new Date(entry.contest_templates.lock_time).toLocaleString()}</div>}
-                {!showScore && survivorReady && eliminatedInRound === null && (
+                {!showScore && survivorReady && (isAccumulate || eliminatedInRound === null) && (
                   actionableRound
                     ? <div>Round {actionableRound.round_no} picks lock: {new Date(actionableRound.lock_at).toLocaleString()}</div>
                     : <div>Round {currentRoundNo} in progress</div>
@@ -793,7 +806,10 @@ const MyEntries = () => {
             </div>
             <div className="flex items-center gap-2">
               {showScore && resultDisplay}
-              {!showScore && survivorReady && (
+              {!showScore && survivorReady && isAccumulate && (
+                <Badge variant="outline" className="bg-gold/10 text-gold border-gold/30">Season · Round {currentRoundNo} of {rounds!.length} · {cumulativePoints} pts</Badge>
+              )}
+              {!showScore && survivorReady && !isAccumulate && (
                 eliminatedInRound !== null
                   ? <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">Eliminated · Round {eliminatedInRound}</Badge>
                   : <Badge variant="outline" className="bg-gold/10 text-gold border-gold/30">Alive · Round {currentRoundNo} of {rounds!.length}</Badge>
@@ -845,7 +861,7 @@ const MyEntries = () => {
                 <Plus className="h-4 w-4" />
                 Submit Another Entry
               </Button>
-            ) : survivorReady && !showScore && eliminatedInRound === null && actionableRound ? (
+            ) : survivorReady && !showScore && (isAccumulate || eliminatedInRound === null) && actionableRound ? (
               <Button
                 type="button"
                 size="sm"
