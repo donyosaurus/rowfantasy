@@ -600,6 +600,7 @@ export type Database = {
           created_at: string
           id: string
           lock_at: string
+          round_mode: string
           round_no: number
           scored_at: string | null
           status: string
@@ -610,6 +611,7 @@ export type Database = {
           created_at?: string
           id?: string
           lock_at: string
+          round_mode?: string
           round_no: number
           scored_at?: string | null
           status?: string
@@ -620,6 +622,7 @@ export type Database = {
           created_at?: string
           id?: string
           lock_at?: string
+          round_mode?: string
           round_no?: number
           scored_at?: string | null
           status?: string

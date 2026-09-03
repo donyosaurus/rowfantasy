@@ -163,6 +163,11 @@ export const SurvivorConfigSchema = z.object({
   direction: z.literal("high"),
   dnf_policy: z.literal("zero"),
   tiebreak: z.literal("none"),
+  // Phase 4f-1: 'accumulate' rounds never eliminate; no_reuse (One & Done)
+  // requires accumulate. The cross-field rule lives on the union superRefine
+  // below, because ZodEffects cannot be a discriminatedUnion member.
+  round_mode: z.enum(["eliminate", "accumulate"]).optional(),
+  no_reuse: z.boolean().optional(),
 }).strict();
 
 // Podium Predictor: pick N competitors IN ORDER; exact position hit scores
@@ -197,6 +202,11 @@ export const ScoringConfigSchema = z
       }
       if (c.direction === "low" && c.race_multipliers) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "race_multipliers not allowed with direction low" });
+      }
+    }
+    if (c.primitive === "survivor") {
+      if (c.no_reuse === true && c.round_mode !== "accumulate") {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "no_reuse requires accumulate" });
       }
     }
   });
