@@ -381,6 +381,9 @@ Deno.serve(withFnVersion('admin-create-contest', async (req) => {
         p_max_picks: v2.maxPicks ?? 4,
         _admin_user_id: user.id,
         p_rounds: v2.rounds ?? null,
+        // Only supplied for tier contests — overload resolution uses the supplied keys.
+        ...(v2.rosterTiers ? { p_roster_tiers: v2.rosterTiers } : {}),
+
       });
 
       if (v2Error) {
