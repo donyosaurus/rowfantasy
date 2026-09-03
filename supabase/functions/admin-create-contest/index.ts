@@ -262,7 +262,7 @@ Deno.serve(withFnVersion('admin-create-contest', async (req) => {
       const cfg = v2.scoringConfig;
       if (cfg) {
         const fixedRosterRequired = cfg.primitive === 'time_vs_ref' || cfg.primitive === 'prediction' ||
-          (cfg.primitive === 'placement' && (cfg.direction === 'low' || cfg.tiebreak === 'aggregate_time'));
+          (cfg.primitive === 'placement' && (cfg.direction === 'low' || cfg.tiebreak === 'aggregate_time' || rosterMode === 'per_competitor'));
         if (fixedRosterRequired) {
           if (
             typeof v2.minPicks !== 'number' || typeof v2.maxPicks !== 'number' ||
