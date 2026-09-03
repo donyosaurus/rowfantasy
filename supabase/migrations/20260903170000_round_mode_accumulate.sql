@@ -368,8 +368,6 @@ BEGIN
       RAISE EXCEPTION 'survivor requires a points_table with a positive value for place 1';
     END IF;
 
-    -- Phase 4f-1: round_mode / no_reuse are type-validated BEFORE any read that
-    -- could cast-error. Absent keys behave exactly as before (eliminate).
     IF p_scoring_config ? 'round_mode'
        AND (jsonb_typeof(p_scoring_config->'round_mode') <> 'string'
             OR p_scoring_config->>'round_mode' NOT IN ('eliminate','accumulate')) THEN
@@ -446,7 +444,6 @@ BEGIN
     END IF;
 
     IF COALESCE(p_scoring_config->>'round_mode', 'eliminate') = 'accumulate' THEN
-    -- Accumulate has no ladder: advance_count is a normalized sentinel of 1.
     IF EXISTS (
       SELECT 1 FROM jsonb_array_elements(p_rounds) e
       WHERE (e->>'advance_count')::int <> 1
@@ -752,7 +749,6 @@ BEGIN
     RETURN jsonb_build_object('allowed', false, 'reason', 'round_locked');
   END IF;
 
-  -- Phase 4f-1: accumulate contests never eliminate - everyone plays every round.
   IF COALESCE(_scoring_config->>'round_mode', 'eliminate') <> 'accumulate' THEN
   -- Alive: advanced in every already-scored round.
   IF EXISTS (
@@ -828,8 +824,6 @@ BEGIN
     RETURN jsonb_build_object('allowed', false, 'reason', 'invalid_pick');
   END IF;
 
-  -- Phase 4f-1: One & Done - a competitor used in ANY earlier round (round 1
-  -- included) may never be picked again. Never compares against this round.
   IF COALESCE((_scoring_config->>'no_reuse')::boolean, false) THEN
     IF EXISTS (
       SELECT 1
@@ -913,8 +907,6 @@ BEGIN
     RAISE EXCEPTION 'not a survivor template';
   END IF;
 
-  -- Phase 4f-1: the template scoring_config is authoritative; contest_rounds
-  -- carries a denormalized snapshot. Fail closed if they ever disagree.
   v_accumulate := COALESCE(v_scoring_config->>'round_mode', 'eliminate') = 'accumulate';
 
   IF EXISTS (
@@ -1113,8 +1105,6 @@ BEGIN
             WHERE er0.entry_id = ce.id AND er0.round_no = r0.round_no AND er0.advanced = true));
 
     IF v_accumulate THEN
-      -- Accumulate: no threshold, no elimination. round_rank still records the
-      -- round's points order; every active entry advances.
       IF v_scored_count > 0 THEN
         UPDATE contest_entry_rounds er
         SET round_rank = z.rnk,
@@ -1130,7 +1120,6 @@ BEGIN
         WHERE er.entry_id = z.entry_id AND er.round_no = v_target;
       END IF;
 
-      -- A missed round is a real zero, never an elimination.
       INSERT INTO contest_entry_rounds (entry_id, template_id, round_no, picks, points, round_rank, advanced)
       SELECT ce.id, p_template_id, v_target, '[]'::jsonb, 0, NULL, true
       FROM contest_entries ce
@@ -1221,8 +1210,6 @@ BEGIN
       FROM contest_entries ce WHERE ce.pool_id = v_pool.id AND ce.status = 'active';
 
       IF v_accumulate THEN
-        -- ONE ranked relation drives winner_ids, contest_scores.rank and
-        -- contest_entries.rank, so the three definitions cannot drift.
         CREATE TEMP TABLE IF NOT EXISTS _surv_acc_rank (
           entry_id uuid,
           user_id uuid,
