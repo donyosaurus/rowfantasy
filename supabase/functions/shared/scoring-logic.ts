@@ -434,6 +434,7 @@ function parseEntryPicks(entry: any): EntryPick[] {
       event_id: p.event_id,
       predictedMargin: p.predictedMargin ?? p.predicted_margin ?? NaN,
       position: Number.isInteger(p.position) ? p.position : undefined,
+      weight: Number.isInteger(p.weight) ? p.weight : undefined,
     };
   });
 }
