@@ -60,6 +60,7 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
             event_id: z.string().optional(),
             predictedMargin: z.number().optional(),
             position: z.number().int().min(1).max(10).optional(),
+            weight: z.number().int().min(1).max(50).optional(),
           }),
         )
         .min(1)
