@@ -764,7 +764,17 @@ const RegattaDetail = () => {
       return;
     }
     if (!id || !contestPool) return;
-    if (crewPicks.size < minPicks) { toast.error(`Please select at least ${minPicks} ${t.competitors}`); return; }
+    if (isTierPick) {
+      const covered = new Set<number>();
+      for (const p of crewPicks.values()) {
+        const ti = tierOfCompetitor.get(p.crewId);
+        if (ti === undefined) { toast.error("Pick exactly one competitor from each tier."); return; }
+        if (covered.has(ti)) { toast.error("Pick exactly one competitor from each tier."); return; }
+        covered.add(ti);
+      }
+      if (covered.size !== rosterTiers!.length) { toast.error("Pick exactly one competitor from each tier."); return; }
+    } else if (crewPicks.size < minPicks) { toast.error(`Please select at least ${minPicks} ${t.competitors}`); return; }
+
     if (needsMargin) {
       for (const [, p] of crewPicks) {
         if (!(p.margin > 0)) {
