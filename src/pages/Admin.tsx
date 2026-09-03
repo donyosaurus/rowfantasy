@@ -843,7 +843,7 @@ const Admin = () => {
 
     if (isV2) {
       const typeDef = CONTEST_TYPES.find(t => t.key === createForm.contestType)!;
-      const scoringConfig = getScoringPreset(createForm.contestType);
+      const scoringConfig: any = getScoringPreset(createForm.contestType);
       const isGc = !!typeDef.perCompetitor;
       const stageNames = createForm.stages.map(s => s.trim()).filter(Boolean);
       const raceKeys = isGc
@@ -867,13 +867,27 @@ const Admin = () => {
       const minPicks = parseInt(createForm.minPicks, 10);
       const maxPicks = parseInt(createForm.maxPicks, 10);
       const effectiveMax = typeDef.fixedRoster ? minPicks : maxPicks;
-      if (isNaN(minPicks) || isNaN(effectiveMax) || minPicks < 2 || effectiveMax < minPicks || effectiveMax > rosterSize) {
+      if (isPrediction) {
+        // Podium Predictor: exactly one race, picks == podium size, bounded by entered competitors.
+        const podiumSize = parseInt(createForm.podiumSize, 10);
+        if (raceKeys.filter(k => !!k).length !== 1) { toast.error("prediction contests take exactly one race"); return; }
+        const raceKey = raceKeys.find(k => !!k)!;
+        const distinctCompetitors = new Set(
+          createForm.crews.filter(c => c.event_id === raceKey).map(c => c.crew_id)
+        ).size;
+        if (distinctCompetitors < podiumSize) { toast.error("not enough distinct entered competitors for the podium"); return; }
+        if (!Number.isInteger(podiumSize) || minPicks !== podiumSize || effectiveMax !== podiumSize) {
+          toast.error("prediction pick count must equal podium_size"); return;
+        }
+        scoringConfig.podium_size = podiumSize;
+      } else if (isNaN(minPicks) || isNaN(effectiveMax) || minPicks < 2 || effectiveMax < minPicks || effectiveMax > rosterSize) {
         toast.error(
           isGc
             ? `Picks must satisfy 2 ≤ picks per entry ≤ number of competitors (${rosterSize})`
             : `Picks must satisfy 2 ≤ Min picks ≤ Max picks ≤ number of races (${rosterSize})`
         ); return;
       }
+
 
       // ---- Survivor-only validation (mirrors the backend) ----
       let survivorRounds: { round_no: number; lock_at: string; advance_count: number }[] = [];
