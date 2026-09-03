@@ -44,6 +44,7 @@ interface ScoringConfigLite {
   primitive?: string;
   time_ref?: string;
   points_table?: Record<string, number>;
+  direction?: string;
   tiebreak?: string;
 }
 
