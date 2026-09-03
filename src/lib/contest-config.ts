@@ -39,10 +39,22 @@ export interface SurvivorScoringConfig {
   tiebreak: "none";
 }
 
+export interface PredictionScoringConfig {
+  primitive: "prediction";
+  podium_size: number;
+  points_exact: number;
+  points_podium: number;
+  direction: "high";
+  dnf_policy: "zero";
+  tiebreak: "none";
+}
+
 export type ScoringConfig =
   | PlacementScoringConfig
   | TimeVsRefScoringConfig
-  | SurvivorScoringConfig;
+  | SurvivorScoringConfig
+  | PredictionScoringConfig;
+
 
 
 const CLASSIC_POINTS_TABLE: Record<string, number> = {
