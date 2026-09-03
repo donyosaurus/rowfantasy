@@ -256,7 +256,11 @@ export function reducePlacement(
     const multiplier = cfg.race_multipliers?.[raceKey] ?? 1;
     let points = 0;
 
-    if (result.status === "OK") {
+    if (cfg.confidence) {
+      // Confidence Pick'em: a pick banks its own weight only on an outright win.
+      // points_table and race_multipliers are ignored in this mode.
+      points = result.status === "OK" && result.place === 1 ? (pick.weight ?? 0) : 0;
+    } else if (result.status === "OK") {
       const tablePoints = cfg.points_table[String(result.place)];
       const base = tablePoints ?? (cfg.direction === "low" ? (result.place as number) : 0);
       points = base * multiplier;
