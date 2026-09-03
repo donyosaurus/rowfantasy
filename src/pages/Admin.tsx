@@ -2092,10 +2092,11 @@ const Admin = () => {
 
               <div className="flex items-end gap-2">
                 <LogoPicker logoUrl={newCrewInput.logo_url} crewName={newCrewInput.crew_name || "?"} onSelect={(url) => setNewCrewInput(prev => ({ ...prev, logo_url: url }))} />
-                <div className={`flex-1 grid gap-2 ${createForm.contestType === "gc_pool" ? "grid-cols-2" : "grid-cols-3"}`}>
+                <div className={`flex-1 grid gap-2 ${CONTEST_TYPES.find(t => t.key === createForm.contestType)?.perCompetitor ? "grid-cols-2" : "grid-cols-3"}`}>
                   <div><Label htmlFor="crewName" className="text-xs">Name</Label><Input id="crewName" placeholder="Yale" value={newCrewInput.crew_name} onChange={(e) => { const name = e.target.value; const autoLogo = getCircleFlagUrl(name) || getCollegeLogoUrl(name); setNewCrewInput(prev => ({ ...prev, crew_name: name, ...(autoLogo ? { logo_url: autoLogo } : {}) })); }} /></div>
                   <div><Label htmlFor="crewId" className="text-xs">Crew ID</Label><Input id="crewId" placeholder="yale_1v" value={newCrewInput.crew_id} onChange={(e) => setNewCrewInput(prev => ({ ...prev, crew_id: e.target.value }))} /></div>
-                  {createForm.contestType !== "gc_pool" && (
+                  {!CONTEST_TYPES.find(t => t.key === createForm.contestType)?.perCompetitor && (
+
                     <div><Label htmlFor="eventId" className="text-xs">Event ID</Label><Input id="eventId" placeholder="mens_8" value={newCrewInput.event_id} onChange={(e) => setNewCrewInput(prev => ({ ...prev, event_id: e.target.value }))} /></div>
                   )}
                 </div>
