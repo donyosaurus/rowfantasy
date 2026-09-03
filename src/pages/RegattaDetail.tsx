@@ -98,6 +98,8 @@ interface ContestPool {
     name?: string | null;
     scoring_config?: ScoringConfigLite | null;
     roster_mode?: string | null;
+    roster_tiers?: { name: string; competitors: string[] }[] | null;
+
 
   };
   contest_pool_crews: PoolCrew[];
