@@ -15,6 +15,13 @@
       "when": 1788408949445,
       "tag": "0001_same_athlete_guard_survivor_and_create_v2",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788409578719,
+      "tag": "0002_same_athlete_guard_reassert",
+      "breakpoints": true
     }
   ]
 }
