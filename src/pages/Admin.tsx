@@ -950,8 +950,8 @@ const Admin = () => {
           : createForm.crews.map(c => ({ race_key: c.event_id, competitor_key: c.crew_id })),
         entryFeeCents,
         maxEntries,
-        payouts,
-        entryTiers: isSurvivor ? null : entryTiersPayload,
+        ...(isPrediction ? {} : { payouts }),
+        entryTiers: (isSurvivor || isPrediction) ? null : entryTiersPayload,
         allowOverflow: createForm.allowOverflow,
         voidUnfilledOnSettle: isSurvivor ? true : createForm.voidUnfilledOnSettle,
         cardBannerUrl: createForm.cardBannerUrl.trim() || null,
@@ -962,6 +962,7 @@ const Admin = () => {
         scoringConfig,
         minPicks,
         maxPicks: effectiveMax,
+
         ...(isSurvivor ? { rounds: survivorRounds } : {}),
 
       };
