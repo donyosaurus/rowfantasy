@@ -450,6 +450,22 @@ const RegattaDetail = () => {
       const newPicks = new Map(prev);
       if (newPicks.has(key)) {
         newPicks.delete(key);
+        if (isPrediction) {
+          // Renumber remaining podium slots in their existing order.
+          const rebuilt = new Map<string, { crewId: string; eventId: string; margin: number; position?: number }>();
+          let i = 0;
+          for (const [k, v] of newPicks) {
+            i += 1;
+            rebuilt.set(k, { ...v, position: i });
+          }
+          return rebuilt;
+        }
+        return newPicks;
+      }
+      if (isPrediction) {
+        // Podium Predictor: multiple crews from the same race, ordered 1..podium_size.
+        if (newPicks.size >= podiumSize) { toast.error(`Maximum ${podiumSize} picks allowed`); return prev; }
+        newPicks.set(key, { crewId, eventId, margin: 0, position: newPicks.size + 1 });
         return newPicks;
       }
       if (isPerCompetitor) {
@@ -458,6 +474,7 @@ const RegattaDetail = () => {
         newPicks.set(key, { crewId, eventId: "", margin: 0 });
         return newPicks;
       }
+
       // One pick per race — swap out any existing pick from the same event.
       let oldMargin = 0;
       for (const [k, v] of newPicks) {
