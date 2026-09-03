@@ -171,6 +171,16 @@ export const CONTEST_TYPES: {
 ];
 
 export function getScoringPreset(key: ContestTypeKey): ScoringConfig {
+  if (key === "confidence") {
+    return {
+      primitive: "placement",
+      points_table: {},
+      confidence: true,
+      direction: "high",
+      dnf_policy: "zero",
+      tiebreak: "margin_error",
+    };
+  }
   if (key === "podium_predictor") {
     return {
       primitive: "prediction",
