@@ -1749,17 +1749,93 @@ const Admin = () => {
                   </Button>
                 </div>
               )}
+              {createForm.contestType === "tier_pick" && (
+                <div className="border rounded-lg p-3 space-y-3">
+                  <Label className="text-sm font-semibold">Roster Tiers *</Label>
+                  <p className="text-xs text-muted-foreground">Entrants pick exactly one competitor from each tier.</p>
+                  {createForm.rosterTiers.map((tier, idx) => (
+                    <div key={idx} className="border rounded-md p-2 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground w-6">{idx + 1}.</span>
+                        <Input
+                          value={tier.name}
+                          placeholder={`Tier ${idx + 1}`}
+                          onChange={(e) => { const v = e.target.value; setCreateForm(prev => ({ ...prev, rosterTiers: prev.rosterTiers.map((t, i) => i === idx ? { ...t, name: v } : t) })); }}
+                        />
+                        {createForm.rosterTiers.length > 2 && (
+                          <Button size="sm" variant="ghost" onClick={() => setCreateForm(prev => {
+                            const next = prev.rosterTiers.filter((_, i) => i !== idx);
+                            return { ...prev, rosterTiers: next, minPicks: String(next.length), maxPicks: String(next.length) };
+                          })}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      {createForm.crews.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">Add competitors below to assign them to tiers.</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {Array.from(new Map(createForm.crews.map(c => [c.crew_id, c])).values()).map((c) => {
+                            const selected = tier.competitors.includes(c.crew_id);
+                            return (
+                              <Button
+                                key={c.crew_id}
+                                size="sm"
+                                variant={selected ? "default" : "outline"}
+                                onClick={() => setCreateForm(prev => {
+                                  const movedFrom = prev.rosterTiers.findIndex((t, i) => i !== idx && t.competitors.includes(c.crew_id));
+                                  if (!selected && movedFrom >= 0) {
+                                    toast.info(`${c.crew_name} moved from ${prev.rosterTiers[movedFrom].name || `Tier ${movedFrom + 1}`}`);
+                                  }
+                                  return {
+                                    ...prev,
+                                    rosterTiers: prev.rosterTiers.map((t, i) => {
+                                      if (i === idx) {
+                                        return {
+                                          ...t,
+                                          competitors: selected
+                                            ? t.competitors.filter(k => k !== c.crew_id)
+                                            : [...t.competitors, c.crew_id],
+                                        };
+                                      }
+                                      // A competitor belongs to at most one tier.
+                                      return selected ? t : { ...t, competitors: t.competitors.filter(k => k !== c.crew_id) };
+                                    }),
+                                  };
+                                })}
+                              >
+                                {c.crew_name}
+                              </Button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {createForm.rosterTiers.length < 10 && (
+                    <Button size="sm" variant="outline" onClick={() => setCreateForm(prev => {
+                      const next = [...prev.rosterTiers, { name: `Tier ${prev.rosterTiers.length + 1}`, competitors: [] }];
+                      return { ...prev, rosterTiers: next, minPicks: String(next.length), maxPicks: String(next.length) };
+                    })}>
+                      <Plus className="mr-2 h-4 w-4" />Add Tier
+                    </Button>
+                  )}
+                </div>
+              )}
               {CONTEST_TYPES.find(t => t.key === createForm.contestType)?.fixedRoster ? (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="picksPerEntry">Picks per entry *</Label>
-                    <Input id="picksPerEntry" type="number" min={2} disabled={createForm.contestType === "podium_predictor"} value={createForm.minPicks} onChange={(e) => { const v = e.target.value; setCreateForm(prev => ({ ...prev, minPicks: v, maxPicks: v })); }} />
+                    <Input id="picksPerEntry" type="number" min={2} disabled={createForm.contestType === "podium_predictor" || createForm.contestType === "tier_pick"} value={createForm.minPicks} onChange={(e) => { const v = e.target.value; setCreateForm(prev => ({ ...prev, minPicks: v, maxPicks: v })); }} />
                     <p className="text-xs text-muted-foreground mt-1">
                       {createForm.contestType === "podium_predictor"
                         ? "Set by podium size"
-                        : createForm.contestType === "gc_pool"
-                          ? "Fixed roster — must be ≤ the number of competitors."
-                          : "Fixed roster — must be ≤ the number of races."}
+                        : createForm.contestType === "tier_pick"
+                          ? "Set by tier count"
+                          : createForm.contestType === "gc_pool"
+                            ? "Fixed roster — must be ≤ the number of competitors."
+                            : "Fixed roster — must be ≤ the number of races."}
+
                     </p>
                   </div>
                   {createForm.contestType === "podium_predictor" && (
