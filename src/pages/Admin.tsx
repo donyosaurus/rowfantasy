@@ -792,6 +792,11 @@ const Admin = () => {
     return { maxRevenue, totalPayout, projectedProfit: maxRevenue - totalPayout };
   };
 
+  const selectedTypeDef = CONTEST_TYPES.find(t => t.key === createForm.contestType);
+  const isRoundsTypeUI = selectedTypeDef?.rounds === true;
+  const isAccumulateUI =
+    (getScoringPreset(createForm.contestType) as any)?.round_mode === "accumulate";
+
   const submitCreateContest = async () => {
     const isSurvivor = createForm.contestType === "survivor";
     const submitTypeDef = CONTEST_TYPES.find(t => t.key === createForm.contestType);
@@ -971,9 +976,9 @@ const Admin = () => {
       }
 
 
-      // ---- Survivor-only validation (mirrors the backend) ----
+      // ---- Rounds-type validation (mirrors the backend) ----
       let survivorRounds: { round_no: number; lock_at: string; advance_count: number }[] = [];
-      if (isSurvivor) {
+      if (isRoundsType) {
         const rounds = createForm.rounds;
         if (rounds.length < 2) { toast.error("Survivor contests need at least 2 rounds"); return; }
         if (minPicks < 2) { toast.error("Survivor contests need at least 2 picks per entry"); return; }
@@ -986,16 +991,18 @@ const Admin = () => {
           if (isNaN(t)) { toast.error(`Round ${i + 1} needs a valid lock time`); return; }
           if (prevLock !== null && t <= prevLock) { toast.error("Each round must lock after the previous one"); return; }
           prevLock = t;
-          const adv = Number(r.advanceCount);
-          if (!Number.isInteger(adv) || adv < 1 || adv > 2147483647) {
-            toast.error(`Round ${i + 1} advances must be a whole number between 1 and 2147483647`); return;
-          }
-          if (prevAdvance !== null && adv >= prevAdvance) {
-            toast.error("Each Survivor round must advance fewer entries than the round before it"); return;
+          const adv = isAccumulate ? 1 : Number(r.advanceCount);
+          if (!isAccumulate) {
+            if (!Number.isInteger(adv) || adv < 1 || adv > 2147483647) {
+              toast.error(`Round ${i + 1} advances must be a whole number between 1 and 2147483647`); return;
+            }
+            if (prevAdvance !== null && adv >= prevAdvance) {
+              toast.error("Each Survivor round must advance fewer entries than the round before it"); return;
+            }
           }
           prevAdvance = adv;
         }
-        if (Number(rounds[rounds.length - 1].advanceCount) !== 1) {
+        if (!isAccumulate && Number(rounds[rounds.length - 1].advanceCount) !== 1) {
           toast.error("The final Survivor round must advance exactly 1"); return;
         }
         for (const key of raceKeys) {
@@ -1012,11 +1019,22 @@ const Admin = () => {
             createForm.crews.filter(c => roundRaces.includes(c.event_id)).map(c => c.crew_id)
           );
           if (competitorsInRound.size < 2) { toast.error(`Round ${roundNo} needs at least 2 different competitors`); return; }
+          // Exact race<->competitor matching: a distinct competitor must be available per pick.
+          const compIndex = new Map<string, number>();
+          for (const key of competitorsInRound) compIndex.set(key, compIndex.size);
+          const adjacency = roundRaces.map(rk =>
+            Array.from(new Set(
+              createForm.crews.filter(c => c.event_id === rk).map(c => compIndex.get(c.crew_id)!)
+            ))
+          );
+          if (maxBipartiteMatching(adjacency, compIndex.size) < minPicks) {
+            toast.error(`Round ${roundNo} doesn't have enough distinct competitors for the pick count`); return;
+          }
         }
         survivorRounds = rounds.map((r, i) => ({
           round_no: i + 1,
           lock_at: i === 0 ? lockDate.toISOString() : new Date(r.lockTime).toISOString(),
-          advance_count: Number(r.advanceCount),
+          advance_count: isAccumulate ? 1 : Number(r.advanceCount),
         }));
       }
 
@@ -1025,7 +1043,7 @@ const Admin = () => {
         sport: createForm.sport,
         genderCategory: createForm.genderCategory,
         lockTime: lockDate.toISOString(),
-        races: isSurvivor
+        races: isRoundsType
           ? raceKeys.map((key, i) => ({
               race_key: key,
               name: key,
@@ -1047,9 +1065,9 @@ const Admin = () => {
         entryFeeCents,
         maxEntries,
         ...(isPrediction ? {} : { payouts }),
-        entryTiers: (isSurvivor || isPrediction) ? null : entryTiersPayload,
+        entryTiers: (isRoundsType || isPrediction) ? null : entryTiersPayload,
         allowOverflow: createForm.allowOverflow,
-        voidUnfilledOnSettle: isSurvivor ? true : createForm.voidUnfilledOnSettle,
+        voidUnfilledOnSettle: isRoundsType ? true : createForm.voidUnfilledOnSettle,
         cardBannerUrl: createForm.cardBannerUrl.trim() || null,
         draftBannerUrl: createForm.draftBannerUrl.trim() || null,
         contestGroupId: (createForm.contestGroupId && createForm.contestGroupId !== "none") ? createForm.contestGroupId : null,
@@ -1059,7 +1077,7 @@ const Admin = () => {
         minPicks,
         maxPicks: effectiveMax,
 
-        ...(isSurvivor ? { rounds: survivorRounds } : {}),
+        ...(isRoundsType ? { rounds: survivorRounds } : {}),
         ...(isTierPick ? { rosterTiers: rosterTiersPayload } : {}),
 
 
@@ -1673,11 +1691,11 @@ const Admin = () => {
                   </Select>
                 </div>
             </div>
-              {createForm.contestType === "survivor" && (
+              {isRoundsTypeUI && (
                 <div className="space-y-4">
                   <div className="border rounded-lg p-3 space-y-2">
                     <Label className="text-sm font-semibold">Rounds *</Label>
-                    <p className="text-xs text-muted-foreground">Each round locks at its own time. Entries that fail to advance are eliminated. The final round must advance exactly 1.</p>
+                    <p className="text-xs text-muted-foreground">{isAccumulateUI ? "Every round locks at its own time. Every entry scores every round." : "Each round locks at its own time. Entries that fail to advance are eliminated. The final round must advance exactly 1."}</p>
                     {createForm.rounds.map((r, idx) => (
                       <div key={idx} className="flex items-end gap-2">
                         <span className="text-xs text-muted-foreground w-16 pb-2">Round {idx + 1}</span>
@@ -1689,16 +1707,18 @@ const Admin = () => {
                             onChange={(e) => { const v = e.target.value; setCreateForm(prev => ({ ...prev, rounds: prev.rounds.map((x, i) => i === idx ? { ...x, lockTime: v } : x) })); }}
                           />
                         </div>
-                        <div className="w-28">
-                          <Label className="text-xs">Advances</Label>
-                          <Input
-                            type="number"
-                            min={1}
-                            step={1}
-                            value={r.advanceCount}
-                            onChange={(e) => { const v = e.target.value; setCreateForm(prev => ({ ...prev, rounds: prev.rounds.map((x, i) => i === idx ? { ...x, advanceCount: v } : x) })); }}
-                          />
-                        </div>
+                        {!isAccumulateUI && (
+                          <div className="w-28">
+                            <Label className="text-xs">Advances</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              step={1}
+                              value={r.advanceCount}
+                              onChange={(e) => { const v = e.target.value; setCreateForm(prev => ({ ...prev, rounds: prev.rounds.map((x, i) => i === idx ? { ...x, advanceCount: v } : x) })); }}
+                            />
+                          </div>
+                        )}
                         {createForm.rounds.length > 2 && (
                           <Button size="sm" variant="ghost" onClick={() => setCreateForm(prev => {
                             const removed = idx + 1;
@@ -1718,7 +1738,7 @@ const Admin = () => {
                     <Button size="sm" variant="outline" onClick={() => setCreateForm(prev => ({ ...prev, rounds: [...prev.rounds, { lockTime: "", advanceCount: "1" }] }))}>
                       <Plus className="mr-2 h-4 w-4" />Add Round
                     </Button>
-                    <p className="text-xs text-muted-foreground">Survivor contests always void if unfilled at settle time.</p>
+                    <p className="text-xs text-muted-foreground">{isAccumulateUI ? "Everyone plays every round. This contest always voids if unfilled at settle time." : "Survivor contests always void if unfilled at settle time."}</p>
                   </div>
                   <div className="border rounded-lg p-3 space-y-2">
                     <Label className="text-sm font-semibold">Race → Round *</Label>
@@ -1914,8 +1934,8 @@ const Admin = () => {
 
               <div>
                 <Label htmlFor="lockTime">Lock Time *</Label>
-                <Input id="lockTime" type="datetime-local" disabled={createForm.contestType === "survivor"} value={createForm.contestType === "survivor" ? (createForm.rounds[0]?.lockTime || "") : createForm.lockTime} onChange={(e) => setCreateForm(prev => ({ ...prev, lockTime: e.target.value }))} />
-                <p className="text-xs text-muted-foreground mt-1">{createForm.contestType === "survivor" ? "Set by Round 1" : "Entries will be locked at this time"}</p>
+                <Input id="lockTime" type="datetime-local" disabled={isRoundsTypeUI} value={isRoundsTypeUI ? (createForm.rounds[0]?.lockTime || "") : createForm.lockTime} onChange={(e) => setCreateForm(prev => ({ ...prev, lockTime: e.target.value }))} />
+                <p className="text-xs text-muted-foreground mt-1">{isRoundsTypeUI ? "Set by Round 1" : "Entries will be locked at this time"}</p>
               </div>
             </div>
 
@@ -1941,7 +1961,7 @@ const Admin = () => {
               </div>
             </div>
             <div className="flex items-start space-x-3">
-              <Checkbox id="voidUnfilled" disabled={createForm.contestType === "survivor"} checked={createForm.contestType === "survivor" ? true : createForm.voidUnfilledOnSettle} onCheckedChange={(checked) => setCreateForm(prev => ({ ...prev, voidUnfilledOnSettle: checked === true }))} />
+              <Checkbox id="voidUnfilled" disabled={isRoundsTypeUI} checked={isRoundsTypeUI ? true : createForm.voidUnfilledOnSettle} onCheckedChange={(checked) => setCreateForm(prev => ({ ...prev, voidUnfilledOnSettle: checked === true }))} />
               <div className="grid gap-1.5 leading-none">
                 <Label htmlFor="voidUnfilled" className="text-sm font-medium cursor-pointer">Auto-void unfilled pools on settlement</Label>
                 <p className="text-xs text-muted-foreground">Pools that don't completely fill will be voided and entry fees refunded when the contest is settled. Applies to parent and overflow pools alike.</p>
