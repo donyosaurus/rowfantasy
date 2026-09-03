@@ -2071,11 +2071,12 @@ const Admin = () => {
 
             {/* Crew Management */}
             <div className="border-t pt-4">
-              <Label className="text-base font-semibold">{createForm.contestType === "gc_pool" ? "Competitors" : "Crews"} ({createForm.crews.length})</Label>
+              <Label className="text-base font-semibold">{CONTEST_TYPES.find(t => t.key === createForm.contestType)?.perCompetitor ? "Competitors" : "Crews"} ({createForm.crews.length})</Label>
               <p className="text-sm text-muted-foreground mb-3">
-                {createForm.contestType === "gc_pool"
+                {CONTEST_TYPES.find(t => t.key === createForm.contestType)?.perCompetitor
                   ? "Add at least 2 competitors — each one is entered in every stage"
                   : "Add at least 2 crews to the contest"}
+
               </p>
               {createForm.crews.length > 0 && (
                 <div className="space-y-2 mb-4">
