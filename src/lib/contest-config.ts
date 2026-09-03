@@ -6,6 +6,7 @@
 
 export type ContestTypeKey =
   | "classic"
+  | "confidence"
   | "classic_total_time"
   | "low_score"
   | "tier_pick"
@@ -20,6 +21,8 @@ export type ContestTypeKey =
 export interface PlacementScoringConfig {
   primitive: "placement";
   points_table: Record<string, number>;
+  /** Confidence Pick'em only: picks carry a weight 1..N; a winning pick earns its weight. */
+  confidence?: true;
   direction: "high" | "low";
   dnf_policy: "zero" | "field_plus_one";
   tiebreak: "margin_error" | "aggregate_time" | "none";
@@ -95,6 +98,13 @@ export const CONTEST_TYPES: {
     requiresEventClass: false,
   },
   {
+    key: "confidence",
+    label: "Confidence Pick'em",
+    subtitle: "Pick winners, rank your confidence 1..N — earn the rank when you're right",
+    fixedRoster: false,
+    requiresEventClass: false,
+  },
+  {
     key: "classic_total_time",
     label: "Total Time",
     subtitle:
@@ -161,6 +171,16 @@ export const CONTEST_TYPES: {
 ];
 
 export function getScoringPreset(key: ContestTypeKey): ScoringConfig {
+  if (key === "confidence") {
+    return {
+      primitive: "placement",
+      points_table: {},
+      confidence: true,
+      direction: "high",
+      dnf_policy: "zero",
+      tiebreak: "margin_error",
+    };
+  }
   if (key === "podium_predictor") {
     return {
       primitive: "prediction",

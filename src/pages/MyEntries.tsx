@@ -54,12 +54,19 @@ interface PickNew {
   crewId: string;
   predictedMargin: number;
   position?: number;
+  weight?: number;
 }
 
 /** Podium Predictor templates score ordered picks; gated everywhere on this check. */
 function isPredictionTemplate(scoringConfig: unknown): boolean {
   return !!scoringConfig && typeof scoringConfig === "object" &&
     (scoringConfig as { primitive?: string }).primitive === "prediction";
+}
+
+/** Confidence Pick'em templates score weighted picks; gated everywhere on this check. */
+function isConfidenceTemplate(scoringConfig: unknown): boolean {
+  return !!scoringConfig && typeof scoringConfig === "object" &&
+    (scoringConfig as { confidence?: unknown }).confidence === true;
 }
 
 function ordinalLabel(n: number): string {
@@ -466,6 +473,7 @@ const MyEntries = () => {
       !!entry.contest_templates?.scoring_config &&
       (entry.contest_templates as any)?.roster_mode === 'per_competitor';
     const isPredictionEntry = isPredictionTemplate(entry.contest_templates?.scoring_config);
+    const isConfidenceEntry = isConfidenceTemplate(entry.contest_templates?.scoring_config);
 
     const picks = isPerCompetitor
       ? picksArray.map((p: any) => ({
@@ -478,6 +486,7 @@ const MyEntries = () => {
             event_id: p.event_id || p.eventId || '',
             predictedMargin: Number(p.predictedMargin ?? p.predicted_margin ?? 0),
             ...(isPredictionEntry ? { position: Number(p.position) } : {}),
+            ...(isConfidenceEntry ? { weight: Number(p.weight) } : {}),
           };
         });
 
@@ -491,6 +500,20 @@ const MyEntries = () => {
         return;
       }
     }
+
+    // Confidence entries must carry the exact weight permutation 1..N — never synthesize weights.
+    if (isConfidenceEntry) {
+      const weights = (picks as any[]).map((p) => p.weight);
+      const valid =
+        picks.length > 0 &&
+        weights.every((w) => Number.isInteger(w) && w >= 1 && w <= picks.length) &&
+        new Set(weights).size === picks.length;
+      if (!valid) {
+        toast.error("This entry can't be resubmitted.");
+        return;
+      }
+    }
+
 
     // Backfill missing event_ids from crewMap (per_race / legacy only)
     if (!isPerCompetitor) {
@@ -565,7 +588,7 @@ const MyEntries = () => {
     return null;
   };
 
-  const getParsedPicks = (entry: Entry): {crewId?: string;crewName: string;margin: number | null;logoUrl?: string | null;position?: number;}[] => {
+  const getParsedPicks = (entry: Entry): {crewId?: string;crewName: string;margin: number | null;logoUrl?: string | null;position?: number;weight?: number;}[] => {
     let picks: unknown = entry.picks;
     if (!picks) return [];
 
@@ -589,28 +612,32 @@ const MyEntries = () => {
         const position = Number.isInteger(pickObj.position) && (pickObj.position as number) > 0
           ? (pickObj.position as number)
           : idx + 1;
+        // Confidence weights are never derived from the array index — malformed data must stay visible.
+        const weight = Number.isInteger(pickObj.weight) && (pickObj.weight as number) > 0
+          ? (pickObj.weight as number)
+          : undefined;
         const crewId = pickObj.crewId;
         const crewInfo = crewMap.get(`${entry.pool_id}-${crewId}`);
         if (crewInfo) {
           const name = crewInfo.crew_name || crewId;
-          return { crewId, crewName: name, margin: Number.isFinite(pickObj.predictedMargin) ? pickObj.predictedMargin : null, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url, position };
+          return { crewId, crewName: name, margin: Number.isFinite(pickObj.predictedMargin) ? pickObj.predictedMargin : null, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url, position, weight };
         }
         const comp = competitorMap.get(`${entry.contest_template_id}-${crewId}`);
         const name = comp?.name || crewId;
-        return { crewId, crewName: name, margin: Number.isFinite(pickObj.predictedMargin) ? pickObj.predictedMargin : null, logoUrl: getCircleFlagUrl(name) || comp?.logo_url, position };
+        return { crewId, crewName: name, margin: Number.isFinite(pickObj.predictedMargin) ? pickObj.predictedMargin : null, logoUrl: getCircleFlagUrl(name) || comp?.logo_url, position, weight };
       }
       if (typeof pick === 'string') {
         const crewId = pick;
         const crewInfo = crewMap.get(`${entry.pool_id}-${crewId}`);
         if (crewInfo) {
           const name = crewInfo.crew_name || crewId;
-          return { crewId, crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url, position: undefined };
+          return { crewId, crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url, position: undefined, weight: undefined };
         }
         const comp = competitorMap.get(`${entry.contest_template_id}-${crewId}`);
         const name = comp?.name || crewId;
-        return { crewId, crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || comp?.logo_url, position: undefined };
+        return { crewId, crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || comp?.logo_url, position: undefined, weight: undefined };
       }
-      return { crewName: 'Unknown', margin: null, logoUrl: null, position: undefined };
+      return { crewName: 'Unknown', margin: null, logoUrl: null, position: undefined, weight: undefined };
     });
 
 
@@ -658,6 +685,7 @@ const MyEntries = () => {
     const isSettled = ['settled', 'completed', 'voided'].includes(poolStatus) || ['settled', 'voided'].includes(entry.status);
 
     const isPrediction = isPredictionTemplate(entry.contest_templates?.scoring_config);
+    const isConfidence = isConfidenceTemplate(entry.contest_templates?.scoring_config);
     // ---- Survivor derivation (only active when the template's rounds loaded) ----
     const isSurvivor = isSurvivorTemplate(entry.contest_templates?.scoring_config);
 
@@ -787,7 +815,9 @@ const MyEntries = () => {
                   <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={20} />
                   {(() => {
                     const tn = pick.crewId ? tierNameOf(entry, pick.crewId) : null;
-                    const base = isPrediction && pick.position ? `${ordinalLabel(pick.position)} · ${pick.crewName}` : pick.crewName;
+                    const base = isPrediction && pick.position
+                      ? `${ordinalLabel(pick.position)} · ${pick.crewName}`
+                      : (isConfidence && pick.weight ? `#${pick.weight} ${pick.crewName}` : pick.crewName);
                     return tn ? `${tn} · ${base}` : base;
                   })()}
                   {!isPrediction && pick.margin !== null &&
@@ -1000,6 +1030,7 @@ const MyEntries = () => {
               <div className="flex flex-wrap gap-2">
                 {(() => {
                   const isPrediction = isPredictionTemplate(resubmitEntry.contest_templates?.scoring_config);
+                  const isConfidence = isConfidenceTemplate(resubmitEntry.contest_templates?.scoring_config);
                   return getParsedPicks(resubmitEntry).map((pick, idx) => (
                     <Badge
                       key={idx}
@@ -1009,7 +1040,9 @@ const MyEntries = () => {
                       <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={20} />
                       {(() => {
                         const tn = pick.crewId ? tierNameOf(resubmitEntry, pick.crewId) : null;
-                        const base = isPrediction && pick.position ? `${ordinalLabel(pick.position)} · ${pick.crewName}` : pick.crewName;
+                        const base = isPrediction && pick.position
+                          ? `${ordinalLabel(pick.position)} · ${pick.crewName}`
+                          : (isConfidence && pick.weight ? `#${pick.weight} ${pick.crewName}` : pick.crewName);
                         return tn ? `${tn} · ${base}` : base;
                       })()}
                       {!isPrediction && pick.margin !== null && (
