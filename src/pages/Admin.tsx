@@ -648,7 +648,11 @@ const Admin = () => {
       if (!nextCrews.some(c => c.event_id === eventId)) {
         delete nextRaceRounds[eventId];
       }
-      return { ...prev, crews: nextCrews, raceRounds: nextRaceRounds };
+      const nextRosterTiers = prev.rosterTiers.length === 0
+        ? prev.rosterTiers
+        : prev.rosterTiers.map(t => ({ ...t, competitors: t.competitors.filter(k => k !== crewId) }));
+      return { ...prev, crews: nextCrews, raceRounds: nextRaceRounds, rosterTiers: nextRosterTiers };
+
     });
   };
 
