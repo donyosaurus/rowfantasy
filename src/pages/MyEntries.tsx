@@ -54,12 +54,19 @@ interface PickNew {
   crewId: string;
   predictedMargin: number;
   position?: number;
+  weight?: number;
 }
 
 /** Podium Predictor templates score ordered picks; gated everywhere on this check. */
 function isPredictionTemplate(scoringConfig: unknown): boolean {
   return !!scoringConfig && typeof scoringConfig === "object" &&
     (scoringConfig as { primitive?: string }).primitive === "prediction";
+}
+
+/** Confidence Pick'em templates score weighted picks; gated everywhere on this check. */
+function isConfidenceTemplate(scoringConfig: unknown): boolean {
+  return !!scoringConfig && typeof scoringConfig === "object" &&
+    (scoringConfig as { confidence?: unknown }).confidence === true;
 }
 
 function ordinalLabel(n: number): string {
