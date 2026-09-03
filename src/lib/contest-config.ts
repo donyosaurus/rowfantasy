@@ -98,6 +98,13 @@ export const CONTEST_TYPES: {
     requiresEventClass: false,
   },
   {
+    key: "confidence",
+    label: "Confidence Pick'em",
+    subtitle: "Pick winners, rank your confidence 1..N — earn the rank when you're right",
+    fixedRoster: false,
+    requiresEventClass: false,
+  },
+  {
     key: "classic_total_time",
     label: "Total Time",
     subtitle:
