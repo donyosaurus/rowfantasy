@@ -624,8 +624,9 @@ const Admin = () => {
   };
 
   const addCrewToForm = () => {
-    // GC / stage races carry no per-row race: competitors are entered in every stage.
-    const gcMode = createForm.contestType === "gc_pool";
+    // Per-competitor types carry no per-row race: competitors are entered in every stage.
+    const gcMode = !!CONTEST_TYPES.find(t => t.key === createForm.contestType)?.perCompetitor;
+
     if (!newCrewInput.crew_name || !newCrewInput.crew_id || (!gcMode && !newCrewInput.event_id)) { toast.error("Please fill in all crew fields"); return; }
     const eventId = gcMode ? "" : newCrewInput.event_id;
     if (createForm.contestType === "podium_predictor") {
