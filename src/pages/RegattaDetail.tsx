@@ -1141,6 +1141,7 @@ const RegattaDetail = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {crewsByDivision[divisionId].map((crew, idx) => {
                         const pos = crewPicks.get(pickKey(crew.crew_id, divisionId))?.position;
+                        const weight = crewPicks.get(pickKey(crew.crew_id, divisionId))?.weight;
                         const card = (
                           <CrewCard
                             key={crew.id}
@@ -1158,6 +1159,20 @@ const RegattaDetail = () => {
                             animDelay={idx * 50}
                           />
                         );
+                        if (isConfidence) {
+                          return (
+                            <div key={crew.id} className="flex items-center gap-2">
+                              <span
+                                className={`flex-shrink-0 w-9 text-center rounded-md text-[11px] font-bold px-1.5 py-1 pointer-events-none ${
+                                  weight ? "bg-accent text-accent-foreground shadow" : "bg-white/10 text-white/50"
+                                }`}
+                              >
+                                {weight ? `#${weight}` : "—"}
+                              </span>
+                              <div className="flex-1 min-w-0">{card}</div>
+                            </div>
+                          );
+                        }
                         if (!isPrediction) return card;
                         return (
                           <div key={crew.id} className="relative">
