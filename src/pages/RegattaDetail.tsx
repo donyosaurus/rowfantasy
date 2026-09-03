@@ -1063,23 +1063,38 @@ const RegattaDetail = () => {
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {crewsByDivision[divisionId].map((crew, idx) => (
-                        <CrewCard
-                          key={crew.id}
-                          crewId={crew.crew_id}
-                          crewName={crew.crew_name}
-                          eventId={divisionId}
-                          logoUrl={crew.logo_url}
-                          isSelected={crewPicks.has(pickKey(crew.crew_id, divisionId))}
-                          marginVal={crewPicks.get(pickKey(crew.crew_id, divisionId))?.margin ?? 0}
+                      {crewsByDivision[divisionId].map((crew, idx) => {
+                        const pos = crewPicks.get(pickKey(crew.crew_id, divisionId))?.position;
+                        const card = (
+                          <CrewCard
+                            key={crew.id}
+                            crewId={crew.crew_id}
+                            crewName={crew.crew_name}
+                            eventId={divisionId}
+                            logoUrl={crew.logo_url}
+                            isSelected={crewPicks.has(pickKey(crew.crew_id, divisionId))}
+                            marginVal={crewPicks.get(pickKey(crew.crew_id, divisionId))?.margin ?? 0}
 
-                          isOpen={!!isContestOpen}
-                          showMargin={needsMargin}
-                          onToggle={toggleCrewSelection}
-                          onMarginChange={updateCrewMargin}
-                          animDelay={idx * 50}
-                        />
-                      ))}
+                            isOpen={!!isContestOpen}
+                            showMargin={needsMargin}
+                            onToggle={toggleCrewSelection}
+                            onMarginChange={updateCrewMargin}
+                            animDelay={idx * 50}
+                          />
+                        );
+                        if (!isPrediction) return card;
+                        return (
+                          <div key={crew.id} className="relative">
+                            {card}
+                            {pos ? (
+                              <span className="absolute top-2 right-2 z-10 rounded-full bg-accent text-accent-foreground text-[11px] font-bold px-2 py-0.5 shadow">
+                                {ordinal(pos)}
+                              </span>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+
                     </div>
                   </div>
                 ))
