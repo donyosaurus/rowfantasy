@@ -418,6 +418,23 @@ const RegattaDetail = () => {
     ? Number((scoringConfig as any).podium_size)
     : 3;
 
+  // Tiers: pick exactly one competitor from each tier.
+  const rosterTiers = (Array.isArray(template?.roster_tiers) && template!.roster_tiers!.length > 0)
+    ? template!.roster_tiers!
+    : null;
+  const isTierPick = !!rosterTiers;
+  const tierOfCompetitor = useMemo(() => {
+    const map = new Map<string, number>();
+    if (rosterTiers) {
+      rosterTiers.forEach((tier, i) => {
+        (tier.competitors || []).forEach((k) => { if (!map.has(k)) map.set(k, i); });
+      });
+    }
+    return map;
+  }, [rosterTiers]);
+
+
+
 
   const sport = template?.sport ?? null;
   const t = terms(sport);
