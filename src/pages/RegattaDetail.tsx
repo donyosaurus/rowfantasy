@@ -414,6 +414,8 @@ const RegattaDetail = () => {
   const isSurvivor = scoringConfig?.primitive === "survivor";
   // Podium Predictor: ordered picks from a single race.
   const isPrediction = scoringConfig?.primitive === "prediction";
+  // Confidence Pick'em: per-race picks ranked 1..N by confidence.
+  const isConfidence = !!(scoringConfig as any)?.confidence;
   const podiumSize = Number.isInteger((scoringConfig as any)?.podium_size) && (scoringConfig as any).podium_size > 0
     ? Number((scoringConfig as any).podium_size)
     : 3;
