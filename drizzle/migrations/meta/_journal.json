@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1788456490757,
+      "tag": "0000_survivor_fix_batch",
+      "breakpoints": true
+    }
+  ]
+}
