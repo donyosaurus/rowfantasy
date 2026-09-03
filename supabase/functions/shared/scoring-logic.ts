@@ -161,10 +161,28 @@ export const SurvivorConfigSchema = z.object({
   tiebreak: z.literal("none"),
 }).strict();
 
+// Podium Predictor: pick N competitors IN ORDER; exact position hit scores
+// points_exact, a competitor that lands anywhere inside the podium scores
+// points_podium, everything else (incl. DNF/DNS/DSQ/PENDING) scores zero.
+export const PredictionConfigSchema = z.object({
+  primitive: z.literal("prediction"),
+  podium_size: z.number().int().min(2).max(10),
+  points_exact: z.number().int().positive(),
+  points_podium: z.number().int().nonnegative(),
+  direction: z.literal("high"),
+  dnf_policy: z.literal("zero"),
+  tiebreak: z.literal("none"),
+}).strict();
+
 // zod 3.22 rejects superRefine'd object schemas as discriminated-union members,
 // so the cross-field placement checks live on the union itself.
 export const ScoringConfigSchema = z
-  .discriminatedUnion("primitive", [PlacementConfigSchema, TimeVsRefConfigSchema, SurvivorConfigSchema])
+  .discriminatedUnion("primitive", [
+    PlacementConfigSchema,
+    TimeVsRefConfigSchema,
+    SurvivorConfigSchema,
+    PredictionConfigSchema,
+  ])
   .superRefine((c, ctx) => {
     if (c.primitive === "placement") {
       if (c.direction === "high" && c.dnf_policy !== "zero") {
