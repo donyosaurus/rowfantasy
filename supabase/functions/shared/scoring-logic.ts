@@ -1146,7 +1146,24 @@ async function scoreConfiguredPool(
     return { entriesScored: timeScores.length, winnerId: timeWinnerIds[0], isTieRefund: timeTieRefund };
   }
 
-  const fixedRosterRequired = cfg.direction === "low" || cfg.tiebreak === "aggregate_time";
+  // ---- Phase 4d: placement with per_competitor roster ----
+  // Placement-local equivalents of the time branch's fan-out inputs (the time
+  // branch's allRaceKeys/enteredByCompetitor are scoped inside that branch).
+  const placementRosterMode: string = template?.roster_mode ?? "per_race";
+  const placementAllRaceKeys: string[] = races.map((r: any) => r.race_key);
+  const placementEnteredByCompetitor = new Map<string, Set<string>>();
+  if (placementRosterMode === "per_competitor") {
+    for (const re of templateRaceEntries) {
+      const ck = compKeyById.get(re.competitor_id);
+      const rk = raceKeyById.get(re.race_id);
+      if (!ck || !rk) continue;
+      if (!placementEnteredByCompetitor.has(ck)) placementEnteredByCompetitor.set(ck, new Set<string>());
+      placementEnteredByCompetitor.get(ck)!.add(rk);
+    }
+  }
+
+  const fixedRosterRequired = cfg.direction === "low" || cfg.tiebreak === "aggregate_time" ||
+    (placementRosterMode === "per_competitor" && cfg.primitive === "placement");
 
   const minPicks = template?.min_picks ?? null;
   const maxPicks = template?.max_picks ?? null;
