@@ -93,10 +93,13 @@ interface CreateContestForm {
 
   /** GC / stage-race only: ordered stage names. Ignored by every other type. */
   stages: string[];
+  /** Tiers only: ordered roster tiers. Ignored by every other type. */
+  rosterTiers: { name: string; competitors: string[] }[];
   /** Survivor only: ordered rounds. Array index + 1 is the round_no. */
   rounds: { lockTime: string; advanceCount: string }[];
   /** Survivor only: race key (event_id) -> round number as a string. */
   raceRounds: Record<string, string>;
+
 
 
 
