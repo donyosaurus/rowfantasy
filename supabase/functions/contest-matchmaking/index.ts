@@ -223,6 +223,7 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
         invalid_pool_fee: { status: 500, message: "Invalid contest configuration." },
         insufficient_balance: { status: 402, message: "Insufficient balance." },
         roster_mode_unsupported: { status: 400, message: "This contest type is not yet supported." },
+        tier_rule_violation: { status: 400, message: "Pick exactly one competitor from each tier." },
         invalid_scoring_config: { status: 500, message: "Invalid contest configuration." },
         prediction_not_free: { status: 500, message: "Invalid contest configuration." },
 
