@@ -612,6 +612,8 @@ const Admin = () => {
       podiumSize: "3",
 
       stages: ["Stage 1", "Stage 2"],
+      rosterTiers: [],
+
       rounds: [{ lockTime: "", advanceCount: "2" }, { lockTime: "", advanceCount: "1" }],
       raceRounds: {},
 
