@@ -815,7 +815,9 @@ const MyEntries = () => {
                   <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={20} />
                   {(() => {
                     const tn = pick.crewId ? tierNameOf(entry, pick.crewId) : null;
-                    const base = isPrediction && pick.position ? `${ordinalLabel(pick.position)} · ${pick.crewName}` : pick.crewName;
+                    const base = isPrediction && pick.position
+                      ? `${ordinalLabel(pick.position)} · ${pick.crewName}`
+                      : (isConfidence && pick.weight ? `#${pick.weight} ${pick.crewName}` : pick.crewName);
                     return tn ? `${tn} · ${base}` : base;
                   })()}
                   {!isPrediction && pick.margin !== null &&
