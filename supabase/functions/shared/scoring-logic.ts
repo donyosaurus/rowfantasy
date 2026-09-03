@@ -97,6 +97,7 @@ interface EntryPick {
   crewId: string;
   event_id?: string;
   predictedMargin: number;
+  position?: number; // prediction (Podium Predictor) only
 }
 
 interface EntryScore {
@@ -124,6 +125,7 @@ interface CrewScore {
   time_ms?: number | null;
   contribution_ms?: number;
   multiplier?: number;
+  position?: number; // prediction (Podium Predictor) only
 }
 
 // ---------------------------------------------------------------------------
@@ -159,10 +161,28 @@ export const SurvivorConfigSchema = z.object({
   tiebreak: z.literal("none"),
 }).strict();
 
+// Podium Predictor: pick N competitors IN ORDER; exact position hit scores
+// points_exact, a competitor that lands anywhere inside the podium scores
+// points_podium, everything else (incl. DNF/DNS/DSQ/PENDING) scores zero.
+export const PredictionConfigSchema = z.object({
+  primitive: z.literal("prediction"),
+  podium_size: z.number().int().min(2).max(10),
+  points_exact: z.number().int().positive(),
+  points_podium: z.number().int().nonnegative(),
+  direction: z.literal("high"),
+  dnf_policy: z.literal("zero"),
+  tiebreak: z.literal("none"),
+}).strict();
+
 // zod 3.22 rejects superRefine'd object schemas as discriminated-union members,
 // so the cross-field placement checks live on the union itself.
 export const ScoringConfigSchema = z
-  .discriminatedUnion("primitive", [PlacementConfigSchema, TimeVsRefConfigSchema, SurvivorConfigSchema])
+  .discriminatedUnion("primitive", [
+    PlacementConfigSchema,
+    TimeVsRefConfigSchema,
+    SurvivorConfigSchema,
+    PredictionConfigSchema,
+  ])
   .superRefine((c, ctx) => {
     if (c.primitive === "placement") {
       if (c.direction === "high" && c.dnf_policy !== "zero") {
@@ -180,6 +200,7 @@ export const ScoringConfigSchema = z
 export type PlacementScoringConfig = z.infer<typeof PlacementConfigSchema>;
 export type TimeVsRefScoringConfig = z.infer<typeof TimeVsRefConfigSchema>;
 export type SurvivorScoringConfig = z.infer<typeof SurvivorConfigSchema>;
+export type PredictionScoringConfig = z.infer<typeof PredictionConfigSchema>;
 
 
 export type ScoringConfig = z.infer<typeof ScoringConfigSchema>;
@@ -404,6 +425,7 @@ function parseEntryPicks(entry: any): EntryPick[] {
       crewId: String(p.crewId || p.crew_id || p.id || ""),
       event_id: p.event_id,
       predictedMargin: p.predictedMargin ?? p.predicted_margin ?? NaN,
+      position: Number.isInteger(p.position) ? p.position : undefined,
     };
   });
 }
@@ -785,6 +807,14 @@ async function scoreConfiguredPool(
     throw new Error(`[scoring-logic] Refusing to score pool ${contestPoolId}: template has no races`);
   }
 
+  // Phase 4c-2: a Podium Predictor contest is exactly one race. Thrown before any
+  // write, so a misconfigured template leaves the pool status untouched.
+  if (cfg.primitive === "prediction" && races.length !== 1) {
+    throw new Error(
+      `[scoring-logic] Refusing to score pool ${contestPoolId}: prediction contests take exactly one race (found ${races.length})`,
+    );
+  }
+
   const { data: competitors, error: compErr } = await supabase
     .from("contest_competitors")
     .select("id, competitor_key")
@@ -1126,6 +1156,29 @@ async function scoreConfiguredPool(
     );
   }
 
+  // ---- Phase 4c-2: prediction (Podium Predictor) official-place lookup ----
+  // Built once from the sole race. DNF/DNS/DSQ/PENDING rows simply have no entry
+  // here and therefore score zero; only a race with ZERO result rows is refused.
+  const predictionPlaceByCompetitor = new Map<string, number>();
+  let predictionRaceKey = "";
+  if (cfg.primitive === "prediction") {
+    predictionRaceKey = races[0].race_key;
+    const soleRaceResults = templateRaceResults.filter((rr: any) => rr.race_id === races[0].id);
+    if (soleRaceResults.length === 0) {
+      throw new Error(
+        `[scoring-logic] Refusing to score pool ${contestPoolId}: race ${predictionRaceKey} has no results`,
+      );
+    }
+    for (const rr of soleRaceResults) {
+      const ck = compKeyById.get(rr.competitor_id);
+      if (!ck) continue;
+      const place = rr.place === null || rr.place === undefined ? null : Number(rr.place);
+      if (rr.status === "OK" && place !== null && Number.isInteger(place)) {
+        predictionPlaceByCompetitor.set(ck, place);
+      }
+    }
+  }
+
   const scores: Array<EntryScore & { tiebreak_cmp: number; tiebreak_persist: number; margin_bonus: number }> = [];
   const failures: string[] = [];
 
@@ -1136,6 +1189,52 @@ async function scoreConfiguredPool(
       throw new Error(
         `[scoring-logic] Refusing to score pool ${contestPoolId}: fixed roster violated (expected ${minPicks} picks)`,
       );
+    }
+
+    // Prediction builds the SAME `scores` shape and then falls through into the
+    // shared bounds-check / rank / upsert / audit block below — no duplication.
+    if (cfg.primitive === "prediction") {
+      let predictionTotal = 0;
+      const predictionCrewScores: CrewScore[] = [];
+      const orderedPicks = picks
+        .slice()
+        .sort((a, b) => (a.position ?? Number.MAX_SAFE_INTEGER) - (b.position ?? Number.MAX_SAFE_INTEGER));
+
+      for (const pick of orderedPicks) {
+        const p = pick.position;
+        const officialPlace = predictionPlaceByCompetitor.get(pick.crewId);
+        let points = 0;
+        if (typeof p === "number" && officialPlace !== undefined) {
+          if (officialPlace === p) {
+            points = cfg.points_exact;
+          } else if (officialPlace <= cfg.podium_size) {
+            points = cfg.points_podium;
+          }
+        }
+        predictionTotal += points;
+
+        predictionCrewScores.push({
+          crew_id: pick.crewId,
+          event_id: predictionRaceKey,
+          predicted_margin: null,
+          finish_order: officialPlace ?? null,
+          finish_points: points,
+          margin_error: 0,
+          position: p,
+        });
+      }
+
+      scores.push({
+        entry_id: entry.id,
+        user_id: entry.user_id,
+        total_points: predictionTotal,
+        margin_error: 0,
+        crew_scores: predictionCrewScores,
+        tiebreak_cmp: 0,
+        tiebreak_persist: 0,
+        margin_bonus: 0,
+      });
+      continue;
     }
 
     try {

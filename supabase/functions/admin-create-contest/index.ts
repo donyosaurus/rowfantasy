@@ -56,7 +56,7 @@ const CreateContestV2Schema = z.object({
   cardBannerUrl: z.string().nullable().optional(),
   draftBannerUrl: z.string().nullable().optional(),
   contestGroupId: z.string().uuid().nullable().optional(),
-  primitive: z.enum(["placement", "time_vs_ref", "survivor"]).optional(),
+  primitive: z.enum(["placement", "time_vs_ref", "survivor", "prediction"]).optional(),
   rounds: z.array(RoundSchema).min(2).optional(),
   rosterMode: z.enum(["per_race", "per_competitor"]).optional(),
   scoringConfig: ScoringConfigSchema.optional(),
@@ -193,6 +193,28 @@ Deno.serve(withFnVersion('admin-create-contest', async (req) => {
         return bad('primitive does not match scoringConfig.primitive');
       }
 
+      // ---- Phase 4c-2: prediction (Podium Predictor) — mirrors admin_create_contest_v2 ----
+      if (primitive === 'prediction') {
+        if (v2.entryFeeCents !== 0 || (v2.entryTiers !== undefined && v2.entryTiers !== null)) {
+          return bad('prediction contests must be free');
+        }
+        if (v2.rounds) {
+          return bad('prediction contests do not use rounds');
+        }
+        if (!v2.scoringConfig || v2.scoringConfig.primitive !== 'prediction') {
+          return bad('prediction contests require an explicit scoringConfig');
+        }
+        if (v2.races.length !== 1) {
+          return bad('prediction contests take exactly one race');
+        }
+        if (
+          typeof v2.minPicks !== 'number' || typeof v2.maxPicks !== 'number' ||
+          v2.minPicks !== v2.maxPicks || v2.minPicks !== v2.scoringConfig.podium_size
+        ) {
+          return bad('prediction pick count must equal podium_size');
+        }
+      }
+
       if (primitive === 'survivor') {
         if (!v2.scoringConfig) {
           return bad('survivor contests require an explicit scoringConfig');
@@ -230,7 +252,7 @@ Deno.serve(withFnVersion('admin-create-contest', async (req) => {
 
       const cfg = v2.scoringConfig;
       if (cfg) {
-        const fixedRosterRequired = cfg.primitive === 'time_vs_ref' ||
+        const fixedRosterRequired = cfg.primitive === 'time_vs_ref' || cfg.primitive === 'prediction' ||
           (cfg.primitive === 'placement' && (cfg.direction === 'low' || cfg.tiebreak === 'aggregate_time'));
         if (fixedRosterRequired) {
           if (
