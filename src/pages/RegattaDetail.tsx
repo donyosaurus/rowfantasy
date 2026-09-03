@@ -132,7 +132,7 @@ const RegattaDetail = () => {
   // Picks are keyed by the composite `${crew_id}::${event_id}` — a v2 competitor can
   // appear in more than one race, so crew_id alone is not a unique pick identity.
   // Exception: per_competitor (GC) rosters key by crew_id alone (one pick per competitor).
-  const [crewPicks, setCrewPicks] = useState<Map<string, { crewId: string; eventId: string; margin: number }>>(new Map());
+  const [crewPicks, setCrewPicks] = useState<Map<string, { crewId: string; eventId: string; margin: number; position?: number }>>(new Map());
   // Ordered stages for per_competitor (GC) templates — read-only display.
   const [stageList, setStageList] = useState<{ race_key: string; name: string | null }[]>([]);
 
@@ -410,6 +410,12 @@ const RegattaDetail = () => {
   const isPerCompetitor = !!scoringConfig && template?.roster_mode === "per_competitor";
   const isTimeScored = scoringConfig?.primitive === "time_vs_ref";
   const isSurvivor = scoringConfig?.primitive === "survivor";
+  // Podium Predictor: ordered picks from a single race.
+  const isPrediction = scoringConfig?.primitive === "prediction";
+  const podiumSize = Number.isInteger((scoringConfig as any)?.podium_size) && (scoringConfig as any).podium_size > 0
+    ? Number((scoringConfig as any).podium_size)
+    : 3;
+
 
   const sport = template?.sport ?? null;
   const t = terms(sport);
@@ -444,6 +450,22 @@ const RegattaDetail = () => {
       const newPicks = new Map(prev);
       if (newPicks.has(key)) {
         newPicks.delete(key);
+        if (isPrediction) {
+          // Renumber remaining podium slots in their existing order.
+          const rebuilt = new Map<string, { crewId: string; eventId: string; margin: number; position?: number }>();
+          let i = 0;
+          for (const [k, v] of newPicks) {
+            i += 1;
+            rebuilt.set(k, { ...v, position: i });
+          }
+          return rebuilt;
+        }
+        return newPicks;
+      }
+      if (isPrediction) {
+        // Podium Predictor: multiple crews from the same race, ordered 1..podium_size.
+        if (newPicks.size >= podiumSize) { toast.error(`Maximum ${podiumSize} picks allowed`); return prev; }
+        newPicks.set(key, { crewId, eventId, margin: 0, position: newPicks.size + 1 });
         return newPicks;
       }
       if (isPerCompetitor) {
@@ -452,6 +474,7 @@ const RegattaDetail = () => {
         newPicks.set(key, { crewId, eventId: "", margin: 0 });
         return newPicks;
       }
+
       // One pick per race — swap out any existing pick from the same event.
       let oldMargin = 0;
       for (const [k, v] of newPicks) {
@@ -478,10 +501,23 @@ const RegattaDetail = () => {
 
   const isContestOpen = contestPool?.status === "open" && new Date(contestPool.lock_time) > new Date();
   const numDivisions = divisions.length;
+  // Podium Predictor: bounded by the number of distinct competitors in the sole race.
+  const predictionCompetitorCount = isPrediction
+    ? new Set((contestPool?.contest_pool_crews ?? []).map((c) => c.crew_id)).size
+    : 0;
   // GC rosters are bounded by competitor count, not race count.
-  const pickCeiling = isPerCompetitor ? competitorList.length : numDivisions;
-  const minPicks = Math.min(contestPool?.contest_templates?.min_picks ?? 2, pickCeiling);
-  const maxPicks = Math.min(contestPool?.contest_templates?.max_picks ?? 10, pickCeiling);
+  const pickCeiling = isPerCompetitor
+    ? competitorList.length
+    : isPrediction
+      ? predictionCompetitorCount
+      : numDivisions;
+  const minPicks = isPrediction
+    ? (contestPool?.contest_templates?.min_picks ?? podiumSize)
+    : Math.min(contestPool?.contest_templates?.min_picks ?? 2, pickCeiling);
+  const maxPicks = isPrediction
+    ? (contestPool?.contest_templates?.max_picks ?? podiumSize)
+    : Math.min(contestPool?.contest_templates?.max_picks ?? 10, pickCeiling);
+
 
 
   const formattedLockTime = contestPool?.lock_time
@@ -708,11 +744,21 @@ const RegattaDetail = () => {
         }
       }
     }
-    if (!isPerCompetitor) {
+    if (isPrediction) {
+      if (crewPicks.size !== podiumSize) { toast.error(`Pick exactly ${podiumSize} ${t.competitors} for the podium`); return; }
+      const positions = Array.from(crewPicks.values()).map((p) => p.position);
+      const expected = Array.from({ length: podiumSize }, (_, i) => i + 1);
+      const sorted = positions.slice().sort((a, b) => Number(a) - Number(b));
+      if (sorted.length !== expected.length || sorted.some((v, i) => v !== expected[i])) {
+        toast.error("Podium positions must be filled in order.");
+        return;
+      }
+    } else if (!isPerCompetitor) {
       const selectedDivisions = new Set<string>();
       for (const p of crewPicks.values()) selectedDivisions.add(p.eventId);
       if (selectedDivisions.size < 2) { toast.error(`You must select ${t.competitors} from at least 2 different ${t.events}`); return; }
     }
+
 
     if (hasTiers && !selectedTier) { toast.error("Please select an entry tier"); return; }
     // (Wave 1 #6) Fail-closed: refuse submit if balance read errored.
@@ -727,11 +773,14 @@ const RegattaDetail = () => {
 
     setSubmitting(true);
     const picks = Array.from(crewPicks.values()).map((p) => {
+      // Podium Predictor: ordered picks carry a position, never a margin.
+      if (isPrediction) return { crewId: p.crewId, event_id: p.eventId, position: p.position! };
       // GC rosters carry only the competitor — no event, no margin.
       if (isPerCompetitor) return { crewId: p.crewId };
       const base = { crewId: p.crewId, event_id: p.eventId };
       return needsMargin ? { ...base, predictedMargin: p.margin } : base;
     });
+
 
 
 
@@ -1014,23 +1063,38 @@ const RegattaDetail = () => {
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {crewsByDivision[divisionId].map((crew, idx) => (
-                        <CrewCard
-                          key={crew.id}
-                          crewId={crew.crew_id}
-                          crewName={crew.crew_name}
-                          eventId={divisionId}
-                          logoUrl={crew.logo_url}
-                          isSelected={crewPicks.has(pickKey(crew.crew_id, divisionId))}
-                          marginVal={crewPicks.get(pickKey(crew.crew_id, divisionId))?.margin ?? 0}
+                      {crewsByDivision[divisionId].map((crew, idx) => {
+                        const pos = crewPicks.get(pickKey(crew.crew_id, divisionId))?.position;
+                        const card = (
+                          <CrewCard
+                            key={crew.id}
+                            crewId={crew.crew_id}
+                            crewName={crew.crew_name}
+                            eventId={divisionId}
+                            logoUrl={crew.logo_url}
+                            isSelected={crewPicks.has(pickKey(crew.crew_id, divisionId))}
+                            marginVal={crewPicks.get(pickKey(crew.crew_id, divisionId))?.margin ?? 0}
 
-                          isOpen={!!isContestOpen}
-                          showMargin={needsMargin}
-                          onToggle={toggleCrewSelection}
-                          onMarginChange={updateCrewMargin}
-                          animDelay={idx * 50}
-                        />
-                      ))}
+                            isOpen={!!isContestOpen}
+                            showMargin={needsMargin}
+                            onToggle={toggleCrewSelection}
+                            onMarginChange={updateCrewMargin}
+                            animDelay={idx * 50}
+                          />
+                        );
+                        if (!isPrediction) return card;
+                        return (
+                          <div key={crew.id} className="relative">
+                            {card}
+                            {pos ? (
+                              <span className="absolute top-2 right-2 z-10 rounded-full bg-accent text-accent-foreground text-[11px] font-bold px-2 py-0.5 shadow">
+                                {ordinal(pos)}
+                              </span>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+
                     </div>
                   </div>
                 ))
@@ -1174,7 +1238,12 @@ const RegattaDetail = () => {
                       <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${scoringOpen ? "rotate-180" : ""}`} />
                     </CollapsibleTrigger>
                     <CollapsibleContent className="pt-3">
-                      {isTimeScored ? (
+                      {isPrediction ? (
+                        <p className="text-xs text-muted-foreground">
+                          {`Predict the podium in exact order. Exact position = ${Number.isFinite(Number((scoringConfig as any)?.points_exact)) ? Number((scoringConfig as any).points_exact) : 5} pts, on the podium but wrong slot = ${Number.isFinite(Number((scoringConfig as any)?.points_podium)) ? Number((scoringConfig as any).points_podium) : 2} pts. Highest total wins.`}
+                        </p>
+                      ) : isTimeScored ? (
+
                         <p className="text-xs text-muted-foreground">
                           {scoringConfig?.time_ref === "winner"
                             ? "Your picks' times behind each race winner are added — lowest total wins."

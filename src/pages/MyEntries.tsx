@@ -53,7 +53,21 @@ function tiebreakOf(scoringConfig: unknown): "margin_error" | "aggregate_time" |
 interface PickNew {
   crewId: string;
   predictedMargin: number;
+  position?: number;
 }
+
+/** Podium Predictor templates score ordered picks; gated everywhere on this check. */
+function isPredictionTemplate(scoringConfig: unknown): boolean {
+  return !!scoringConfig && typeof scoringConfig === "object" &&
+    (scoringConfig as { primitive?: string }).primitive === "prediction";
+}
+
+function ordinalLabel(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
 
 interface Entry {
   id: string;
@@ -450,6 +464,7 @@ const MyEntries = () => {
     const isPerCompetitor =
       !!entry.contest_templates?.scoring_config &&
       (entry.contest_templates as any)?.roster_mode === 'per_competitor';
+    const isPredictionEntry = isPredictionTemplate(entry.contest_templates?.scoring_config);
 
     const picks = isPerCompetitor
       ? picksArray.map((p: any) => ({
@@ -461,8 +476,20 @@ const MyEntries = () => {
             crewId: String(p.crewId || p.crew_id || p.id || ''),
             event_id: p.event_id || p.eventId || '',
             predictedMargin: Number(p.predictedMargin ?? p.predicted_margin ?? 0),
+            ...(isPredictionEntry ? { position: Number(p.position) } : {}),
           };
         });
+
+    // Prediction entries must carry a valid position on every pick — never send a positionless payload.
+    if (isPredictionEntry) {
+      const bad = (picks as any[]).some(
+        (p) => !Number.isInteger(p.position) || p.position < 1
+      );
+      if (bad || picks.length === 0) {
+        toast.error("This entry can't be resubmitted.");
+        return;
+      }
+    }
 
     // Backfill missing event_ids from crewMap (per_race / legacy only)
     if (!isPerCompetitor) {
@@ -473,6 +500,7 @@ const MyEntries = () => {
         }
       }
     }
+
 
     setResubmitting(true);
     try {
@@ -524,7 +552,7 @@ const MyEntries = () => {
     return <Badge variant="outline" className={config.className}>{config.label}</Badge>;
   };
 
-  const getParsedPicks = (entry: Entry): {crewName: string;margin: number | null;logoUrl?: string | null;}[] => {
+  const getParsedPicks = (entry: Entry): {crewName: string;margin: number | null;logoUrl?: string | null;position?: number;}[] => {
     let picks: unknown = entry.picks;
     if (!picks) return [];
 
@@ -542,32 +570,36 @@ const MyEntries = () => {
       return [];
     }
 
-    return picksArray.map((pick) => {
+    return picksArray.map((pick, idx) => {
       if (typeof pick === 'object' && pick !== null && 'crewId' in pick) {
         const pickObj = pick as PickNew;
+        const position = Number.isInteger(pickObj.position) && (pickObj.position as number) > 0
+          ? (pickObj.position as number)
+          : idx + 1;
         const crewId = pickObj.crewId;
         const crewInfo = crewMap.get(`${entry.pool_id}-${crewId}`);
         if (crewInfo) {
           const name = crewInfo.crew_name || crewId;
-          return { crewName: name, margin: Number.isFinite(pickObj.predictedMargin) ? pickObj.predictedMargin : null, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url };
+          return { crewName: name, margin: Number.isFinite(pickObj.predictedMargin) ? pickObj.predictedMargin : null, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url, position };
         }
         const comp = competitorMap.get(`${entry.contest_template_id}-${crewId}`);
         const name = comp?.name || crewId;
-        return { crewName: name, margin: Number.isFinite(pickObj.predictedMargin) ? pickObj.predictedMargin : null, logoUrl: getCircleFlagUrl(name) || comp?.logo_url };
+        return { crewName: name, margin: Number.isFinite(pickObj.predictedMargin) ? pickObj.predictedMargin : null, logoUrl: getCircleFlagUrl(name) || comp?.logo_url, position };
       }
       if (typeof pick === 'string') {
         const crewId = pick;
         const crewInfo = crewMap.get(`${entry.pool_id}-${crewId}`);
         if (crewInfo) {
           const name = crewInfo.crew_name || crewId;
-          return { crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url };
+          return { crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url, position: undefined };
         }
         const comp = competitorMap.get(`${entry.contest_template_id}-${crewId}`);
         const name = comp?.name || crewId;
-        return { crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || comp?.logo_url };
+        return { crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || comp?.logo_url, position: undefined };
       }
-      return { crewName: 'Unknown', margin: null, logoUrl: null };
+      return { crewName: 'Unknown', margin: null, logoUrl: null, position: undefined };
     });
+
 
   };
 
@@ -612,8 +644,10 @@ const MyEntries = () => {
     const poolStatus = entry.contest_pools?.status || '';
     const isSettled = ['settled', 'completed', 'voided'].includes(poolStatus) || ['settled', 'voided'].includes(entry.status);
 
+    const isPrediction = isPredictionTemplate(entry.contest_templates?.scoring_config);
     // ---- Survivor derivation (only active when the template's rounds loaded) ----
     const isSurvivor = isSurvivorTemplate(entry.contest_templates?.scoring_config);
+
     const rounds = roundsByTemplate.get(entry.contest_template_id);
     const survivorReady = isSurvivor && Array.isArray(rounds) && rounds.length > 0;
     const entryRounds: SurvivorEntryRound[] = survivorReady ? (entryRoundsByEntry.get(entry.id) ?? []) : [];
@@ -738,12 +772,13 @@ const MyEntries = () => {
               {parsedPicks.map((pick, idx) =>
                 <Badge key={idx} variant="secondary" className="text-sm rounded-lg bg-primary/5 border border-primary/10 flex items-center gap-1.5">
                   <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={20} />
-                  {pick.crewName}
-                  {pick.margin !== null &&
+                  {isPrediction && pick.position ? `${ordinalLabel(pick.position)} · ${pick.crewName}` : pick.crewName}
+                  {!isPrediction && pick.margin !== null &&
                     <span className="ml-1 text-accent font-semibold">(+{pick.margin.toFixed(1)}s)</span>
                   }
                 </Badge>
               )}
+
               {parsedPicks.length === 0 && <span className="text-sm text-muted-foreground">No picks recorded</span>}
             </div>
           </div>
@@ -946,20 +981,24 @@ const MyEntries = () => {
             <div className="mt-5">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Your Picks</p>
               <div className="flex flex-wrap gap-2">
-                {getParsedPicks(resubmitEntry).map((pick, idx) => (
-                  <Badge
-                    key={idx}
-                    variant="secondary"
-                    className="text-sm rounded-lg bg-primary/5 border border-primary/10 flex items-center gap-1.5"
-                  >
-                    <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={20} />
-                    {pick.crewName}
-                    {pick.margin !== null && (
-                      <span className="ml-1 text-accent font-semibold">(+{pick.margin.toFixed(1)}s)</span>
-                    )}
-                  </Badge>
-                ))}
+                {(() => {
+                  const isPrediction = isPredictionTemplate(resubmitEntry.contest_templates?.scoring_config);
+                  return getParsedPicks(resubmitEntry).map((pick, idx) => (
+                    <Badge
+                      key={idx}
+                      variant="secondary"
+                      className="text-sm rounded-lg bg-primary/5 border border-primary/10 flex items-center gap-1.5"
+                    >
+                      <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={20} />
+                      {isPrediction && pick.position ? `${ordinalLabel(pick.position)} · ${pick.crewName}` : pick.crewName}
+                      {!isPrediction && pick.margin !== null && (
+                        <span className="ml-1 text-accent font-semibold">(+{pick.margin.toFixed(1)}s)</span>
+                      )}
+                    </Badge>
+                  ));
+                })()}
               </div>
+
             </div>
 
             <Button

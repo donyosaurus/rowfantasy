@@ -11,7 +11,9 @@ export type ContestTypeKey =
   | "gc_pool"
   | "team_time_trial"
   | "deficit"
-  | "survivor";
+  | "survivor"
+  | "podium_predictor";
+
 
 export interface PlacementScoringConfig {
   primitive: "placement";
@@ -37,10 +39,22 @@ export interface SurvivorScoringConfig {
   tiebreak: "none";
 }
 
+export interface PredictionScoringConfig {
+  primitive: "prediction";
+  podium_size: number;
+  points_exact: number;
+  points_podium: number;
+  direction: "high";
+  dnf_policy: "zero";
+  tiebreak: "none";
+}
+
 export type ScoringConfig =
   | PlacementScoringConfig
   | TimeVsRefScoringConfig
-  | SurvivorScoringConfig;
+  | SurvivorScoringConfig
+  | PredictionScoringConfig;
+
 
 
 const CLASSIC_POINTS_TABLE: Record<string, number> = {
@@ -62,6 +76,11 @@ export const CONTEST_TYPES: {
   perCompetitor?: boolean;
   /** Survivor only: multi-round elimination with a rounds builder. */
   rounds?: boolean;
+  /** Podium Predictor only: contest must be free to enter. */
+  freeOnly?: boolean;
+  /** Podium Predictor only: exactly one race. */
+  singleRace?: boolean;
+
 }[] = [
   {
     key: "classic",
@@ -115,9 +134,30 @@ export const CONTEST_TYPES: {
     requiresEventClass: false,
     rounds: true,
   },
+  {
+    key: "podium_predictor",
+    label: "Podium Predictor",
+    subtitle: "Predict the exact podium order — free to play",
+    fixedRoster: true,
+    requiresEventClass: false,
+    freeOnly: true,
+    singleRace: true,
+  },
 ];
 
 export function getScoringPreset(key: ContestTypeKey): ScoringConfig {
+  if (key === "podium_predictor") {
+    return {
+      primitive: "prediction",
+      podium_size: 3,
+      points_exact: 5,
+      points_podium: 2,
+      direction: "high",
+      dnf_policy: "zero",
+      tiebreak: "none",
+    };
+  }
+
   if (key === "low_score") {
     return {
       primitive: "placement",

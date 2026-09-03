@@ -88,6 +88,9 @@ interface CreateContestForm {
   eventClass: string;
   minPicks: string;
   maxPicks: string;
+  /** Podium Predictor only: podium size (2..10). Never emitted for other types. */
+  podiumSize: string;
+
   /** GC / stage-race only: ordered stage names. Ignored by every other type. */
   stages: string[];
   /** Survivor only: ordered rounds. Array index + 1 is the round_no. */
@@ -172,6 +175,8 @@ const Admin = () => {
     eventClass: "",
     minPicks: "2",
     maxPicks: "4",
+    podiumSize: "3",
+
     stages: ["Stage 1", "Stage 2"],
     rounds: [{ lockTime: "", advanceCount: "2" }, { lockTime: "", advanceCount: "1" }],
     raceRounds: {},
@@ -599,6 +604,8 @@ const Admin = () => {
       eventClass: "",
       minPicks: "2",
       maxPicks: "4",
+      podiumSize: "3",
+
       stages: ["Stage 1", "Stage 2"],
       rounds: [{ lockTime: "", advanceCount: "2" }, { lockTime: "", advanceCount: "1" }],
       raceRounds: {},
@@ -614,7 +621,13 @@ const Admin = () => {
     const gcMode = createForm.contestType === "gc_pool";
     if (!newCrewInput.crew_name || !newCrewInput.crew_id || (!gcMode && !newCrewInput.event_id)) { toast.error("Please fill in all crew fields"); return; }
     const eventId = gcMode ? "" : newCrewInput.event_id;
+    if (createForm.contestType === "podium_predictor") {
+      // Exactly one nominated race: every row must reuse the first race key.
+      const firstKey = createForm.crews.map(c => c.event_id).find(k => !!k);
+      if (firstKey && eventId !== firstKey) { toast.error("prediction contests take exactly one race"); return; }
+    }
     if (createForm.crews.some(c => c.crew_id === newCrewInput.crew_id && c.event_id === eventId)) { toast.error(gcMode ? "This competitor is already added" : "This competitor is already in that race"); return; }
+
     setCreateForm(prev => ({ ...prev, crews: [...prev.crews, { ...newCrewInput, event_id: eventId }] }));
     setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
   };
@@ -756,11 +769,18 @@ const Admin = () => {
     const maxEntries = parseInt(createForm.maxEntries);
     if (isNaN(maxEntries) || maxEntries < 2) { toast.error("Max entries must be at least 2"); return; }
 
+    // Podium Predictor is always free with no tiers — derived, never read from stale UI state.
+    const isPrediction = createForm.contestType === "podium_predictor";
+
     let entryFeeCents: number;
     let payouts: Record<string, number> = {};
     let entryTiersPayload: any[] | null = null;
 
-    if (createForm.multiTier) {
+    if (isPrediction) {
+      entryFeeCents = 0;
+      entryTiersPayload = null;
+    } else if (createForm.multiTier) {
+
       // Validate tiers
       for (let i = 0; i < createForm.entryTiers.length; i++) {
         const tier = createForm.entryTiers[i];
@@ -836,7 +856,7 @@ const Admin = () => {
 
     if (isV2) {
       const typeDef = CONTEST_TYPES.find(t => t.key === createForm.contestType)!;
-      const scoringConfig = getScoringPreset(createForm.contestType);
+      const scoringConfig: any = getScoringPreset(createForm.contestType);
       const isGc = !!typeDef.perCompetitor;
       const stageNames = createForm.stages.map(s => s.trim()).filter(Boolean);
       const raceKeys = isGc
@@ -860,13 +880,27 @@ const Admin = () => {
       const minPicks = parseInt(createForm.minPicks, 10);
       const maxPicks = parseInt(createForm.maxPicks, 10);
       const effectiveMax = typeDef.fixedRoster ? minPicks : maxPicks;
-      if (isNaN(minPicks) || isNaN(effectiveMax) || minPicks < 2 || effectiveMax < minPicks || effectiveMax > rosterSize) {
+      if (isPrediction) {
+        // Podium Predictor: exactly one race, picks == podium size, bounded by entered competitors.
+        const podiumSize = parseInt(createForm.podiumSize, 10);
+        if (raceKeys.filter(k => !!k).length !== 1) { toast.error("prediction contests take exactly one race"); return; }
+        const raceKey = raceKeys.find(k => !!k)!;
+        const distinctCompetitors = new Set(
+          createForm.crews.filter(c => c.event_id === raceKey).map(c => c.crew_id)
+        ).size;
+        if (distinctCompetitors < podiumSize) { toast.error("not enough distinct entered competitors for the podium"); return; }
+        if (!Number.isInteger(podiumSize) || minPicks !== podiumSize || effectiveMax !== podiumSize) {
+          toast.error("prediction pick count must equal podium_size"); return;
+        }
+        scoringConfig.podium_size = podiumSize;
+      } else if (isNaN(minPicks) || isNaN(effectiveMax) || minPicks < 2 || effectiveMax < minPicks || effectiveMax > rosterSize) {
         toast.error(
           isGc
             ? `Picks must satisfy 2 ≤ picks per entry ≤ number of competitors (${rosterSize})`
             : `Picks must satisfy 2 ≤ Min picks ≤ Max picks ≤ number of races (${rosterSize})`
         ); return;
       }
+
 
       // ---- Survivor-only validation (mirrors the backend) ----
       let survivorRounds: { round_no: number; lock_at: string; advance_count: number }[] = [];
@@ -943,8 +977,8 @@ const Admin = () => {
           : createForm.crews.map(c => ({ race_key: c.event_id, competitor_key: c.crew_id })),
         entryFeeCents,
         maxEntries,
-        payouts,
-        entryTiers: isSurvivor ? null : entryTiersPayload,
+        ...(isPrediction ? {} : { payouts }),
+        entryTiers: (isSurvivor || isPrediction) ? null : entryTiersPayload,
         allowOverflow: createForm.allowOverflow,
         voidUnfilledOnSettle: isSurvivor ? true : createForm.voidUnfilledOnSettle,
         cardBannerUrl: createForm.cardBannerUrl.trim() || null,
@@ -955,6 +989,7 @@ const Admin = () => {
         scoringConfig,
         minPicks,
         maxPicks: effectiveMax,
+
         ...(isSurvivor ? { rounds: survivorRounds } : {}),
 
       };
@@ -1518,12 +1553,24 @@ const Admin = () => {
                     const newType = CONTEST_TYPES.find(t => t.key === value);
                     const oldType = CONTEST_TYPES.find(t => t.key === createForm.contestType);
                     const modeChanged = !!newType?.perCompetitor !== !!oldType?.perCompetitor;
-                    setCreateForm(prev => ({ ...prev, contestType: value as ContestTypeKey, maxPicks: newType?.fixedRoster ? prev.minPicks : prev.maxPicks, crews: modeChanged ? [] : prev.crews }));
+                    const toPrediction = value === "podium_predictor";
+                    const fromPrediction = createForm.contestType === "podium_predictor" && !toPrediction;
+                    setCreateForm(prev => ({
+                      ...prev,
+                      contestType: value as ContestTypeKey,
+                      maxPicks: newType?.fixedRoster ? prev.minPicks : prev.maxPicks,
+                      crews: modeChanged ? [] : prev.crews,
+                      // Podium Predictor is always free, single-tier, and picks == podium size.
+                      ...(toPrediction ? { entryFee: "0", multiTier: false, minPicks: "3", maxPicks: "3", podiumSize: "3" } : {}),
+                      // Switching away restores the initial-fixture defaults so nothing leaks.
+                      ...(fromPrediction ? { entryFee: "", multiTier: false, minPicks: "2", maxPicks: newType?.fixedRoster ? "2" : "4" } : {}),
+                    }));
                     if (modeChanged) {
                       setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
                       toast.info("Lineup cleared — competitor entry differs for this contest type");
                     }
                   }}>
+
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {CONTEST_TYPES.map(t => <SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>)}
@@ -1652,15 +1699,35 @@ const Admin = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="picksPerEntry">Picks per entry *</Label>
-                    <Input id="picksPerEntry" type="number" min={2} value={createForm.minPicks} onChange={(e) => { const v = e.target.value; setCreateForm(prev => ({ ...prev, minPicks: v, maxPicks: v })); }} />
+                    <Input id="picksPerEntry" type="number" min={2} disabled={createForm.contestType === "podium_predictor"} value={createForm.minPicks} onChange={(e) => { const v = e.target.value; setCreateForm(prev => ({ ...prev, minPicks: v, maxPicks: v })); }} />
                     <p className="text-xs text-muted-foreground mt-1">
-                      {createForm.contestType === "gc_pool"
-                        ? "Fixed roster — must be ≤ the number of competitors."
-                        : "Fixed roster — must be ≤ the number of races."}
+                      {createForm.contestType === "podium_predictor"
+                        ? "Set by podium size"
+                        : createForm.contestType === "gc_pool"
+                          ? "Fixed roster — must be ≤ the number of competitors."
+                          : "Fixed roster — must be ≤ the number of races."}
                     </p>
                   </div>
+                  {createForm.contestType === "podium_predictor" && (
+                    <div>
+                      <Label>Podium size *</Label>
+                      <Select
+                        value={createForm.podiumSize}
+                        onValueChange={(v) => setCreateForm(prev => ({ ...prev, podiumSize: v, minPicks: v, maxPicks: v }))}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {[2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                            <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">Free contest — no cash prizes.</p>
+                    </div>
+                  )}
 
                 </div>
+
               ) : (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -1695,12 +1762,13 @@ const Admin = () => {
 
             {/* Max Entries */}
             <div className="grid grid-cols-2 gap-4">
-              {!createForm.multiTier && (
+              {!createForm.multiTier && createForm.contestType !== "podium_predictor" && (
                 <div>
                   <Label htmlFor="entryFee">Entry Fee ($) *</Label>
                   <Input id="entryFee" type="number" min="0" step="0.01" placeholder="10.00" value={createForm.entryFee} onChange={(e) => setCreateForm(prev => ({ ...prev, entryFee: e.target.value }))} />
                 </div>
               )}
+
               <div>
                 <Label htmlFor="maxEntries">Max Entries *</Label>
                 <Input id="maxEntries" type="number" min="2" placeholder="100" value={createForm.maxEntries} onChange={(e) => setCreateForm(prev => ({ ...prev, maxEntries: e.target.value }))} />
@@ -1722,16 +1790,25 @@ const Admin = () => {
             </div>
 
             {/* Multi-Tier Toggle */}
-            <div className="flex items-start space-x-3 border-t pt-4">
-              <Checkbox id="multiTier" checked={createForm.multiTier} onCheckedChange={(checked) => setCreateForm(prev => ({ ...prev, multiTier: checked === true }))} />
-              <div className="grid gap-1.5 leading-none">
-                <Label htmlFor="multiTier" className="text-sm font-medium cursor-pointer">Multiple Entry Tiers</Label>
-                <p className="text-xs text-muted-foreground">Offer multiple entry fee/payout levels within the same pool.</p>
+            {createForm.contestType !== "podium_predictor" && (
+              <div className="flex items-start space-x-3 border-t pt-4">
+                <Checkbox id="multiTier" checked={createForm.multiTier} onCheckedChange={(checked) => setCreateForm(prev => ({ ...prev, multiTier: checked === true }))} />
+                <div className="grid gap-1.5 leading-none">
+                  <Label htmlFor="multiTier" className="text-sm font-medium cursor-pointer">Multiple Entry Tiers</Label>
+                  <p className="text-xs text-muted-foreground">Offer multiple entry fee/payout levels within the same pool.</p>
+                </div>
               </div>
-            </div>
+            )}
+
+            {createForm.contestType === "podium_predictor" && (
+              <div className="border-t pt-4">
+                <p className="text-sm text-muted-foreground">Free contest — no cash prizes</p>
+              </div>
+            )}
 
             {/* Single-tier Prize Structure */}
-            {!createForm.multiTier && (
+            {!createForm.multiTier && createForm.contestType !== "podium_predictor" && (
+
               <div className="border-t pt-4">
                 <Label className="text-base font-semibold">Prize Structure</Label>
                 <p className="text-sm text-muted-foreground mb-3">
