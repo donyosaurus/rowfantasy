@@ -1031,6 +1031,8 @@ const Admin = () => {
         maxPicks: effectiveMax,
 
         ...(isSurvivor ? { rounds: survivorRounds } : {}),
+        ...(isTierPick ? { rosterTiers: rosterTiersPayload } : {}),
+
 
       };
     }
