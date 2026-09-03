@@ -162,7 +162,7 @@ const RegattaDetail = () => {
     const fetchPoolData = async () => {
       const { data, error: fetchError } = await supabase
         .from("contest_pools")
-        .select(`id, contest_template_id, created_at, current_entries, entry_fee_cents, entry_tiers, lock_time, max_entries, payout_structure, prize_pool_cents, prize_structure, settled_at, status, tier_id, tier_name, allow_overflow, void_unfilled_on_settle, contest_templates!inner (id, regatta_name, gender_category, min_picks, max_picks, card_banner_url, draft_banner_url, sport, name, scoring_config, roster_mode), contest_pool_crews (id, crew_id, crew_name, event_id, logo_url)`)
+        .select(`id, contest_template_id, created_at, current_entries, entry_fee_cents, entry_tiers, lock_time, max_entries, payout_structure, prize_pool_cents, prize_structure, settled_at, status, tier_id, tier_name, allow_overflow, void_unfilled_on_settle, contest_templates!inner (id, regatta_name, gender_category, min_picks, max_picks, card_banner_url, draft_banner_url, sport, name, scoring_config, roster_mode, roster_tiers), contest_pool_crews (id, crew_id, crew_name, event_id, logo_url)`)
         .eq("id", id)
         .single();
       if (fetchError || !data) { setError("Contest not found"); setLoading(false); return; }
