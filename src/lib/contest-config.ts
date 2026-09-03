@@ -7,6 +7,7 @@
 export type ContestTypeKey =
   | "classic"
   | "classic_total_time"
+  | "low_score"
   | "gc_pool"
   | "team_time_trial"
   | "deficit"
@@ -78,6 +79,13 @@ export const CONTEST_TYPES: {
     requiresEventClass: true,
   },
   {
+    key: "low_score",
+    label: "Low Score",
+    subtitle: "Sum of finish places — lowest total wins, like cross-country team scoring",
+    fixedRoster: true,
+    requiresEventClass: false,
+  },
+  {
     key: "gc_pool",
     label: "GC / Stage Race",
     subtitle: "Lowest combined time across all stages — pick riders, every stage counts",
@@ -110,6 +118,15 @@ export const CONTEST_TYPES: {
 ];
 
 export function getScoringPreset(key: ContestTypeKey): ScoringConfig {
+  if (key === "low_score") {
+    return {
+      primitive: "placement",
+      points_table: {},
+      direction: "low",
+      dnf_policy: "field_plus_one",
+      tiebreak: "none",
+    };
+  }
   if (key === "survivor") {
     return {
       primitive: "survivor",

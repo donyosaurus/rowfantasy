@@ -44,6 +44,7 @@ interface ScoringConfigLite {
   primitive?: string;
   time_ref?: string;
   points_table?: Record<string, number>;
+  direction?: string;
   tiebreak?: string;
 }
 
@@ -1178,6 +1179,10 @@ const RegattaDetail = () => {
                           {scoringConfig?.time_ref === "winner"
                             ? "Your picks' times behind each race winner are added — lowest total wins."
                             : "Your picks' finishing times are added together across every race/stage — lowest combined time wins. A DNF/DNS/DSQ is charged the slowest finisher's time +10%."}
+                        </p>
+                      ) : scoringConfig?.direction === "low" ? (
+                        <p className="text-xs text-muted-foreground">
+                          Each pick scores its finish place (1st = 1, 2nd = 2, …). Finish places are added together and the lowest total wins. A DNF/DNS/DSQ scores the race's field size + 1.
                         </p>
                       ) : (
                         <>
