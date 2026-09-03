@@ -1525,12 +1525,24 @@ const Admin = () => {
                     const newType = CONTEST_TYPES.find(t => t.key === value);
                     const oldType = CONTEST_TYPES.find(t => t.key === createForm.contestType);
                     const modeChanged = !!newType?.perCompetitor !== !!oldType?.perCompetitor;
-                    setCreateForm(prev => ({ ...prev, contestType: value as ContestTypeKey, maxPicks: newType?.fixedRoster ? prev.minPicks : prev.maxPicks, crews: modeChanged ? [] : prev.crews }));
+                    const toPrediction = value === "podium_predictor";
+                    const fromPrediction = createForm.contestType === "podium_predictor" && !toPrediction;
+                    setCreateForm(prev => ({
+                      ...prev,
+                      contestType: value as ContestTypeKey,
+                      maxPicks: newType?.fixedRoster ? prev.minPicks : prev.maxPicks,
+                      crews: modeChanged ? [] : prev.crews,
+                      // Podium Predictor is always free, single-tier, and picks == podium size.
+                      ...(toPrediction ? { entryFee: "0", multiTier: false, minPicks: "3", maxPicks: "3", podiumSize: "3" } : {}),
+                      // Switching away restores the initial-fixture defaults so nothing leaks.
+                      ...(fromPrediction ? { entryFee: "", multiTier: false, minPicks: "2", maxPicks: newType?.fixedRoster ? "2" : "4" } : {}),
+                    }));
                     if (modeChanged) {
                       setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
                       toast.info("Lineup cleared — competitor entry differs for this contest type");
                     }
                   }}>
+
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {CONTEST_TYPES.map(t => <SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>)}
