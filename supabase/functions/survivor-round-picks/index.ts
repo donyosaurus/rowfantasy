@@ -132,6 +132,7 @@ Deno.serve(withFnVersion('survivor-round-picks', async (req) => {
         round_locked: { status: 400, message: "This round is locked — picks can no longer be submitted." },
         eliminated: { status: 400, message: "You have been eliminated and can no longer submit picks." },
         duplicate_event: { status: 400, message: "You can only select one crew per event." },
+        duplicate_competitor: { status: 400, message: "You can only pick each competitor once per round." },
         insufficient_events: { status: 400, message: "You must pick crews from at least 2 different events." },
         insufficient_picks: { status: 400, message: "You must make at least the minimum number of picks for this round." },
         too_many_picks: { status: 400, message: "You have selected more picks than this round allows." },
