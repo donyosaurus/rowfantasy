@@ -410,6 +410,12 @@ const RegattaDetail = () => {
   const isPerCompetitor = !!scoringConfig && template?.roster_mode === "per_competitor";
   const isTimeScored = scoringConfig?.primitive === "time_vs_ref";
   const isSurvivor = scoringConfig?.primitive === "survivor";
+  // Podium Predictor: ordered picks from a single race.
+  const isPrediction = scoringConfig?.primitive === "prediction";
+  const podiumSize = Number.isInteger((scoringConfig as any)?.podium_size) && (scoringConfig as any).podium_size > 0
+    ? Number((scoringConfig as any).podium_size)
+    : 3;
+
 
   const sport = template?.sport ?? null;
   const t = terms(sport);
