@@ -59,6 +59,7 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
             crewId: z.string(),
             event_id: z.string().optional(),
             predictedMargin: z.number().optional(),
+            position: z.number().int().min(1).max(10).optional(),
           }),
         )
         .min(1)
@@ -103,6 +104,17 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
         JSON.stringify({ error: "You have selected more picks than this contest allows." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
+    }
+
+    // Podium Predictor: every pick is an ordered podium slot. The RPC re-checks
+    // the full 1..N permutation; this is the fast, human-readable rejection.
+    if ((template as any).scoring_config?.primitive === "prediction") {
+      if (body.picks.some((p) => typeof p.position !== "number")) {
+        return new Response(
+          JSON.stringify({ error: "Each podium pick needs a position." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
     }
 
     const rosterMode = (template as any).roster_mode ?? "per_race";
@@ -212,6 +224,7 @@ Deno.serve(withFnVersion('contest-matchmaking', async (req) => {
         insufficient_balance: { status: 402, message: "Insufficient balance." },
         roster_mode_unsupported: { status: 400, message: "This contest type is not yet supported." },
         invalid_scoring_config: { status: 500, message: "Invalid contest configuration." },
+        prediction_not_free: { status: 500, message: "Invalid contest configuration." },
 
       };
 
