@@ -126,7 +126,7 @@ BEGIN
 
     -- Shape first (no casts), so a malformed podium_size can never raise a
     -- Postgres cast error instead of 'invalid podium_size'.
-    IF jsonb_typeof(p_scoring_config->'podium_size') <> 'number'
+    IF jsonb_typeof(p_scoring_config->'podium_size') IS DISTINCT FROM 'number'
        OR (p_scoring_config->>'podium_size') !~ '^[0-9]+$'
        OR (p_scoring_config->>'podium_size')::numeric NOT BETWEEN 0 AND 2147483647 THEN
       RAISE EXCEPTION 'invalid podium_size';
@@ -141,9 +141,9 @@ BEGIN
       RAISE EXCEPTION 'prediction pick count must equal podium_size';
     END IF;
 
-    IF jsonb_typeof(p_scoring_config->'points_exact') <> 'number'
+    IF jsonb_typeof(p_scoring_config->'points_exact') IS DISTINCT FROM 'number'
        OR (p_scoring_config->>'points_exact') !~ '^[0-9]+$'
-       OR jsonb_typeof(p_scoring_config->'points_podium') <> 'number'
+       OR jsonb_typeof(p_scoring_config->'points_podium') IS DISTINCT FROM 'number'
        OR (p_scoring_config->>'points_podium') !~ '^[0-9]+$' THEN
       RAISE EXCEPTION 'invalid prediction points';
     END IF;
@@ -624,7 +624,7 @@ BEGIN
     -- returns 'invalid_pick' rather than raising a cast error.
     IF EXISTS (
       SELECT 1 FROM jsonb_array_elements(_picks) elem
-      WHERE jsonb_typeof(elem->'position') <> 'number'
+      WHERE jsonb_typeof(elem->'position') IS DISTINCT FROM 'number'
          OR (elem->>'position') !~ '^[0-9]+$'
          OR (elem->>'position')::numeric NOT BETWEEN 0 AND 2147483647
     ) THEN
