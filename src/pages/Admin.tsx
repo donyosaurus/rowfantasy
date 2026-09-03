@@ -798,7 +798,6 @@ const Admin = () => {
     (getScoringPreset(createForm.contestType) as any)?.round_mode === "accumulate";
 
   const submitCreateContest = async () => {
-    const isSurvivor = createForm.contestType === "survivor";
     const submitTypeDef = CONTEST_TYPES.find(t => t.key === createForm.contestType);
     const isRoundsType = submitTypeDef?.rounds === true;
     const isAccumulate =
