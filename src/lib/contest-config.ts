@@ -82,8 +82,11 @@ export const CONTEST_TYPES: {
   freeOnly?: boolean;
   /** Podium Predictor only: exactly one race. */
   singleRace?: boolean;
+  /** Tiers only: entrants pick exactly one competitor from each roster tier. */
+  rosterTiers?: boolean;
 
 }[] = [
+
   {
     key: "classic",
     label: "Classic",
