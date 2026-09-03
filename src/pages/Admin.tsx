@@ -1734,12 +1734,13 @@ const Admin = () => {
 
             {/* Max Entries */}
             <div className="grid grid-cols-2 gap-4">
-              {!createForm.multiTier && (
+              {!createForm.multiTier && createForm.contestType !== "podium_predictor" && (
                 <div>
                   <Label htmlFor="entryFee">Entry Fee ($) *</Label>
                   <Input id="entryFee" type="number" min="0" step="0.01" placeholder="10.00" value={createForm.entryFee} onChange={(e) => setCreateForm(prev => ({ ...prev, entryFee: e.target.value }))} />
                 </div>
               )}
+
               <div>
                 <Label htmlFor="maxEntries">Max Entries *</Label>
                 <Input id="maxEntries" type="number" min="2" placeholder="100" value={createForm.maxEntries} onChange={(e) => setCreateForm(prev => ({ ...prev, maxEntries: e.target.value }))} />
