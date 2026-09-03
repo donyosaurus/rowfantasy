@@ -98,6 +98,7 @@ interface EntryPick {
   event_id?: string;
   predictedMargin: number;
   position?: number; // prediction (Podium Predictor) only
+  weight?: number; // confidence pick'em only
 }
 
 interface EntryScore {
