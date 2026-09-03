@@ -110,6 +110,16 @@ export const CONTEST_TYPES: {
     requiresEventClass: false,
   },
   {
+    key: "tier_pick",
+    label: "Tiers",
+    subtitle: "Pick one competitor from each tier — golf-pool style",
+    fixedRoster: true,
+    requiresEventClass: false,
+    perCompetitor: true,
+    rosterTiers: true,
+  },
+  {
+
     key: "gc_pool",
     label: "GC / Stage Race",
     subtitle: "Lowest combined time across all stages — pick riders, every stage counts",
