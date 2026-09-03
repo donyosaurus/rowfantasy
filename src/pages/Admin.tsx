@@ -1671,15 +1671,35 @@ const Admin = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="picksPerEntry">Picks per entry *</Label>
-                    <Input id="picksPerEntry" type="number" min={2} value={createForm.minPicks} onChange={(e) => { const v = e.target.value; setCreateForm(prev => ({ ...prev, minPicks: v, maxPicks: v })); }} />
+                    <Input id="picksPerEntry" type="number" min={2} disabled={createForm.contestType === "podium_predictor"} value={createForm.minPicks} onChange={(e) => { const v = e.target.value; setCreateForm(prev => ({ ...prev, minPicks: v, maxPicks: v })); }} />
                     <p className="text-xs text-muted-foreground mt-1">
-                      {createForm.contestType === "gc_pool"
-                        ? "Fixed roster — must be ≤ the number of competitors."
-                        : "Fixed roster — must be ≤ the number of races."}
+                      {createForm.contestType === "podium_predictor"
+                        ? "Set by podium size"
+                        : createForm.contestType === "gc_pool"
+                          ? "Fixed roster — must be ≤ the number of competitors."
+                          : "Fixed roster — must be ≤ the number of races."}
                     </p>
                   </div>
+                  {createForm.contestType === "podium_predictor" && (
+                    <div>
+                      <Label>Podium size *</Label>
+                      <Select
+                        value={createForm.podiumSize}
+                        onValueChange={(v) => setCreateForm(prev => ({ ...prev, podiumSize: v, minPicks: v, maxPicks: v }))}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {[2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                            <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">Free contest — no cash prizes.</p>
+                    </div>
+                  )}
 
                 </div>
+
               ) : (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
