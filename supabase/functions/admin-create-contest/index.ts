@@ -62,7 +62,15 @@ const CreateContestV2Schema = z.object({
   scoringConfig: ScoringConfigSchema.optional(),
   minPicks: z.number().int().optional(),
   maxPicks: z.number().int().optional(),
+  // Phase 4e: golf-pool style tiers. Only valid for per-competitor placement.
+  rosterTiers: z.array(
+    z.object({
+      name: z.string().min(1),
+      competitors: z.array(z.string().min(1)).min(2).max(200),
+    }).strict(),
+  ).min(2).max(10).optional(),
 }).strict();
+
 
 
 interface CrewInput {
