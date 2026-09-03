@@ -173,7 +173,17 @@ export function getScoringPreset(key: ContestTypeKey): ScoringConfig {
     };
   }
 
+  if (key === "tier_pick") {
+    return {
+      primitive: "placement",
+      points_table: { ...CLASSIC_POINTS_TABLE },
+      direction: "high",
+      dnf_policy: "zero",
+      tiebreak: "none",
+    };
+  }
   if (key === "low_score") {
+
     return {
       primitive: "placement",
       points_table: {},
