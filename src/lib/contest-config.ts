@@ -8,11 +8,13 @@ export type ContestTypeKey =
   | "classic"
   | "classic_total_time"
   | "low_score"
+  | "tier_pick"
   | "gc_pool"
   | "team_time_trial"
   | "deficit"
   | "survivor"
   | "podium_predictor";
+
 
 
 export interface PlacementScoringConfig {
