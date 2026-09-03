@@ -487,7 +487,18 @@ const RegattaDetail = () => {
         newPicks.set(key, { crewId, eventId, margin: 0, position: newPicks.size + 1 });
         return newPicks;
       }
+      if (isTierPick) {
+        // Tiers: one pick per tier — swap out any existing pick from the same tier.
+        const tierIdx = tierOfCompetitor.get(crewId);
+        if (tierIdx === undefined) return prev;
+        for (const [k, v] of newPicks) {
+          if (tierOfCompetitor.get(v.crewId) === tierIdx) { newPicks.delete(k); break; }
+        }
+        newPicks.set(key, { crewId, eventId: "", margin: 0 });
+        return newPicks;
+      }
       if (isPerCompetitor) {
+
         // GC: a flat roster, no per-race swap.
         if (newPicks.size >= maxPicks) { toast.error(`Maximum ${maxPicks} picks allowed`); return prev; }
         newPicks.set(key, { crewId, eventId: "", margin: 0 });
