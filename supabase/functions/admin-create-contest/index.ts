@@ -315,7 +315,47 @@ Deno.serve(withFnVersion('admin-create-contest', async (req) => {
         }
       }
 
+      // ---- Phase 4e: roster tiers (mirrors admin_create_contest_v2) ----
+      if (v2.rosterTiers) {
+        if (primitive === 'survivor' || primitive === 'prediction' || v2.rounds) {
+          return bad('roster_tiers is not valid for this contest type');
+        }
+        if (
+          primitive !== 'placement' || rosterMode !== 'per_competitor' ||
+          !v2.scoringConfig || v2.scoringConfig.tiebreak !== 'none'
+        ) {
+          return bad('roster_tiers requires per-competitor placement');
+        }
+        const competitorKeys = new Set(v2.competitors.map((c) => c.competitor_key));
+        const raceKeys = v2.races.map((r) => r.race_key);
+        const entriesByCompetitor = new Map<string, Set<string>>();
+        for (const re of v2.raceEntries) {
+          if (!entriesByCompetitor.has(re.competitor_key)) entriesByCompetitor.set(re.competitor_key, new Set());
+          entriesByCompetitor.get(re.competitor_key)!.add(re.race_key);
+        }
+        const seenKeys = new Set<string>();
+        for (const tier of v2.rosterTiers) {
+          for (const key of tier.competitors) {
+            if (seenKeys.has(key) || !competitorKeys.has(key)) {
+              return bad('roster_tiers competitors must be distinct and entered in every race');
+            }
+            const raced = entriesByCompetitor.get(key);
+            if (!raced || !raceKeys.every((rk) => raced.has(rk))) {
+              return bad('roster_tiers competitors must be distinct and entered in every race');
+            }
+            seenKeys.add(key);
+          }
+        }
+        if (
+          typeof v2.minPicks !== 'number' || typeof v2.maxPicks !== 'number' ||
+          v2.minPicks !== v2.maxPicks || v2.minPicks !== v2.rosterTiers.length
+        ) {
+          return bad('tier contests require one pick per tier');
+        }
+      }
+
       console.log('Creating contest (v2):', { name: v2.name, sport: v2.sport, admin: user.id });
+
 
       const { data: v2Data, error: v2Error } = await supabaseAdmin.rpc('admin_create_contest_v2', {
         p_name: v2.name,
