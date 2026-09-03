@@ -200,6 +200,7 @@ export const ScoringConfigSchema = z
 export type PlacementScoringConfig = z.infer<typeof PlacementConfigSchema>;
 export type TimeVsRefScoringConfig = z.infer<typeof TimeVsRefConfigSchema>;
 export type SurvivorScoringConfig = z.infer<typeof SurvivorConfigSchema>;
+export type PredictionScoringConfig = z.infer<typeof PredictionConfigSchema>;
 
 
 export type ScoringConfig = z.infer<typeof ScoringConfigSchema>;
