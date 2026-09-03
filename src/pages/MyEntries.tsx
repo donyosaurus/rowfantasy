@@ -732,8 +732,8 @@ const MyEntries = () => {
             const parts: string[] = [];
             if (isAccumulate) {
               const hasPicks = Array.isArray((er as any)?.picks) && ((er as any).picks as any[]).length > 0;
-              else if (r.status === 'scored' && !hasPicks) parts.push('Missed (0 pts)');
-              if (er && er.points !== null) parts.push(`${er.points} pts`);
+              if (r.status === 'scored' && !hasPicks) parts.push('Missed (0 pts)');
+              else if (er && er.points !== null) parts.push(`${er.points} pts`);
               else if (er) parts.push('Picks in');
               else if (r.status === 'scored') parts.push('Missed (0 pts)');
             } else if (er) {
