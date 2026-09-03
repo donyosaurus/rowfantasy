@@ -125,6 +125,7 @@ interface CrewScore {
   time_ms?: number | null;
   contribution_ms?: number;
   multiplier?: number;
+  position?: number; // prediction (Podium Predictor) only
 }
 
 // ---------------------------------------------------------------------------
