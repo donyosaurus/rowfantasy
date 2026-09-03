@@ -980,8 +980,8 @@ const Admin = () => {
       let survivorRounds: { round_no: number; lock_at: string; advance_count: number }[] = [];
       if (isRoundsType) {
         const rounds = createForm.rounds;
-        if (rounds.length < 2) { toast.error("Survivor contests need at least 2 rounds"); return; }
-        if (minPicks < 2) { toast.error("Survivor contests need at least 2 picks per entry"); return; }
+        if (rounds.length < 2) { toast.error(isAccumulate ? "This contest needs at least 2 rounds" : "Survivor contests need at least 2 rounds"); return; }
+        if (minPicks < 2) { toast.error(isAccumulate ? "This contest needs at least 2 picks per entry" : "Survivor contests need at least 2 picks per entry"); return; }
         let prevLock: number | null = null;
         let prevAdvance: number | null = null;
         for (let i = 0; i < rounds.length; i++) {
