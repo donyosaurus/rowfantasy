@@ -76,6 +76,11 @@ export const CONTEST_TYPES: {
   perCompetitor?: boolean;
   /** Survivor only: multi-round elimination with a rounds builder. */
   rounds?: boolean;
+  /** Podium Predictor only: contest must be free to enter. */
+  freeOnly?: boolean;
+  /** Podium Predictor only: exactly one race. */
+  singleRace?: boolean;
+
 }[] = [
   {
     key: "classic",
