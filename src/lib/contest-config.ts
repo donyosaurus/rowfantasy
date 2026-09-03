@@ -6,6 +6,7 @@
 
 export type ContestTypeKey =
   | "classic"
+  | "confidence"
   | "classic_total_time"
   | "low_score"
   | "tier_pick"
