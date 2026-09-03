@@ -141,6 +141,9 @@ export const PlacementConfigSchema = z.object({
   dnf_policy: z.enum(["zero", "field_plus_one"]),
   tiebreak: z.enum(["margin_error", "aggregate_time", "none"]),
   penalty_pct: z.number().min(0).max(100).optional(),
+  // Confidence Pick'em: entrants rank picks 1..k; a pick scores its own weight
+  // only when its competitor wins that race. points_table/race_multipliers unused.
+  confidence: z.literal(true).optional(),
 }).strict();
 
 export const TimeVsRefConfigSchema = z.object({
