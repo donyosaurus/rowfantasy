@@ -501,10 +501,23 @@ const RegattaDetail = () => {
 
   const isContestOpen = contestPool?.status === "open" && new Date(contestPool.lock_time) > new Date();
   const numDivisions = divisions.length;
+  // Podium Predictor: bounded by the number of distinct competitors in the sole race.
+  const predictionCompetitorCount = isPrediction
+    ? new Set((contestPool?.contest_pool_crews ?? []).map((c) => c.crew_id)).size
+    : 0;
   // GC rosters are bounded by competitor count, not race count.
-  const pickCeiling = isPerCompetitor ? competitorList.length : numDivisions;
-  const minPicks = Math.min(contestPool?.contest_templates?.min_picks ?? 2, pickCeiling);
-  const maxPicks = Math.min(contestPool?.contest_templates?.max_picks ?? 10, pickCeiling);
+  const pickCeiling = isPerCompetitor
+    ? competitorList.length
+    : isPrediction
+      ? predictionCompetitorCount
+      : numDivisions;
+  const minPicks = isPrediction
+    ? (contestPool?.contest_templates?.min_picks ?? podiumSize)
+    : Math.min(contestPool?.contest_templates?.min_picks ?? 2, pickCeiling);
+  const maxPicks = isPrediction
+    ? (contestPool?.contest_templates?.max_picks ?? podiumSize)
+    : Math.min(contestPool?.contest_templates?.max_picks ?? 10, pickCeiling);
+
 
 
   const formattedLockTime = contestPool?.lock_time
