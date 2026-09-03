@@ -744,11 +744,21 @@ const RegattaDetail = () => {
         }
       }
     }
-    if (!isPerCompetitor) {
+    if (isPrediction) {
+      if (crewPicks.size !== podiumSize) { toast.error(`Pick exactly ${podiumSize} ${t.competitors} for the podium`); return; }
+      const positions = Array.from(crewPicks.values()).map((p) => p.position);
+      const expected = Array.from({ length: podiumSize }, (_, i) => i + 1);
+      const sorted = positions.slice().sort((a, b) => Number(a) - Number(b));
+      if (sorted.length !== expected.length || sorted.some((v, i) => v !== expected[i])) {
+        toast.error("Podium positions must be filled in order.");
+        return;
+      }
+    } else if (!isPerCompetitor) {
       const selectedDivisions = new Set<string>();
       for (const p of crewPicks.values()) selectedDivisions.add(p.eventId);
       if (selectedDivisions.size < 2) { toast.error(`You must select ${t.competitors} from at least 2 different ${t.events}`); return; }
     }
+
 
     if (hasTiers && !selectedTier) { toast.error("Please select an entry tier"); return; }
     // (Wave 1 #6) Fail-closed: refuse submit if balance read errored.
