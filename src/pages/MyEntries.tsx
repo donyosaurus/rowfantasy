@@ -967,20 +967,24 @@ const MyEntries = () => {
             <div className="mt-5">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Your Picks</p>
               <div className="flex flex-wrap gap-2">
-                {getParsedPicks(resubmitEntry).map((pick, idx) => (
-                  <Badge
-                    key={idx}
-                    variant="secondary"
-                    className="text-sm rounded-lg bg-primary/5 border border-primary/10 flex items-center gap-1.5"
-                  >
-                    <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={20} />
-                    {pick.crewName}
-                    {pick.margin !== null && (
-                      <span className="ml-1 text-accent font-semibold">(+{pick.margin.toFixed(1)}s)</span>
-                    )}
-                  </Badge>
-                ))}
+                {(() => {
+                  const isPrediction = isPredictionTemplate(resubmitEntry.contest_templates?.scoring_config);
+                  return getParsedPicks(resubmitEntry).map((pick, idx) => (
+                    <Badge
+                      key={idx}
+                      variant="secondary"
+                      className="text-sm rounded-lg bg-primary/5 border border-primary/10 flex items-center gap-1.5"
+                    >
+                      <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={20} />
+                      {isPrediction && pick.position ? `${ordinalLabel(pick.position)} · ${pick.crewName}` : pick.crewName}
+                      {!isPrediction && pick.margin !== null && (
+                        <span className="ml-1 text-accent font-semibold">(+{pick.margin.toFixed(1)}s)</span>
+                      )}
+                    </Badge>
+                  ));
+                })()}
               </div>
+
             </div>
 
             <Button
