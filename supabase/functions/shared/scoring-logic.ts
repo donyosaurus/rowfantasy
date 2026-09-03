@@ -97,6 +97,7 @@ interface EntryPick {
   crewId: string;
   event_id?: string;
   predictedMargin: number;
+  position?: number; // prediction (Podium Predictor) only
 }
 
 interface EntryScore {
