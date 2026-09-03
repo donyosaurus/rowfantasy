@@ -21,6 +21,8 @@ export type ContestTypeKey =
 export interface PlacementScoringConfig {
   primitive: "placement";
   points_table: Record<string, number>;
+  /** Confidence Pick'em only: picks carry a weight 1..N; a winning pick earns its weight. */
+  confidence?: true;
   direction: "high" | "low";
   dnf_policy: "zero" | "field_plus_one";
   tiebreak: "margin_error" | "aggregate_time" | "none";
