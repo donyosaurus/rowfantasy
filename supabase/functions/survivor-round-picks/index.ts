@@ -138,6 +138,7 @@ Deno.serve(withFnVersion('survivor-round-picks', async (req) => {
         too_many_picks: { status: 400, message: "You have selected more picks than this round allows." },
         insufficient_competitors: { status: 400, message: "Your picks must include at least 2 different competitors." },
         invalid_pick: { status: 400, message: "One or more picks are not valid for this round." },
+        competitor_reused: { status: 400, message: "You've already used this competitor in an earlier round." },
       };
 
       const mapped = errorMap[outcome.reason] ?? { status: 400, message: ERROR_MESSAGES.INTERNAL_ERROR };
