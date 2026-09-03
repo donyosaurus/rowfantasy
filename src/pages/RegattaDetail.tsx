@@ -773,11 +773,14 @@ const RegattaDetail = () => {
 
     setSubmitting(true);
     const picks = Array.from(crewPicks.values()).map((p) => {
+      // Podium Predictor: ordered picks carry a position, never a margin.
+      if (isPrediction) return { crewId: p.crewId, event_id: p.eventId, position: p.position! };
       // GC rosters carry only the competitor — no event, no margin.
       if (isPerCompetitor) return { crewId: p.crewId };
       const base = { crewId: p.crewId, event_id: p.eventId };
       return needsMargin ? { ...base, predictedMargin: p.margin } : base;
     });
+
 
 
 
