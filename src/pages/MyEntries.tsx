@@ -1030,6 +1030,7 @@ const MyEntries = () => {
               <div className="flex flex-wrap gap-2">
                 {(() => {
                   const isPrediction = isPredictionTemplate(resubmitEntry.contest_templates?.scoring_config);
+                  const isConfidence = isConfidenceTemplate(resubmitEntry.contest_templates?.scoring_config);
                   return getParsedPicks(resubmitEntry).map((pick, idx) => (
                     <Badge
                       key={idx}
@@ -1039,7 +1040,9 @@ const MyEntries = () => {
                       <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={20} />
                       {(() => {
                         const tn = pick.crewId ? tierNameOf(resubmitEntry, pick.crewId) : null;
-                        const base = isPrediction && pick.position ? `${ordinalLabel(pick.position)} · ${pick.crewName}` : pick.crewName;
+                        const base = isPrediction && pick.position
+                          ? `${ordinalLabel(pick.position)} · ${pick.crewName}`
+                          : (isConfidence && pick.weight ? `#${pick.weight} ${pick.crewName}` : pick.crewName);
                         return tn ? `${tn} · ${base}` : base;
                       })()}
                       {!isPrediction && pick.margin !== null && (
