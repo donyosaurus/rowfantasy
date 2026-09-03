@@ -1597,16 +1597,28 @@ const Admin = () => {
                     const modeChanged = !!newType?.perCompetitor !== !!oldType?.perCompetitor;
                     const toPrediction = value === "podium_predictor";
                     const fromPrediction = createForm.contestType === "podium_predictor" && !toPrediction;
-                    setCreateForm(prev => ({
+                    const toTiers = value === "tier_pick";
+                    setCreateForm(prev => {
+                      // Tiers: two empty tiers on entry; cleared when leaving.
+                      const nextTiers = toTiers
+                        ? (prev.rosterTiers.length >= 2
+                            ? prev.rosterTiers
+                            : [{ name: "Tier 1", competitors: [] }, { name: "Tier 2", competitors: [] }])
+                        : [];
+                      return {
                       ...prev,
                       contestType: value as ContestTypeKey,
                       maxPicks: newType?.fixedRoster ? prev.minPicks : prev.maxPicks,
                       crews: modeChanged ? [] : prev.crews,
+                      rosterTiers: modeChanged ? nextTiers.map(t => ({ ...t, competitors: [] })) : nextTiers,
+                      ...(toTiers ? { minPicks: String(nextTiers.length), maxPicks: String(nextTiers.length) } : {}),
                       // Podium Predictor is always free, single-tier, and picks == podium size.
                       ...(toPrediction ? { entryFee: "0", multiTier: false, minPicks: "3", maxPicks: "3", podiumSize: "3" } : {}),
                       // Switching away restores the initial-fixture defaults so nothing leaks.
                       ...(fromPrediction ? { entryFee: "", multiTier: false, minPicks: "2", maxPicks: newType?.fixedRoster ? "2" : "4" } : {}),
-                    }));
+                      };
+                    });
+
                     if (modeChanged) {
                       setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
                       toast.info("Lineup cleared — competitor entry differs for this contest type");
