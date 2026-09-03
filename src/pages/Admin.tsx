@@ -124,6 +124,31 @@ function hashString(str: string): number {
   return Math.abs(hash);
 }
 
+
+/**
+ * Exact maximum-cardinality bipartite matching (Kuhn's augmenting paths).
+ * left = races, right = competitors; adj[i] = competitor indices racing in race i.
+ */
+function maxBipartiteMatching(adj: number[][], rightCount: number): number {
+  const matchRight = new Array<number>(rightCount).fill(-1);
+  let result = 0;
+  const tryKuhn = (u: number, seen: boolean[]): boolean => {
+    for (const v of adj[u]) {
+      if (seen[v]) continue;
+      seen[v] = true;
+      if (matchRight[v] === -1 || tryKuhn(matchRight[v], seen)) {
+        matchRight[v] = u;
+        return true;
+      }
+    }
+    return false;
+  };
+  for (let u = 0; u < adj.length; u++) {
+    if (tryKuhn(u, new Array<boolean>(rightCount).fill(false))) result++;
+  }
+  return result;
+}
+
 const Admin = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -769,13 +794,17 @@ const Admin = () => {
 
   const submitCreateContest = async () => {
     const isSurvivor = createForm.contestType === "survivor";
-    if (isSurvivor && createForm.multiTier) { toast.error("Survivor contests don't support entry tiers"); return; }
+    const submitTypeDef = CONTEST_TYPES.find(t => t.key === createForm.contestType);
+    const isRoundsType = submitTypeDef?.rounds === true;
+    const isAccumulate =
+      (getScoringPreset(createForm.contestType) as any)?.round_mode === "accumulate";
+    if (isRoundsType && createForm.multiTier) { toast.error("Survivor contests don't support entry tiers"); return; }
     if (!createForm.regattaName.trim()) { toast.error("Regatta name is required"); return; }
     if (!createForm.genderCategory) { toast.error("Gender category is required"); return; }
-    const effectiveLockTime = isSurvivor ? (createForm.rounds[0]?.lockTime || "") : createForm.lockTime;
+    const effectiveLockTime = isRoundsType ? (createForm.rounds[0]?.lockTime || "") : createForm.lockTime;
     if (!effectiveLockTime) { toast.error("Lock time is required"); return; }
     const lockDate = new Date(effectiveLockTime);
-    if (isSurvivor && isNaN(lockDate.getTime())) { toast.error("Lock time is required"); return; }
+    if (isRoundsType && isNaN(lockDate.getTime())) { toast.error("Lock time is required"); return; }
     if (lockDate <= new Date()) { toast.error("Lock time must be in the future"); return; }
     if (createForm.crews.length < 2) { toast.error("At least 2 crews are required"); return; }
     const maxEntries = parseInt(createForm.maxEntries);
