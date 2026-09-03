@@ -538,7 +538,7 @@ const MyEntries = () => {
     return <Badge variant="outline" className={config.className}>{config.label}</Badge>;
   };
 
-  const getParsedPicks = (entry: Entry): {crewName: string;margin: number | null;logoUrl?: string | null;}[] => {
+  const getParsedPicks = (entry: Entry): {crewName: string;margin: number | null;logoUrl?: string | null;position?: number;}[] => {
     let picks: unknown = entry.picks;
     if (!picks) return [];
 
@@ -556,32 +556,36 @@ const MyEntries = () => {
       return [];
     }
 
-    return picksArray.map((pick) => {
+    return picksArray.map((pick, idx) => {
       if (typeof pick === 'object' && pick !== null && 'crewId' in pick) {
         const pickObj = pick as PickNew;
+        const position = Number.isInteger(pickObj.position) && (pickObj.position as number) > 0
+          ? (pickObj.position as number)
+          : idx + 1;
         const crewId = pickObj.crewId;
         const crewInfo = crewMap.get(`${entry.pool_id}-${crewId}`);
         if (crewInfo) {
           const name = crewInfo.crew_name || crewId;
-          return { crewName: name, margin: Number.isFinite(pickObj.predictedMargin) ? pickObj.predictedMargin : null, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url };
+          return { crewName: name, margin: Number.isFinite(pickObj.predictedMargin) ? pickObj.predictedMargin : null, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url, position };
         }
         const comp = competitorMap.get(`${entry.contest_template_id}-${crewId}`);
         const name = comp?.name || crewId;
-        return { crewName: name, margin: Number.isFinite(pickObj.predictedMargin) ? pickObj.predictedMargin : null, logoUrl: getCircleFlagUrl(name) || comp?.logo_url };
+        return { crewName: name, margin: Number.isFinite(pickObj.predictedMargin) ? pickObj.predictedMargin : null, logoUrl: getCircleFlagUrl(name) || comp?.logo_url, position };
       }
       if (typeof pick === 'string') {
         const crewId = pick;
         const crewInfo = crewMap.get(`${entry.pool_id}-${crewId}`);
         if (crewInfo) {
           const name = crewInfo.crew_name || crewId;
-          return { crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url };
+          return { crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || crewInfo.logo_url, position: undefined };
         }
         const comp = competitorMap.get(`${entry.contest_template_id}-${crewId}`);
         const name = comp?.name || crewId;
-        return { crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || comp?.logo_url };
+        return { crewName: name, margin: null, logoUrl: getCircleFlagUrl(name) || comp?.logo_url, position: undefined };
       }
-      return { crewName: 'Unknown', margin: null, logoUrl: null };
+      return { crewName: 'Unknown', margin: null, logoUrl: null, position: undefined };
     });
+
 
   };
 
