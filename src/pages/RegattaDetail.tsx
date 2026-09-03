@@ -122,6 +122,30 @@ const TIER_ACCENT: Record<string, string> = {
   Gold: "border-l-yellow-500 bg-yellow-400/5",
 };
 
+/**
+ * Exact maximum-cardinality bipartite matching (Kuhn's augmenting paths).
+ * left = races, right = competitors.
+ */
+function maxBipartiteMatching(adj: number[][], rightCount: number): number {
+  const matchRight = new Array<number>(rightCount).fill(-1);
+  let result = 0;
+  const tryKuhn = (u: number, seen: boolean[]): boolean => {
+    for (const v of adj[u]) {
+      if (seen[v]) continue;
+      seen[v] = true;
+      if (matchRight[v] === -1 || tryKuhn(matchRight[v], seen)) {
+        matchRight[v] = u;
+        return true;
+      }
+    }
+    return false;
+  };
+  for (let u = 0; u < adj.length; u++) {
+    if (tryKuhn(u, new Array<boolean>(rightCount).fill(false))) result++;
+  }
+  return result;
+}
+
 const RegattaDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -412,6 +436,9 @@ const RegattaDetail = () => {
   const isPerCompetitor = !!scoringConfig && template?.roster_mode === "per_competitor";
   const isTimeScored = scoringConfig?.primitive === "time_vs_ref";
   const isSurvivor = scoringConfig?.primitive === "survivor";
+  // Phase 4f: accumulate-mode survivor templates (Season Accumulator / One & Done).
+  const isAccumulate = isSurvivor && (scoringConfig as any)?.round_mode === "accumulate";
+  const isNoReuse = isAccumulate && (scoringConfig as any)?.no_reuse === true;
   // Podium Predictor: ordered picks from a single race.
   const isPrediction = scoringConfig?.primitive === "prediction";
   // Confidence Pick'em: per-race picks ranked 1..N by confidence.
@@ -585,23 +612,24 @@ const RegattaDetail = () => {
 
   /** Mirrors the backend rule: any scored round without an advanced===true entry-round row eliminates. */
   const eliminatedInRound = useMemo(() => {
-    if (!isSurvivor || !survivorEntry) return null;
+    if (!isSurvivor || !survivorEntry || isAccumulate) return null;
     for (const r of survivorRounds) {
       if (r.status !== "scored") continue;
       const er = entryRoundByNo.get(r.round_no);
       if (!er || er.advanced !== true) return r.round_no;
     }
     return null;
-  }, [isSurvivor, survivorEntry, survivorRounds, entryRoundByNo]);
+  }, [isSurvivor, survivorEntry, isAccumulate, survivorRounds, entryRoundByNo]);
 
   const actionableRound = useMemo(() => {
-    if (!isSurvivor || !survivorEntry || eliminatedInRound !== null) return null;
+    if (!isSurvivor || !survivorEntry) return null;
+    if (!isAccumulate && eliminatedInRound !== null) return null;
     const now = Date.now();
     const candidates = survivorRounds
       .filter((r) => r.status === "scheduled" && r.round_no >= 2 && new Date(r.lock_at).getTime() > now)
       .sort((a, b) => a.round_no - b.round_no);
     return candidates[0] ?? null;
-  }, [isSurvivor, survivorEntry, eliminatedInRound, survivorRounds]);
+  }, [isSurvivor, survivorEntry, isAccumulate, eliminatedInRound, survivorRounds]);
 
   const actionableRaces = useMemo(() => {
     if (!actionableRound) return [] as SurvivorRace[];
@@ -611,7 +639,39 @@ const RegattaDetail = () => {
   }, [actionableRound, survivorRaces]);
 
   const survivorRoundMinPicks = contestPool?.contest_templates?.min_picks ?? 2;
-  const roundMisconfigured = actionableRaces.length < survivorRoundMinPicks;
+
+  /** One & Done: competitors already used in any OTHER round of this entry. */
+  const usedCompetitorKeys = useMemo(() => {
+    const used = new Set<string>();
+    if (!isNoReuse) return used;
+    for (const er of survivorEntryRounds) {
+      if (actionableRound && er.round_no === actionableRound.round_no) continue;
+      const raw = (er as any)?.picks;
+      if (!Array.isArray(raw)) continue;
+      for (const pk of raw as any[]) {
+        const crewId = pk?.crewId ?? pk?.crew_id;
+        if (crewId) used.add(String(crewId));
+      }
+    }
+    return used;
+  }, [isNoReuse, survivorEntryRounds, actionableRound?.round_no]);
+
+  const roundMisconfigured = useMemo(() => {
+    if (actionableRaces.length < survivorRoundMinPicks) return true;
+    if (!isNoReuse) return false;
+    const compIndex = new Map<string, number>();
+    const adjacency = actionableRaces.map((race) =>
+      Array.from(new Set(
+        race.competitors
+          .filter((c) => !usedCompetitorKeys.has(c.crew_id))
+          .map((c) => {
+            if (!compIndex.has(c.crew_id)) compIndex.set(c.crew_id, compIndex.size);
+            return compIndex.get(c.crew_id)!;
+          })
+      ))
+    );
+    return maxBipartiteMatching(adjacency, compIndex.size) < survivorRoundMinPicks;
+  }, [actionableRaces, survivorRoundMinPicks, isNoReuse, usedCompetitorKeys]);
 
   const hasExistingRoundPicks = actionableRound ? entryRoundByNo.has(actionableRound.round_no) : false;
 
@@ -648,6 +708,17 @@ const RegattaDetail = () => {
       setRoundPicks(new Map());
       roundSubmitRef.current = false;
       return;
+    }
+
+    if (isNoReuse) {
+      for (const pk of picks) {
+        if (!usedCompetitorKeys.has(pk.crewId)) continue;
+        const race = raceMap.get(pk.event_id);
+        const name = race?.competitors.find((c) => c.crew_id === pk.crewId)?.crew_name ?? pk.crewId;
+        toast.error(`You've already used ${name} in another round`);
+        roundSubmitRef.current = false;
+        return;
+      }
     }
 
     if (picks.length !== survivorRoundMinPicks) {
@@ -959,7 +1030,9 @@ const RegattaDetail = () => {
                 </p>
                 {isSurvivor && (
                   <p className="text-sm text-white/60 mt-1">
-                    {`Round 1 of ${survivorRounds.length} — pick ${minPicks} from these races. Survive each round to advance.`}
+                    {isAccumulate
+                      ? `Round 1 of ${survivorRounds.length} — pick ${minPicks}. Every round counts toward your season total.`
+                      : `Round 1 of ${survivorRounds.length} — pick ${minPicks} from these races. Survive each round to advance.`}
                   </p>
                 )}
               </div>
@@ -968,7 +1041,7 @@ const RegattaDetail = () => {
               {isSurvivor && survivorEntry && (
                 <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/20">
                   <CardContent className="p-4 space-y-4">
-                    <h3 className="font-heading text-sm font-bold text-slate-900">Elimination rounds</h3>
+                    <h3 className="font-heading text-sm font-bold text-slate-900">{isAccumulate ? "Season rounds" : "Elimination rounds"}</h3>
 
                     <div className="space-y-2">
                       {survivorRounds.map((r) => {
@@ -980,22 +1053,34 @@ const RegattaDetail = () => {
                             <div className="min-w-0">
                               <p className="text-sm font-semibold text-slate-900">Round {r.round_no}</p>
                               <p className="text-xs text-slate-500">
-                                Locks {fmtRoundTime(r.lock_at)} · Advances: {r.advance_count}
+                                Locks {fmtRoundTime(r.lock_at)}{isAccumulate ? "" : ` · Advances: ${r.advance_count}`}
                               </p>
                             </div>
                             <div className="flex items-center gap-2 text-xs">
                               <span className="rounded-full bg-slate-200 px-2 py-0.5 font-medium text-slate-700">{statusChip}</span>
-                              {er && er.points !== null && (
-                                <span className="font-medium text-slate-700">{er.points} pts</span>
-                              )}
-                              {er && er.advanced === true && (
-                                <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-medium text-emerald-700">Advanced</span>
-                              )}
-                              {er && er.advanced === false && (
-                                <span className="rounded-full bg-red-100 px-2 py-0.5 font-medium text-red-700">Eliminated</span>
-                              )}
-                              {er && er.advanced === null && er.points === null && (
-                                <span className="rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-700">Picks in</span>
+                              {isAccumulate ? (
+                                er && er.points !== null ? (
+                                  <span className="font-medium text-slate-700">{er.points} pts</span>
+                                ) : r.status === "scored" ? (
+                                  <span className="font-medium text-slate-500">Missed (0 pts)</span>
+                                ) : er ? (
+                                  <span className="rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-700">Picks in</span>
+                                ) : null
+                              ) : (
+                                <>
+                                  {er && er.points !== null && (
+                                    <span className="font-medium text-slate-700">{er.points} pts</span>
+                                  )}
+                                  {er && er.advanced === true && (
+                                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-medium text-emerald-700">Advanced</span>
+                                  )}
+                                  {er && er.advanced === false && (
+                                    <span className="rounded-full bg-red-100 px-2 py-0.5 font-medium text-red-700">Eliminated</span>
+                                  )}
+                                  {er && er.advanced === null && er.points === null && (
+                                    <span className="rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-700">Picks in</span>
+                                  )}
+                                </>
                               )}
                             </div>
                           </div>
@@ -1003,7 +1088,7 @@ const RegattaDetail = () => {
                       })}
                     </div>
 
-                    {eliminatedInRound !== null ? (
+                    {!isAccumulate && eliminatedInRound !== null ? (
                       <p className="text-sm font-semibold text-red-600">Eliminated in round {eliminatedInRound}</p>
                     ) : actionableRound ? (
                       <div className="space-y-3">
@@ -1027,10 +1112,12 @@ const RegattaDetail = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                   {race.competitors.map((c) => {
                                     const selected = roundPicks.get(race.race_key) === c.crew_id;
+                                    const alreadyUsed = isNoReuse && usedCompetitorKeys.has(c.crew_id);
                                     return (
                                       <button
                                         key={`${race.race_key}::${c.crew_id}`}
                                         type="button"
+                                        disabled={alreadyUsed}
                                         onClick={() =>
                                           setRoundPicks((prev) => {
                                             const next = new Map(prev);
@@ -1040,11 +1127,16 @@ const RegattaDetail = () => {
                                           })
                                         }
                                         className={`flex items-center gap-3 rounded-lg border-2 px-3 py-2 text-left transition-all ${
-                                          selected ? "border-teal-400 bg-teal-50" : "border-slate-200 bg-white hover:bg-slate-50"
+                                          alreadyUsed
+                                            ? "border-slate-200 bg-slate-100 opacity-50 cursor-not-allowed"
+                                            : selected ? "border-teal-400 bg-teal-50" : "border-slate-200 bg-white hover:bg-slate-50"
                                         }`}
                                       >
                                         <CrewLogo logoUrl={c.logo_url} crewName={c.crew_name} size={32} />
                                         <span className="text-sm font-semibold text-slate-900 truncate">{c.crew_name}</span>
+                                        {alreadyUsed && (
+                                          <span className="ml-auto shrink-0 text-[11px] font-medium text-slate-500">Already used</span>
+                                        )}
                                       </button>
                                     );
                                   })}
