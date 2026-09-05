@@ -928,7 +928,7 @@ const Admin = () => {
         }])).values()
       );
       // GC rosters are bounded by competitor count; every other mode by race count.
-      const rosterSize = isGc ? competitors.length : raceKeys.length;
+      const rosterSize = isGc ? competitors.length : isConfidenceSingle ? new Set(createForm.crews.map(c => c.crew_id)).size : raceKeys.length;
       const minPicks = parseInt(createForm.minPicks, 10);
       const maxPicks = parseInt(createForm.maxPicks, 10);
       const effectiveMax = typeDef.fixedRoster ? minPicks : maxPicks;
