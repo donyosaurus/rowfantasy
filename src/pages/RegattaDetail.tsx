@@ -894,7 +894,7 @@ const RegattaDetail = () => {
         toast.error("Podium positions must be filled in order.");
         return;
       }
-    } else if (!isPerCompetitor) {
+    } else if (!isPerCompetitor && !isConfidenceSingle) {
       const selectedDivisions = new Set<string>();
       for (const p of crewPicks.values()) selectedDivisions.add(p.eventId);
       if (selectedDivisions.size < 2) { toast.error(`You must select ${t.competitors} from at least 2 different ${t.events}`); return; }
@@ -1350,6 +1350,7 @@ const RegattaDetail = () => {
                     maxPicks={maxPicks}
                     onRemove={toggleCrewSelection}
                     competitorNoun={t.competitor}
+                    multiPerEvent={isConfidenceSingle}
                   />
 
                    <div className="mt-4">
