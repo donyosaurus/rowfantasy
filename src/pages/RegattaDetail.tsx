@@ -544,6 +544,13 @@ const RegattaDetail = () => {
         return newPicks;
       }
 
+      if (isConfidenceSingle) {
+        // Single-race Confidence: several picks share the one race, ranked 1..N.
+        if (newPicks.size >= maxPicks) { toast.error(`Maximum ${maxPicks} picks allowed`); return prev; }
+        newPicks.set(key, { crewId, eventId, margin: 0, weight: newPicks.size + 1 });
+        return newPicks;
+      }
+
       // One pick per race — swap out any existing pick from the same event.
       let oldMargin = 0;
       let oldWeight: number | undefined;
