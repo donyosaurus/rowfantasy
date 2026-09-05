@@ -949,7 +949,9 @@ const Admin = () => {
         toast.error(
           isGc
             ? `Picks must satisfy 2 ≤ picks per entry ≤ number of competitors (${rosterSize})`
-            : `Picks must satisfy 2 ≤ Min picks ≤ Max picks ≤ number of races (${rosterSize})`
+            : isConfidenceSingle
+              ? `Picks must satisfy 2 ≤ Min picks ≤ Max picks ≤ number of competitors (${rosterSize})`
+              : `Picks must satisfy 2 ≤ Min picks ≤ Max picks ≤ number of races (${rosterSize})`
         ); return;
       }
 
