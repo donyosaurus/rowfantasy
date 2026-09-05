@@ -544,6 +544,13 @@ const RegattaDetail = () => {
         return newPicks;
       }
 
+      if (isConfidenceSingle) {
+        // Single-race Confidence: several picks share the one race, ranked 1..N.
+        if (newPicks.size >= maxPicks) { toast.error(`Maximum ${maxPicks} picks allowed`); return prev; }
+        newPicks.set(key, { crewId, eventId, margin: 0, weight: newPicks.size + 1 });
+        return newPicks;
+      }
+
       // One pick per race — swap out any existing pick from the same event.
       let oldMargin = 0;
       let oldWeight: number | undefined;
@@ -577,6 +584,8 @@ const RegattaDetail = () => {
 
   const isContestOpen = contestPool?.status === "open" && new Date(contestPool.lock_time) > new Date();
   const numDivisions = divisions.length;
+  const isConfidenceSingle = isConfidence && numDivisions === 1;
+  const competitorsInSoleRace = isConfidenceSingle ? (crewsByDivision[divisions[0]]?.length ?? 0) : 0;
   // Podium Predictor: bounded by the number of distinct competitors in the sole race.
   const predictionCompetitorCount = isPrediction
     ? new Set((contestPool?.contest_pool_crews ?? []).map((c) => c.crew_id)).size
@@ -586,7 +595,9 @@ const RegattaDetail = () => {
     ? competitorList.length
     : isPrediction
       ? predictionCompetitorCount
-      : numDivisions;
+      : isConfidenceSingle
+        ? competitorsInSoleRace
+        : numDivisions;
   const minPicks = isPrediction
     ? (contestPool?.contest_templates?.min_picks ?? podiumSize)
     : Math.min(contestPool?.contest_templates?.min_picks ?? 2, pickCeiling);
@@ -883,7 +894,7 @@ const RegattaDetail = () => {
         toast.error("Podium positions must be filled in order.");
         return;
       }
-    } else if (!isPerCompetitor) {
+    } else if (!isPerCompetitor && !isConfidenceSingle) {
       const selectedDivisions = new Set<string>();
       for (const p of crewPicks.values()) selectedDivisions.add(p.eventId);
       if (selectedDivisions.size < 2) { toast.error(`You must select ${t.competitors} from at least 2 different ${t.events}`); return; }
@@ -1339,6 +1350,7 @@ const RegattaDetail = () => {
                     maxPicks={maxPicks}
                     onRemove={toggleCrewSelection}
                     competitorNoun={t.competitor}
+                    multiPerEvent={isConfidenceSingle}
                   />
 
                    <div className="mt-4">

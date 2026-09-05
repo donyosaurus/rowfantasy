@@ -106,7 +106,7 @@ export const CONTEST_TYPES: {
   {
     key: "confidence",
     label: "Confidence Pick'em",
-    subtitle: "Pick winners, rank your confidence 1..N — earn the rank when you're right",
+    subtitle: "Rank your picks by confidence — across races or within one",
     fixedRoster: false,
     requiresEventClass: false,
   },
@@ -128,7 +128,7 @@ export const CONTEST_TYPES: {
   {
     key: "tier_pick",
     label: "Tiers",
-    subtitle: "Pick one competitor from each tier — golf-pool style",
+    subtitle: "Pick one competitor from each tier — one race or a whole series",
     fixedRoster: true,
     requiresEventClass: false,
     perCompetitor: true,
@@ -164,15 +164,6 @@ export const CONTEST_TYPES: {
     fixedRoster: true,
     requiresEventClass: false,
     rounds: true,
-  },
-  {
-    key: "podium_predictor",
-    label: "Podium Predictor",
-    subtitle: "Predict the exact podium order — free to play",
-    fixedRoster: true,
-    requiresEventClass: false,
-    freeOnly: true,
-    singleRace: true,
   },
   {
     key: "season_accumulator",

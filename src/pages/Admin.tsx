@@ -900,7 +900,8 @@ const Admin = () => {
     let v2Body: any = null;
 
     if (isV2) {
-      const typeDef = CONTEST_TYPES.find(t => t.key === createForm.contestType)!;
+      const typeDef = CONTEST_TYPES.find(t => t.key === createForm.contestType);
+      if (!typeDef) { toast.error("Unknown contest type — pick a type"); return; }
       const scoringConfig: any = getScoringPreset(createForm.contestType);
       const isGc = !!typeDef.perCompetitor;
       const isTierPick = !!typeDef.rosterTiers;
@@ -908,12 +909,13 @@ const Admin = () => {
       const raceKeys = isGc
         ? Array.from(new Set(stageNames))
         : Array.from(new Set(createForm.crews.map(c => c.event_id)));
-      if (isGc && raceKeys.length < 2) {
-        toast.error(isTierPick ? "Tier contests need at least 2 distinct stages" : "GC / Stage Race contests need at least 2 distinct stages");
+      const isConfidenceSingle = !!scoringConfig?.confidence && raceKeys.length === 1;
+      if (isGc && !isTierPick && raceKeys.length < 2) {
+        toast.error("GC / Stage Race contests need at least 2 distinct stages");
         return;
       }
 
-      if (raceKeys.length < 2 && entryFeeCents > 0) { toast.error("Paid contests require at least 2 races"); return; }
+      if (raceKeys.length < 2 && entryFeeCents > 0 && !isTierPick && !isConfidenceSingle) { toast.error("Paid contests require at least 2 races"); return; }
       const eventClass = createForm.eventClass.trim();
       if (typeDef.requiresEventClass && !eventClass) {
         toast.error("GC / Team Time Trial / Total Time contests require one event class for all races"); return;
@@ -926,7 +928,7 @@ const Admin = () => {
         }])).values()
       );
       // GC rosters are bounded by competitor count; every other mode by race count.
-      const rosterSize = isGc ? competitors.length : raceKeys.length;
+      const rosterSize = isGc ? competitors.length : isConfidenceSingle ? new Set(createForm.crews.map(c => c.crew_id)).size : raceKeys.length;
       const minPicks = parseInt(createForm.minPicks, 10);
       const maxPicks = parseInt(createForm.maxPicks, 10);
       const effectiveMax = typeDef.fixedRoster ? minPicks : maxPicks;
@@ -947,7 +949,9 @@ const Admin = () => {
         toast.error(
           isGc
             ? `Picks must satisfy 2 ≤ picks per entry ≤ number of competitors (${rosterSize})`
-            : `Picks must satisfy 2 ≤ Min picks ≤ Max picks ≤ number of races (${rosterSize})`
+            : isConfidenceSingle
+              ? `Picks must satisfy 2 ≤ Min picks ≤ Max picks ≤ number of competitors (${rosterSize})`
+              : `Picks must satisfy 2 ≤ Min picks ≤ Max picks ≤ number of races (${rosterSize})`
         ); return;
       }
 

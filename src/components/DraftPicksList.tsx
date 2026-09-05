@@ -18,9 +18,11 @@ interface DraftPicksListProps {
   onRemove: (crewId: string, eventId: string) => void;
   /** Sport-aware noun for the empty-slot copy. Defaults to rowing wording. */
   competitorNoun?: string;
+  /** Single-race confidence: several picks share one race, so slots repeat that race. */
+  multiPerEvent?: boolean;
 }
 
-export function DraftPicksList({ picks, events, maxPicks, onRemove, competitorNoun = "crew" }: DraftPicksListProps) {
+export function DraftPicksList({ picks, events, maxPicks, onRemove, competitorNoun = "crew", multiPerEvent = false }: DraftPicksListProps) {
   const pickedEventIds = new Set(picks.map((p) => p.eventId));
   const allComplete = picks.length >= maxPicks;
 
@@ -62,18 +64,28 @@ export function DraftPicksList({ picks, events, maxPicks, onRemove, competitorNo
           );
         })}
 
-        {events
-          .filter((eventId) => !pickedEventIds.has(eventId))
-          .slice(0, maxPicks - picks.length)
-          .map((eventId) => (
-            <div
-              key={`empty-${eventId}`}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg border-2 border-dashed border-border text-sm text-muted-foreground"
-            >
-              <div className="w-8 h-8 rounded-full border-2 border-dashed border-border flex-shrink-0" />
-              <span>Select a {competitorNoun} for {eventId}</span>
-            </div>
-          ))}
+        {multiPerEvent
+          ? Array.from({ length: Math.max(0, maxPicks - picks.length) }).map((_, i) => (
+              <div
+                key={`empty-${events[0]}-${i}`}
+                className="flex items-center gap-3 px-3 py-2 rounded-lg border-2 border-dashed border-border text-sm text-muted-foreground"
+              >
+                <div className="w-8 h-8 rounded-full border-2 border-dashed border-border flex-shrink-0" />
+                <span>Select a {competitorNoun} for {events[0]} (#{picks.length + i + 1})</span>
+              </div>
+            ))
+          : events
+              .filter((eventId) => !pickedEventIds.has(eventId))
+              .slice(0, maxPicks - picks.length)
+              .map((eventId) => (
+                <div
+                  key={`empty-${eventId}`}
+                  className="flex items-center gap-3 px-3 py-2 rounded-lg border-2 border-dashed border-border text-sm text-muted-foreground"
+                >
+                  <div className="w-8 h-8 rounded-full border-2 border-dashed border-border flex-shrink-0" />
+                  <span>Select a {competitorNoun} for {eventId}</span>
+                </div>
+              ))}
       </div>
     </div>
   );
