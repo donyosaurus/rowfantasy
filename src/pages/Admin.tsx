@@ -910,8 +910,8 @@ const Admin = () => {
         ? Array.from(new Set(stageNames))
         : Array.from(new Set(createForm.crews.map(c => c.event_id)));
       const isConfidenceSingle = !!scoringConfig?.confidence && raceKeys.length === 1;
-      if (isGc && !isTierPick && raceKeys.length < 2) {
-        toast.error("GC / Stage Race contests need at least 2 distinct stages");
+      if (isGc && raceKeys.length < (isTierPick ? 1 : 2)) {
+        toast.error(isTierPick ? "Tier contests need at least 1 stage" : "GC / Stage Race contests need at least 2 distinct stages");
         return;
       }
 
