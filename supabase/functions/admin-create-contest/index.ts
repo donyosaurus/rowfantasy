@@ -263,7 +263,7 @@ Deno.serve(withFnVersion('admin-create-contest', async (req) => {
 
       if (
         v2.entryFeeCents > 0 && v2.races.length < 2 && !v2.rosterTiers &&
-        !(v2.scoringConfig?.confidence === true && v2.races.length === 1)
+        !((v2.scoringConfig as { confidence?: boolean } | undefined)?.confidence === true && v2.races.length === 1)
       ) {
         return new Response(JSON.stringify({ error: 'Paid contests require at least 2 races' }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
