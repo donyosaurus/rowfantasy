@@ -18,9 +18,11 @@ interface DraftPicksListProps {
   onRemove: (crewId: string, eventId: string) => void;
   /** Sport-aware noun for the empty-slot copy. Defaults to rowing wording. */
   competitorNoun?: string;
+  /** Single-race confidence: several picks share one race, so slots repeat that race. */
+  multiPerEvent?: boolean;
 }
 
-export function DraftPicksList({ picks, events, maxPicks, onRemove, competitorNoun = "crew" }: DraftPicksListProps) {
+export function DraftPicksList({ picks, events, maxPicks, onRemove, competitorNoun = "crew", multiPerEvent = false }: DraftPicksListProps) {
   const pickedEventIds = new Set(picks.map((p) => p.eventId));
   const allComplete = picks.length >= maxPicks;
 
