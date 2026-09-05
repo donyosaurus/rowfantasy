@@ -585,7 +585,7 @@ const RegattaDetail = () => {
   const isContestOpen = contestPool?.status === "open" && new Date(contestPool.lock_time) > new Date();
   const numDivisions = divisions.length;
   const isConfidenceSingle = isConfidence && numDivisions === 1;
-  const competitorsInSoleRace = isConfidenceSingle ? (crewsByDivision[divisions[0]]?.length ?? 0) : 0;
+  const competitorsInSoleRace = isConfidenceSingle ? new Set((crewsByDivision[divisions[0]] ?? []).map((c) => c.crew_id)).size : 0;
   // Podium Predictor: bounded by the number of distinct competitors in the sole race.
   const predictionCompetitorCount = isPrediction
     ? new Set((contestPool?.contest_pool_crews ?? []).map((c) => c.crew_id)).size
