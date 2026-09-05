@@ -166,15 +166,6 @@ export const CONTEST_TYPES: {
     rounds: true,
   },
   {
-    key: "podium_predictor",
-    label: "Podium Predictor",
-    subtitle: "Predict the exact podium order — free to play",
-    fixedRoster: true,
-    requiresEventClass: false,
-    freeOnly: true,
-    singleRace: true,
-  },
-  {
     key: "season_accumulator",
     label: "Season Accumulator",
     subtitle: "Score every round, no eliminations — highest season total wins",
